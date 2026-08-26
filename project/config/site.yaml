@@ -1,0 +1,32 @@
+site:
+  name: "Fotovoltaica UFSC / Florianopolis"
+  latitude: -27.5949
+  longitude: -48.5480
+  timezone: "America/Sao_Paulo"
+  altitude_m: 20.0
+
+pv:
+  height_m: 2.6
+  pitch_m: 12.0
+  row_width_m: 4.768
+  gcr: 0.3973333333
+  axis_azimuth_deg: 0.0
+  max_tilt_deg: 90.0
+  bifaciality: 0.7
+  albedo: 0.18
+
+crop:
+  crop_type: "lettuce"
+  dli_target_mol_m2_day: 14.0
+  dli_min_mol_m2_day: 10.0
+  dli_max_mol_m2_day: 18.0
+  co2_ppm_target: 420.0
+  temp_opt_c: 20.0
+  temp_low_c: 10.0
+  temp_high_c: 28.0
+
+tracker:
+  control_mode: "historical"
+  move_limit_deg_per_hour: 15.0
+  wind_stow_speed_ms: 15.0
+  fallback_tilt_deg: 15.0

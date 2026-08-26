@@ -1,0 +1,11 @@
+crop:
+  name: lettuce
+  dli_target_mol_m2_day: 14.0
+  dli_min_mol_m2_day: 10.0
+  dli_max_mol_m2_day: 18.0
+  preferred_time_window:
+    start: "09:00"
+    end: "16:00"
+  stress:
+    summer_heat_c: 28.0
+    spring_etiolation_cm: 30.5

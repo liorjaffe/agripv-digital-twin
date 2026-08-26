@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgriPV Control Lab</title>
+  <style>
+    :root { --ink:#172522; --muted:#65736d; --paper:#f4f1e8; --panel:#fffdf8; --line:#d7ddd5; --green:#286b52; --blue:#32718a; --gold:#d79a3e; --red:#c9634d; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font-family: Georgia, 'Times New Roman', serif; }
+    body:before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.2; background-image:radial-gradient(#829087 0.7px, transparent .7px); background-size:18px 18px; }
+    main { position:relative; max-width:1280px; margin:0 auto; padding:36px 24px 48px; }
+    header { display:flex; justify-content:space-between; gap:24px; align-items:end; margin-bottom:30px; }
+    .eyebrow { color:var(--green); text-transform:uppercase; letter-spacing:.13em; font:700 12px/1.2 Arial,sans-serif; }
+    h1 { margin:8px 0 0; font-size:clamp(34px,5vw,64px); line-height:.95; font-weight:500; max-width:720px; }
+    .subtitle { max-width:340px; color:var(--muted); font:15px/1.45 Arial,sans-serif; }
+    .layout { display:grid; grid-template-columns:340px 1fr; gap:18px; }
+    .panel { background:rgba(255,253,248,.9); border:1px solid var(--line); border-radius:7px; box-shadow:0 10px 28px rgba(30,53,45,.06); }
+    .controls { padding:22px; }
+    h2 { font-size:20px; margin:0 0 18px; font-weight:500; }
+    .control { padding:15px 0; border-top:1px solid var(--line); }
+    .control:first-of-type { border-top:0; padding-top:0; }
+    label { display:flex; justify-content:space-between; gap:12px; font:600 13px/1.3 Arial,sans-serif; }
+    output { color:var(--green); font-variant-numeric:tabular-nums; }
+    input[type=range] { width:100%; margin:13px 0 3px; accent-color:var(--green); cursor:pointer; }
+    .hint { color:var(--muted); font:12px/1.35 Arial,sans-serif; }
+    .section-label { margin:17px 0 7px; color:var(--blue); text-transform:uppercase; letter-spacing:.1em; font:700 10px Arial,sans-serif; }
+    .info { padding:14px 16px; background:#eef4f0; border-bottom:1px solid var(--line); font:12px/1.45 Arial,sans-serif; color:#40544b; }
+    .chart-copy { margin:5px 0 0; color:var(--muted); font:12px/1.4 Arial,sans-serif; }
+    .angle-box { display:grid; grid-template-columns:1fr auto; gap:14px; align-items:center; padding:17px 20px; background:#eef4f0; border:1px solid var(--line); border-radius:7px; }
+    .angle-box h2 { margin:0 0 4px; }
+    .angle-box p { margin:0; color:var(--muted); font:12px/1.4 Arial,sans-serif; }
+    .angle-input { display:flex; align-items:center; gap:6px; white-space:nowrap; font:600 13px Arial,sans-serif; }
+    .angle-input input { width:76px; padding:9px 7px; border:1px solid var(--line); border-radius:4px; color:var(--ink); font:16px Georgia,serif; }
+    table { width:100%; border-collapse:collapse; font:12px Arial,sans-serif; }
+    th, td { padding:9px 7px; border-top:1px solid var(--line); text-align:right; font-variant-numeric:tabular-nums; }
+    th:first-child, td:first-child { text-align:left; }
+    th { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
+    .positive { color:var(--green); } .negative { color:var(--red); }
+    .scene-panel { padding:19px 20px 14px; background:#edf3ef; }
+    .scene-tools { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; margin:10px 0 4px; font:12px Arial,sans-serif; }
+    .scene-tools label { display:flex; gap:8px; align-items:center; }
+    .scene-location { color:var(--muted); white-space:nowrap; }
+    select { padding:8px 9px; border:1px solid var(--line); border-radius:4px; background:white; color:var(--ink); }
+    #scene3d { display:block; width:100%; height:370px; background:linear-gradient(#dcebea,#f5f2e8); border:1px solid #cbd8d0; border-radius:5px; cursor:grab; touch-action:none; }
+    #scene3d:active { cursor:grabbing; }
+    .scene-readout { color:var(--muted); font:12px/1.45 Arial,sans-serif; }
+    .scene-help { color:var(--muted); font:11px Arial,sans-serif; }
+    .scene-legend { margin-top:8px; padding:8px 10px; border-top:1px solid #cbd8d0; color:var(--muted); font:11px/1.45 Arial,sans-serif; }
+    .module-control { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; padding:10px 0 4px; font:12px Arial,sans-serif; }
+    .module-control input[type=range] { min-width:180px; width:28vw; max-width:290px; margin:0; }
+    .module-control input[type=number] { width:68px; padding:7px; border:1px solid var(--line); border-radius:4px; }
+    button { border:1px solid var(--green); background:var(--green); color:white; padding:10px 13px; border-radius:5px; font:600 12px Arial,sans-serif; cursor:pointer; }
+    button.secondary { background:transparent; color:var(--green); margin-left:6px; }
+    .content { display:grid; gap:18px; }
+    .metrics { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+    .metric { padding:16px; min-height:92px; }
+    .metric .name { color:var(--muted); font:11px/1.2 Arial,sans-serif; text-transform:uppercase; letter-spacing:.08em; }
+    .metric .value { margin-top:8px; font-size:28px; font-variant-numeric:tabular-nums; }
+    .metric .change { margin-top:3px; color:var(--green); font:12px Arial,sans-serif; }
+    .chart-panel { padding:19px 20px 14px; }
+    .chart-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+    .chart-head h2 { margin:0; }
+    .legend { color:var(--muted); font:12px Arial,sans-serif; }
+    canvas { display:block; width:100%; height:255px; margin-top:12px; }
+    .note { padding:18px 20px; border-left:4px solid var(--gold); background:#fff9ec; font:14px/1.5 Arial,sans-serif; }
+    .note strong { color:#8b5b19; }
+    .footer { color:var(--muted); margin-top:22px; font:12px/1.5 Arial,sans-serif; }
+    @media (max-width:850px) { header { display:block; } .subtitle { margin-top:16px; } .layout { grid-template-columns:1fr; } .metrics { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width:480px) { main { padding:24px 14px 35px; } .metrics { gap:8px; } .metric { padding:12px; } .metric .value { font-size:23px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><div class="eyebrow">Fotovoltaica / UFSC · Florianópolis</div><h1>AgriPV Digital Twin Dashboard</h1></div>
+    <div class="subtitle">Eine interaktive Darstellung des Zusammenspiels von Sonnenstand, Trackerstellung, Pflanzenlicht, DLI und PV-Ertrag.</div>
+  </header>
+  <section class="panel scene-panel">
+    <div class="chart-head"><div><h2>3D-Szenario: zwei Trackerreihen und Beete</h2><p class="chart-copy">Die zwei Reihen verlaufen als Nord–Süd-Reihen. Jede Reihe hat zwei einfache Längsträger aus Stahl. Die Modulfläche liegt zwischen diesen beiden Trägern und dreht morgens nach Osten, mittags flach und abends nach Westen. Unter jeder Reihe liegt ein zugeordnetes Beet. Der dunkle Bereich markiert ausschließlich den realen Schattenwurf auf Boden und Beeten.</p></div></div>
+    <div class="scene-tools"><span class="scene-location">Standort: Florianópolis, Brasilien · 27,5949° S, 48,5480° W</span><label for="simDate">Datum <output id="simDateOut"></output></label><input id="simDate" type="date"><label for="sceneHour">Sonnenzeit <output id="sceneHourOut">12:00</output></label><input id="sceneHour" type="range" min="0" max="24" value="12" step="0.25"><button class="secondary" id="playSun">Sonnenlauf abspielen</button><label for="season">Schnellwahl</label><select id="season"><option value="summer">Sommersonnenwende</option><option value="equinox" selected>Äquinoktium</option><option value="winter">Wintersonnenwende</option></select><label><input id="trackerMove" type="checkbox" checked> Module mit Sonne bewegen</label><button id="applyRecommended">Offset auf 0° setzen</button><button id="setFlat">Module flach stellen (0°)</button><button class="secondary" id="rotateFieldLeft">Feld ↶</button><button class="secondary" id="rotateFieldRight">Feld ↷</button><button class="secondary" id="moveFieldUp">Ansicht ↑</button><button class="secondary" id="moveFieldDown">Ansicht ↓</button><button class="secondary" id="resetFieldView">Ansicht zurücksetzen</button></div>
+    <canvas id="scene3d" aria-label="3D-Simulation der Agrivoltaik-Anlage"></canvas>
+    <div class="scene-readout" id="sceneReadout">–</div>
+    <div class="scene-legend"><strong>Legende:</strong> grün = Beet und Pflanzen · mittleres Grau = sichtbare PV-Vorderseite · dunkles Grau = sichtbare PV-Rückseite · dunkelbraun = Bodenschatten der Module · gold = Sonne. Die Modulfarbe richtet sich nur nach der Blickrichtung: Die Vorderseite bleibt heller, die Rückseite bleibt dunkler, unabhängig von der Sonnenbeleuchtung. <strong>PV-Leistung:</strong> zwei Trackerreihen mit zusammen 108 kWp DC = 108.000 Wp, rechnerisch ca. 54 kWp = 54.000 Wp pro Reihe. <strong>PPFD</strong> bezeichnet das momentane Pflanzenlicht; <strong>DLI</strong> ist die über den Tag integrierte Lichtmenge.</div>
+    <div class="module-control"><strong>Manueller Offset zur automatischen Nachführung</strong><label for="scenePanelAngle">Offset</label><input id="scenePanelAngle" type="range" min="-90" max="90" value="0" step="1"><input id="scenePanelAngleNumber" type="number" min="-90" max="90" value="0" step="1"> ° <span>Die Python-Steuerung wählt genau so einen additiven Offset zur automatisch berechneten Backtracking-Grundstellung (siehe <code>project/scenarios/run_timeseries.py</code>, <code>tilt_offsets_deg</code>). Ab 15 m/s Wind wird der Offset ignoriert und 0° (Wind-Stow) erzwungen.</span></div>
+    <div class="chart-copy">Die Trackerrotation folgt derselben Backtracking-Formel wie <code>pvlib.tracking.singleaxis</code> (Achsazimut, GCR, Reihenhöhe und -abstand aus <code>project/config/site.yaml</code>) und vermeidet damit modulseitige Reihe-zu-Reihe-Verschattung von selbst. Der dunkle Bereich zeigt ausschließlich den effektiven Schattenwurf auf Boden und Beeten, berechnet aus echtem Sonnenstand und derselben Geometrie — nie einen Schatten auf den Modulen.</div>
+  </section>
+  <div class="layout">
+    <aside class="panel controls">
+      <h2>Was-wäre-wenn?</h2>
+      <div class="info">Alle Regler fließen in dieselben physikalischen Formeln wie die Python-Pipeline (Sonnenstand, Backtracking, Bodenverschattung, Erbs-Klarheitsindex, Van-Henten-Wachstum, PVWatts). „über Bestand“ beschreibt das Mikroklima oberhalb des Blätterdachs, „am Bestand“ die Bedingungen am Pflanzenstandort. Echte Sensordaten ersetzen diese Regler später 1:1 über <code>project/io/field_data.py</code>.</div>
+      <div class="section-label">Mikroklima</div>
+      <div class="control"><label for="tempAbove">Temperatur über Bestand <output id="tempAboveOut">24 °C</output></label><input id="tempAbove" type="range" min="12" max="40" value="24" step="1"><div class="hint">Umgebungstemperatur für das PV-Thermikmodell (Faiman) und die Refraktionskorrektur des Sonnenstands.</div></div>
+      <div class="control"><label for="tempCanopy">Temperatur am Bestand <output id="tempCanopyOut">25 °C</output></label><input id="tempCanopy" type="range" min="12" max="42" value="25" step="1"><div class="hint">Geht direkt als u_T in das Van-Henten-Wachstumsmodell und die VPD-Berechnung ein.</div></div>
+      <div class="control"><label for="rhAbove">Relative Feuchte über Bestand <output id="rhAboveOut">70 %</output></label><input id="rhAbove" type="range" min="20" max="100" value="70" step="1"><div class="hint">Derzeit nur zur Anzeige; VPD wird aus der Feuchte am Bestand berechnet.</div></div>
+      <div class="control"><label for="rhCanopy">Relative Feuchte am Bestand <output id="rhCanopyOut">75 %</output></label><input id="rhCanopy" type="range" min="20" max="100" value="75" step="1"><div class="hint">Hohe Feuchte senkt das Sättigungsdefizit (VPD); dauerhaft sehr hohe Feuchte ist pflanzenbaulich riskant.</div></div>
+      <div class="control"><label for="wind">Wind in Bestandshöhe <output id="windOut">2.0 m/s</output></label><input id="wind" type="range" min="0" max="20" value="2" step="0.5"><div class="hint">Kühlt die Module (Faiman-Modell); ab 15 m/s greift automatisch Wind-Stow (0°), genau wie <code>project/control/smoothing.py::apply_safety</code>.</div></div>
+      <div class="section-label">Himmel und Nachführung</div>
+      <div class="control"><label for="cloud">Bewölkung / Trübung <output id="cloudOut">15 %</output></label><input id="cloud" type="range" min="0" max="100" value="15" step="1"><div class="hint">Setzt den Clear-Sky-Index (0 = wolkenlos, 100 = stark bewölkt). GHI kommt aus dem Haurwitz-Klarhimmelmodell × Index; Direkt-/Diffusanteil aus dem Erbs-Modell — dieselbe Kette wie bei einer PAR-Sensor-Rekonstruktion ohne Pyranometer in <code>project/models/radiation.py</code>.</div></div>
+      <div class="control"><label for="pressure">Luftdruck <output id="pressureOut">1013 hPa</output></label><input id="pressure" type="range" min="960" max="1040" value="1013" step="1"><div class="hint">Nur für die Refraktionskorrektur des Sonnenstands (kleiner Effekt nahe dem Horizont).</div></div>
+      <div class="control"><label for="target">DLI-Ziel <output id="targetOut">14 mol</output></label><input id="target" type="range" min="6" max="24" value="14" step="0.5"><div class="hint">Tagesdosis: Integral der PPFD am Bestand über den ganzen Tag, wie <code>project.models.conversions.dli_from_timeseries</code>.</div></div>
+      <div class="control"><label for="tracker">Manueller Nachführ-Offset <output id="trackerOut">0 °</output></label><input id="tracker" type="range" min="-90" max="90" value="0" step="1"><div class="hint">Additiver Offset zur automatischen Backtracking-Grundstellung, wie <code>tilt_offsets_deg</code> in <code>project/scenarios/run_timeseries.py</code>. Bei Wind-Stow wirkungslos.</div></div>
+      <div style="margin-top:18px"><button id="reset">Zurücksetzen</button><button class="secondary" id="clear">Klare Referenz</button></div>
+    </aside>
+    <section class="content">
+      <div class="metrics">
+        <div class="panel metric"><div class="name">DLI Bestand bis jetzt</div><div class="value" id="dli">–</div><div class="change" id="dliChange">–</div></div>
+        <div class="panel metric"><div class="name">Trockenmasse</div><div class="value" id="biomass">–</div><div class="change" id="bioChange">–</div></div>
+        <div class="panel metric"><div class="name">PV-Energie</div><div class="value" id="pv">–</div><div class="change" id="pvChange">–</div></div>
+        <div class="panel metric"><div class="name">Lichtstatus</div><div class="value" id="status">–</div><div class="change" id="statusDetail">–</div></div>
+        <div class="panel metric"><div class="name">Modulwinkel</div><div class="value" id="moduleAngle">–</div><div class="change" id="angleRelation">–</div></div>
+      </div>
+      <div class="angle-box"><div><h2>Trackerwinkel direkt testen</h2><p>Der Offset-Regler wird zur automatisch berechneten Backtracking-Grundstellung addiert — genau wie <code>tilt_offsets_deg</code> in der Python-Steuerung. Vergleiche das Ergebnis sofort mit der Referenz (Offset 0°, wolkenloser Himmel).</p></div><div class="angle-input"><label for="trackerNumber">Offset</label><input id="trackerNumber" type="number" min="-90" max="90" step="1" value="0"> °</div></div>
+      <div class="panel chart-panel"><div class="chart-head"><h2>Licht über den Tag</h2><div class="legend"><span style="color:#286b52">●</span> Bestand &nbsp; <span style="color:#d79a3e">●</span> Referenz</div></div><p class="chart-copy">Berechneter PPFD am Bestand (Sonnenstand × Backtracking-Geometrie × Bodenverschattung). Die Fläche unter dieser Kurve wird zum DLI integriert. Das ist nicht dasselbe wie GHI über den Modulen.</p><canvas id="lightChart"></canvas></div>
+      <div class="panel chart-panel"><div class="chart-head"><h2>Biomasseverlauf</h2><div class="legend">Szenario gegenüber Referenz</div></div><p class="chart-copy">Exakte Van-Henten-Wachstumsgleichungen mit denselben Konstanten wie <code>project/models/lettuce.py</code>, per Euler-Schritt über den Tag integriert. Für belastbare Feldvorhersagen fehlt weiterhin die Kalibrierung der zwei freien Parameter an UFSC-Erntedaten.</p><canvas id="growthChart"></canvas></div>
+      <div class="panel chart-panel"><div class="chart-head"><h2>Klima am Bestand</h2><div class="legend">Temperatur und Feuchte</div></div><p class="chart-copy">VPD ist das Wasserdampfsättigungsdefizit in kPa. Es beschreibt trockene Verdunstungsbedingungen besser als relative Feuchte allein.</p><canvas id="climateChart"></canvas></div>
+      <div class="panel chart-panel"><div class="chart-head"><h2>Winkel × Wettereinfluss</h2><div class="legend">Änderung gegenüber Referenzwinkel 0°</div></div><p class="chart-copy">Jede Zeile hält den gewählten Trackerwinkel fest und verändert nur das Wetterszenario. So wird sichtbar, ob ein Winkel bei Wolken, Hitze oder Wind noch sinnvoll ist.</p><table><thead><tr><th>Wetterszenario</th><th>Winkel</th><th>DLI</th><th>Δ DLI</th><th>PV-Energie</th><th>Δ PV</th><th>Biomasse</th></tr></thead><tbody id="scenarioTable"></tbody></table></div>
+      <div class="note" id="insight"><strong>Beobachtung:</strong> Bewege einen Regler. Die Oberfläche rechnet die Wirkung sofort neu.</div>
+    </section>
+  </div>
+  <div class="footer">Interaktiver Sensitivitäts-Sandbox. Sonnenstand, Backtracking-Geometrie, Bodenverschattung, Klarhimmel/Erbs-Zerlegung, DLI-Integration und das Van-Henten-Wachstumsmodell sind direkte Portierungen derselben Formeln aus <code>project/models/radiation.py</code> und <code>project/models/lettuce.py</code>. Nur das PV-Ertragsmodell ist eine vereinfachte isotrope Transposition anstelle des vollen <code>pvlib.bifacial.infinite_sheds</code>-Modells, und reale Sensorwerte/kalibrierte Pflanzenparameter bleiben der Python-Pipeline vorbehalten.</div>
+</main>
+<script>
+  // ============================================================================
+  // Physical core. Every formula below is a direct port of the pvlib functions
+  // used in project/models/radiation.py and project/models/lettuce.py (see the
+  // comment above each block), so this sandbox reproduces the same numbers the
+  // Python pipeline would, not an independent illustration. Only the PV yield
+  // uses a simplified isotropic transposition instead of the full
+  // pvlib.bifacial.infinite_sheds model (noted where it is used).
+  // ============================================================================
+
+  // ---- Site & plant constants. site.yaml is documentation only (the Python
+  // code never parses it); these mirror the defaults actually wired in
+  // project/scenarios/run_timeseries.py and project/control/smoothing.py. ----
+  const SITE = { latitude: -27.5949, longitude: -48.5480, utcOffsetHours: -3, altitudeM: 20.0 };
+  const PV = { heightM: 2.6, pitchM: 12.0, gcr: 0.3973333333, axisAzimuthDeg: 0.0, maxTiltDeg: 90.0, bifaciality: 0.7, albedo: 0.18, pdc0W: 108000.0, gammaPdc: -0.004 };
+  const TRACKER = { windStowSpeedMs: 15.0, faimanU0: 25.0, faimanU1: 6.84 };
+  // Must match project/models/conversions.py exactly (PAR_FRACTION, PPFD_PER_PAR_WM2).
+  const PAR_FRACTION = 0.45;
+  const PPFD_PER_PAR_WM2 = 4.57;
+  // Must match project/models/lettuce.py's LettuceParams defaults exactly.
+  const LETTUCE = { cCh2o: 30/44, cYf: 0.8, cGrMax: 5e-6, cGamma: 1.1981, cQ10Gr: 1.6, cRespSht: 3.47e-7, cRespRt: 1.16e-7, cQ10Resp: 2.0, cTau: 0.15, cK: 0.9, cLar: 75e-3, cOmega: 1.83e-3, cGGamma: 40, cQ10GGamma: 2, cEpsilon: 17e-6, gBnd: 0.00071987, gStm: 0.005, cCar1: -1.32e-5, cCar2: 5.94e-4, cCar3: -2.64e-3 };
+
+  const DEG = Math.PI/180, RAD = 180/Math.PI;
+  const sind = d => Math.sin(d*DEG), cosd = d => Math.cos(d*DEG), tand = d => Math.tan(d*DEG);
+  const asind = x => Math.asin(Math.max(-1,Math.min(1,x)))*RAD;
+  const atan2d = (y,x) => Math.atan2(y,x)*RAD;
+  const mod = (a,n) => ((a%n)+n)%n;
+  const clamp = (x,lo,hi) => Math.max(lo, Math.min(hi, x));
+
+  function dayOfYearUTC(year, monthIndex0, day) {
+    return Math.floor((Date.UTC(year,monthIndex0,day) - Date.UTC(year,0,1)) / 86400000) + 1;
+  }
+  function utcDecHourAndDoy(year, monthIndex0, day, localHour, utcOffsetHours) {
+    let doy = dayOfYearUTC(year, monthIndex0, day);
+    let utcHour = localHour - utcOffsetHours;
+    if (utcHour >= 24) { utcHour -= 24; doy += 1; }
+    if (utcHour < 0) { utcHour += 24; doy -= 1; }
+    return { utcHour, doy };
+  }
+
+  // ---- Solar position: port of pvlib.solarposition.ephemeris (self-contained,
+  // no SPA lookup tables). Refraction correction uses measured pressure/temp,
+  // mirroring project/models/radiation.py::solar_position_and_clearsky. ----
+  function ephemeris(year, doy, utcDecHour, latitudeDeg, longitudeDeg, pressurePa, temperatureC) {
+    const Latitude = latitudeDeg, Longitude = -1*longitudeDeg;
+    const Abber = 20/3600, LatR = Latitude*DEG;
+    const UnivDate = doy, UnivHr = utcDecHour;
+    const Yr = year - 1900;
+    const YrBegin = 365*Yr + Math.floor((Yr-1)/4) - 0.5;
+    const Ezero = YrBegin + UnivDate;
+    const T = Ezero/36525;
+    let GMST0 = 6/24 + 38/1440 + (45.836 + 8640184.542*T + 0.0929*T*T)/86400;
+    GMST0 = 360*(GMST0 - Math.floor(GMST0));
+    const GMSTi = mod(GMST0 + 360*(1.0027379093*UnivHr/24), 360);
+    const LocAST = mod(360 + GMSTi - Longitude, 360);
+    const EpochDate = Ezero + UnivHr/24;
+    const T1 = EpochDate/36525;
+    const ObliquityR = (23.452294 - 0.0130125*T1 - 1.64e-6*T1*T1 + 5.03e-7*T1*T1*T1)*DEG;
+    const MlPerigee = 281.22083 + 4.70684e-5*EpochDate + 0.000453*T1*T1 + 3e-6*T1*T1*T1;
+    const MeanAnom = mod(358.47583 + 0.985600267*EpochDate - 0.00015*T1*T1 - 3e-6*T1*T1*T1, 360);
+    const Eccen = 0.01675104 - 4.18e-5*T1 - 1.26e-7*T1*T1;
+    let EccenAnom = MeanAnom, E = 0, guard = 0;
+    while (Math.abs(EccenAnom-E) > 0.0001 && guard < 100) { E = EccenAnom; EccenAnom = MeanAnom + Eccen*RAD*Math.sin(E*DEG); guard++; }
+    const TrueAnom = 2*mod(Math.atan(Math.sqrt((1+Eccen)/(1-Eccen)) * Math.tan(EccenAnom*DEG/2))*RAD, 360);
+    const EcLon = mod(MlPerigee+TrueAnom, 360) - Abber;
+    const EcLonR = EcLon*DEG;
+    const DecR = Math.asin(Math.sin(ObliquityR)*Math.sin(EcLonR));
+    const RtAscen = atan2d(Math.cos(ObliquityR)*Math.sin(EcLonR), Math.cos(EcLonR));
+    const HrAngle = LocAST - RtAscen;
+    const HrAngleR = HrAngle*DEG;
+    let SunAz = atan2d(-Math.sin(HrAngleR), Math.cos(LatR)*Math.tan(DecR) - Math.sin(LatR)*Math.cos(HrAngleR));
+    if (SunAz < 0) SunAz += 360;
+    const SunEl = Math.asin(Math.cos(LatR)*Math.cos(DecR)*Math.cos(HrAngleR) + Math.sin(LatR)*Math.sin(DecR))*RAD;
+    const TanEl = Math.tan(SunEl*DEG);
+    let Refract;
+    if (SunEl > 5 && SunEl <= 85) Refract = 58.1/TanEl - 0.07/Math.pow(TanEl,3) + 8.6e-5/Math.pow(TanEl,5);
+    else if (SunEl > -0.575 && SunEl <= 5) Refract = SunEl*(-518.2+SunEl*(103.4+SunEl*(-12.79+SunEl*0.711)))+1735;
+    else if (SunEl > -1 && SunEl <= -0.575) Refract = -20.774/TanEl;
+    else Refract = 0;
+    Refract *= (283/(273+temperatureC)) * (pressurePa/101325) / 3600;
+    const ApparentSunEl = SunEl + Refract;
+    return { elevation: SunEl, apparentElevation: ApparentSunEl, zenith: 90-SunEl, apparentZenith: 90-ApparentSunEl, azimuth: SunAz };
+  }
+
+  // ---- Extraterrestrial radiation (Spencer 1971), matches
+  // pvlib.irradiance.get_extra_radiation(method='spencer'). ----
+  function extraRadiationSpencer(doy) {
+    const B = 2*Math.PI*(doy-1)/365;
+    const RoverR0sqrd = 1.00011 + 0.034221*Math.cos(B) + 0.00128*Math.sin(B) + 0.000719*Math.cos(2*B) + 0.000077*Math.sin(2*B);
+    return 1366.1*RoverR0sqrd;
+  }
+  // ---- Haurwitz clear-sky GHI, matches pvlib.clearsky.haurwitz (needs apparent zenith). ----
+  function haurwitzGhiClear(apparentZenithDeg) {
+    const c = cosd(apparentZenithDeg);
+    return c > 0 ? 1098*c*Math.exp(-0.059/c) : 0;
+  }
+  // ---- Erbs decomposition, matches pvlib.irradiance.erbs (needs true zenith). ----
+  function erbsDecompose(ghi, trueZenithDeg, doy) {
+    const dniExtra = extraRadiationSpencer(doy);
+    const cosZenith = cosd(trueZenithDeg);
+    const i0h = dniExtra * Math.max(cosZenith, 0.065);
+    const kt = clamp(ghi / i0h, 0, 1);
+    let df;
+    if (kt <= 0.22) df = 1 - 0.09*kt;
+    else if (kt <= 0.8) df = 0.9511 - 0.1604*kt + 4.388*kt*kt - 16.638*kt*kt*kt + 12.336*kt*kt*kt*kt;
+    else df = 0.165;
+    let dhi = df*ghi;
+    let dni = (ghi-dhi) / Math.max(cosZenith, 1e-6);
+    if (trueZenithDeg > 87 || ghi < 0 || dni < 0) { dni = 0; dhi = ghi; }
+    return { dni: Math.max(dni,0), dhi: Math.max(dhi,0), kt };
+  }
+
+  // ---- Single-axis tracker with backtracking, matches
+  // pvlib.shading.projected_solar_zenith_angle (axis_tilt=0) + the backtracking
+  // correction in pvlib.tracking.singleaxis. Returns null at night (no defined
+  // tracker angle), same as pvlib returning NaN there. ----
+  function trueTrackingAngle(apparentZenithDeg, azimuthDeg, axisAzimuthDeg) {
+    const sx = sind(apparentZenithDeg)*sind(azimuthDeg);
+    const sy = sind(apparentZenithDeg)*cosd(azimuthDeg);
+    const sz = cosd(apparentZenithDeg);
+    const sxPrime = sx*cosd(axisAzimuthDeg) - sy*sind(axisAzimuthDeg);
+    return atan2d(sxPrime, sz); // axis_tilt=0 simplifies sz' to sz
+  }
+  function backtrackAngle(apparentZenithDeg, azimuthDeg, gcr, axisAzimuthDeg, maxAngleDeg) {
+    if (apparentZenithDeg > 90) return null;
+    const omegaIdeal = trueTrackingAngle(apparentZenithDeg, azimuthDeg, axisAzimuthDeg);
+    const temp = Math.abs(cosd(omegaIdeal)/gcr);
+    let theta = omegaIdeal;
+    if (temp < 1) theta = omegaIdeal - Math.sign(omegaIdeal)*Math.acos(temp)*RAD;
+    return clamp(theta, -maxAngleDeg, maxAngleDeg);
+  }
+  // ---- Tilt/azimuth from tracker rotation, matches pvlib.tracking.calc_surface_orientation. ----
+  function surfaceOrientation(trackerThetaDeg, axisAzimuthDeg, axisTiltDeg) {
+    const surfaceTilt = Math.acos(clamp(cosd(trackerThetaDeg)*cosd(axisTiltDeg), -1, 1))*RAD;
+    const sinSurfaceTilt = sind(surfaceTilt);
+    let azimuthDelta;
+    if (sinSurfaceTilt === 0) azimuthDelta = 90;
+    else {
+      azimuthDelta = asind(clamp(sind(trackerThetaDeg)/sinSurfaceTilt, -1, 1));
+      if (Math.abs(trackerThetaDeg) >= 90) azimuthDelta = -azimuthDelta + Math.sign(trackerThetaDeg)*180;
+    }
+    return { surfaceTilt, surfaceAzimuth: mod(axisAzimuthDeg+azimuthDelta, 360) };
+  }
+
+  // ---- Direct-beam ground shading fraction, matches
+  // pvlib.bifacial.utils._unshaded_ground_fraction. ----
+  function unshadedGroundFraction(surfaceTiltDeg, surfaceAzimuthDeg, apparentZenithDeg, azimuthDeg, gcr) {
+    if (apparentZenithDeg > 87) return 0;
+    const tanPhi = cosd(azimuthDeg-surfaceAzimuthDeg) * tand(apparentZenithDeg);
+    return 1 - Math.min(1, gcr*Math.abs(cosd(surfaceTiltDeg) + sind(surfaceTiltDeg)*tanPhi));
+  }
+  // ---- Diffuse sky view factor from the ground between rows, matches
+  // pvlib.bifacial.utils.vf_ground_sky_2d / vf_ground_sky_2d_integ (trapezoid
+  // integral over the ground strip between two rows). ----
+  function vfGroundSky2DAtX(rotationDeg, gcr, x, pitch, height, maxRows) {
+    const width = gcr*pitch/2, dy = width*sind(rotationDeg), dx = width*cosd(rotationDeg);
+    const angles = [];
+    for (let k=-maxRows; k<=maxRows; k++) {
+      const distanceToRowCenters = (k-x)*pitch;
+      const phi0 = Math.atan2(height+dy, distanceToRowCenters+dx);
+      const phi1 = Math.atan2(height-dy, distanceToRowCenters-dx);
+      angles.push([Math.min(phi0,phi1), Math.max(phi0,phi1)]);
+    }
+    let vf = 0;
+    for (let k=0; k<angles.length-1; k++) vf += Math.max(0, Math.cos(angles[k+1][1]) - Math.cos(angles[k][0]));
+    return vf/2;
+  }
+  function vfGroundSkyInteg(surfaceTiltDeg, gcr, height, pitch, npoints=25, maxRows=8) {
+    let integral = 0, prev = vfGroundSky2DAtX(surfaceTiltDeg, gcr, 0, pitch, height, maxRows);
+    for (let i=1; i<npoints; i++) {
+      const x = i/(npoints-1);
+      const value = vfGroundSky2DAtX(surfaceTiltDeg, gcr, x, pitch, height, maxRows);
+      integral += (prev+value)/2 * (1/(npoints-1));
+      prev = value;
+    }
+    return integral;
+  }
+  // ---- Crop-level ground irradiance, matches the crop_ghi formula in
+  // project/models/radiation.py::crop_and_pv_irradiance. ----
+  function cropGroundIrradiance(dni, dhi, apparentZenithDeg, azimuthDeg, surfaceTiltDeg, surfaceAzimuthDeg, gcr, height, pitch) {
+    const unshaded = unshadedGroundFraction(surfaceTiltDeg, surfaceAzimuthDeg, apparentZenithDeg, azimuthDeg, gcr);
+    const viewFactor = vfGroundSkyInteg(surfaceTiltDeg, gcr, height, pitch);
+    const cosine = Math.max(cosd(apparentZenithDeg), 0);
+    return Math.max(0, unshaded*dni*cosine + viewFactor*dhi);
+  }
+
+  // ---- PAR/PPFD conversions, must match project/models/conversions.py exactly. ----
+  const ghiToPar = ghi => ghi*PAR_FRACTION;
+  const parToPpfd = par => par*PPFD_PER_PAR_WM2;
+  const ghiToPpfd = ghi => parToPpfd(ghiToPar(ghi));
+
+  // ---- Simplified isotropic POA transposition + Faiman + PVWatts DC. This is
+  // NOT the full pvlib.bifacial.infinite_sheds model used in the Python
+  // pipeline (that needs a much larger view-factor computation on the module
+  // string itself); it is a standard, physically real, but simpler stand-in,
+  // labeled as such in the UI. Faiman/PVWatts constants match
+  // project/models/radiation.py::pvwatts_power exactly. ----
+  function poaIsotropic(dni, dhi, ghi, apparentZenithDeg, azimuthDeg, surfaceTiltDeg, surfaceAzimuthDeg, albedo) {
+    const cosAoi = cosd(apparentZenithDeg)*cosd(surfaceTiltDeg) + sind(apparentZenithDeg)*sind(surfaceTiltDeg)*cosd(azimuthDeg-surfaceAzimuthDeg);
+    const beam = Math.max(0, dni*cosAoi);
+    const skyDiffuse = dhi*(1+cosd(surfaceTiltDeg))/2;
+    const groundDiffuse = ghi*albedo*(1-cosd(surfaceTiltDeg))/2;
+    return Math.max(0, beam+skyDiffuse+groundDiffuse);
+  }
+  function faimanCellTemp(poa, tempAirC, windMs) { return tempAirC + poa/(TRACKER.faimanU0 + TRACKER.faimanU1*windMs); }
+  function pvwattsDc(poa, tempCellC) {
+    const pdc = PV.pdc0W * (poa/1000) * (1 + PV.gammaPdc*(tempCellC-25));
+    return clamp(pdc, 0, PV.pdc0W);
+  }
+
+  // ---- Van Henten lettuce growth model, exact port of project/models/lettuce.py. ----
+  function lettuceRhs(xSdw, xNsdw, uT, uPar, uCo2) {
+    const rGr = LETTUCE.cGrMax * (xNsdw/(LETTUCE.cGamma*xSdw+xNsdw)) * Math.pow(LETTUCE.cQ10Gr, (uT-20)/10);
+    const gamma = LETTUCE.cGGamma * Math.pow(LETTUCE.cQ10GGamma, (uT-20)/10);
+    const epsilon = LETTUCE.cEpsilon * ((uCo2-gamma)/(uCo2+2*gamma));
+    const gCar = LETTUCE.cCar1*uT*uT + LETTUCE.cCar2*uT + LETTUCE.cCar3;
+    const gCo2 = 1/((1/LETTUCE.gBnd)+(1/LETTUCE.gStm)+(1/gCar));
+    const fPhotMax = (epsilon*uPar*gCo2*LETTUCE.cOmega*(uCo2-gamma)) / (epsilon*uPar + gCo2*LETTUCE.cOmega*(uCo2-gamma));
+    const fPhot = (1-Math.exp(-LETTUCE.cK*LETTUCE.cLar*(1-LETTUCE.cTau)*xSdw)) * fPhotMax;
+    const fResp = (LETTUCE.cRespSht*(1-LETTUCE.cTau)*xSdw + LETTUCE.cRespRt*LETTUCE.cTau*xSdw) * Math.pow(LETTUCE.cQ10Resp, (uT-25)/10);
+    const dxSdw = rGr*xSdw;
+    const dxNsdw = LETTUCE.cCh2o*fPhot - rGr*xSdw - fResp - ((1-LETTUCE.cYf)/LETTUCE.cYf)*rGr*xSdw;
+    return [dxSdw, dxNsdw];
+  }
+
+  // ============================================================================
+  // Per-timestep and per-day model built from the physical core above.
+  // ============================================================================
+  function computeTimestep(values, year, monthIndex0, day, localHour) {
+    const { utcHour, doy } = utcDecHourAndDoy(year, monthIndex0, day, localHour, SITE.utcOffsetHours);
+    const sun = ephemeris(year, doy, utcHour, SITE.latitude, SITE.longitude, values.pressure*100, values.tempAbove);
+
+    const clearGhi = haurwitzGhiClear(sun.apparentZenith);
+    // The cloud slider stands in for a measured PAR sensor's clear-sky index
+    // (see estimate_ghi_dni_dhi_from_ppfd): 0% cloud -> clear-sky index ~0.78
+    // (a realistic clear-day peak, not 1.0), 100% -> ~0.08 (heavy overcast).
+    const clearSkyIndex = Math.max(0.05, 0.78 - 0.70*(values.cloud/100));
+    const ghi = Math.max(0, clearSkyIndex*clearGhi);
+    const decomposed = erbsDecompose(ghi, sun.zenith, doy);
+
+    const sunUp = sun.apparentZenith <= 90;
+    let autoTilt = backtrackAngle(sun.apparentZenith, sun.azimuth, PV.gcr, PV.axisAzimuthDeg, PV.maxTiltDeg);
+    if (autoTilt === null) autoTilt = 0;
+    const windStow = values.wind >= TRACKER.windStowSpeedMs;
+    const automaticTilt = clamp(autoTilt + values.offsetDeg, -PV.maxTiltDeg, PV.maxTiltDeg);
+    const finalTilt = windStow ? 0 : values.trackerMotion ? automaticTilt : clamp(frozenTilt === null ? automaticTilt : frozenTilt, -PV.maxTiltDeg, PV.maxTiltDeg);
+    const orientation = surfaceOrientation(finalTilt, PV.axisAzimuthDeg, 0);
+
+    const cropGhi = sunUp ? cropGroundIrradiance(decomposed.dni, decomposed.dhi, sun.apparentZenith, sun.azimuth, orientation.surfaceTilt, orientation.surfaceAzimuth, PV.gcr, PV.heightM, PV.pitchM) : 0;
+    const cropPpfd = ghiToPpfd(cropGhi);
+    const poa = sunUp ? poaIsotropic(decomposed.dni, decomposed.dhi, ghi, sun.apparentZenith, sun.azimuth, orientation.surfaceTilt, orientation.surfaceAzimuth, PV.albedo) : 0;
+    const cellTemp = faimanCellTemp(poa, values.tempAbove, values.wind);
+    const pvPowerW = pvwattsDc(poa, cellTemp);
+
+    return { sun, ghi, dni: decomposed.dni, dhi: decomposed.dhi, clearSkyIndex, autoTilt, finalTilt, windStow, cropGhi, cropPpfd, poa, cellTemp, pvPowerW, sunUp };
+  }
+
+  function buildDaySeries(values, dateParts) {
+    const hours = Array.from({length:25}, (_,i)=>i);
+    const points = hours.map(h => computeTimestep(values, dateParts.year, dateParts.monthIndex0, dateParts.day, h));
+    let xSdw = 8.0, xNsdw = 3.0;
+    const growth = [xSdw+xNsdw];
+    for (let i=1; i<points.length; i++) {
+      const uPar = points[i-1].cropGhi * PAR_FRACTION; // matches run_timeseries_pipeline: crop_ghi_w_m2 * 0.45
+      const [dxSdw, dxNsdw] = lettuceRhs(xSdw, xNsdw, values.tempCanopy, uPar, 420.0);
+      xSdw = Math.max(0, xSdw + dxSdw*3600);
+      xNsdw = Math.max(0, xNsdw + dxNsdw*3600);
+      growth.push(xSdw+xNsdw);
+    }
+    let dli = 0, pvEnergyWh = 0;
+    for (let i=0; i<24; i++) { dli += Math.max(0,points[i].cropPpfd)*3600/1e6; pvEnergyWh += points[i].pvPowerW; }
+    return { hours, points, growth, dli, pvEnergyKwh: pvEnergyWh/1000 };
+  }
+
+  function findSunriseSunset(values, dateParts) {
+    let sunrise = null, sunset = null, previousHour = 0, previousElevation = null;
+    const stepHours = 1/12;
+    for (let h=0; h<=24; h+=stepHours) {
+      const { utcHour, doy } = utcDecHourAndDoy(dateParts.year, dateParts.monthIndex0, dateParts.day, h, SITE.utcOffsetHours);
+      const sun = ephemeris(dateParts.year, doy, utcHour, SITE.latitude, SITE.longitude, values.pressure*100, values.tempAbove);
+      const elevation = sun.apparentElevation;
+      if (previousElevation !== null) {
+        const crossingFraction = Math.abs(previousElevation) / Math.max(Math.abs(elevation-previousElevation), 1e-9);
+        const crossingHour = previousHour + stepHours*clamp(crossingFraction, 0, 1);
+        if (previousElevation <= 0 && elevation > 0 && sunrise === null) sunrise = crossingHour;
+        if (previousElevation > 0 && elevation <= 0 && sunset === null) sunset = crossingHour;
+      }
+      previousHour = h;
+      previousElevation = elevation;
+    }
+    return { sunrise, sunset };
+  }
+
+  // ============================================================================
+  // UI wiring.
+  // ============================================================================
+  const ids = ['tempAbove','tempCanopy','rhAbove','rhCanopy','wind','cloud','pressure','target','tracker'];
+  const $ = id => document.getElementById(id);
+  const sceneView = { rotation: 0, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0 };
+  let frozenTilt = null;
+  const defaults = { tempAbove:24, tempCanopy:25, rhAbove:70, rhCanopy:75, wind:2, cloud:15, pressure:1013, target:14, tracker:0 };
+
+  function currentDateParts() {
+    const [year, month, day] = $('simDate').value.split('-').map(Number);
+    return { year, monthIndex0: month-1, day };
+  }
+  function seasonToDateValue(season) {
+    const year = new Date().getFullYear();
+    if (season === 'summer') return `${year}-12-21`;
+    if (season === 'winter') return `${year}-06-21`;
+    return `${year}-09-22`;
+  }
+  function syncSeasonFromDate() {
+    const date = $('simDate').value;
+    const year = date.slice(0, 4);
+    const seasonalDates = {
+      [`${year}-12-21`]: 'summer',
+      [`${year}-06-21`]: 'winter',
+      [`${year}-09-22`]: 'equinox',
+    };
+    $('season').value = seasonalDates[date] || 'custom';
+  }
+  if (!$('simDate').value) $('simDate').value = new Date().toISOString().slice(0,10);
+  $('season').add(new Option('Eigenes Datum', 'custom'));
+  syncSeasonFromDate();
+
+  ids.filter(id => id !== 'tracker').forEach(id => $(id).addEventListener('input', update));
+  $('simDate').addEventListener('input', () => { syncSeasonFromDate(); update(); });
+  $('trackerMove').addEventListener('change', () => {
+    if ($('trackerMove').checked) {
+      frozenTilt = null;
+    } else {
+      const v = readValues();
+      v.trackerMotion = true;
+      const dateParts = currentDateParts();
+      frozenTilt = computeTimestep(v, dateParts.year, dateParts.monthIndex0, dateParts.day, Number($('sceneHour').value)).finalTilt;
+    }
+    update();
+  });
+  $('tracker').addEventListener('input', update);
+  $('trackerNumber').addEventListener('input', () => { $('tracker').value = clamp(Number($('trackerNumber').value)||0, -90, 90); update(); });
+  function setManualOffset(value) {
+    const angle = clamp(Number(value)||0, -90, 90);
+    $('tracker').value = angle; $('scenePanelAngle').value = angle; $('scenePanelAngleNumber').value = angle;
+    if (!$('trackerMove').checked) {
+      const v = readValues(); v.trackerMotion = true;
+      const dateParts = currentDateParts();
+      frozenTilt = computeTimestep(v, dateParts.year, dateParts.monthIndex0, dateParts.day, Number($('sceneHour').value)).finalTilt;
+    }
+    update();
+  }
+  $('scenePanelAngle').addEventListener('input', event => setManualOffset(event.target.value));
+  $('scenePanelAngleNumber').addEventListener('input', event => setManualOffset(event.target.value));
+  $('sceneHour').addEventListener('input', update);
+  $('setFlat').addEventListener('click', () => {
+    $('trackerMove').checked = false;
+    frozenTilt = 0;
+    $('tracker').value = 0;
+    $('scenePanelAngle').value = 0;
+    $('scenePanelAngleNumber').value = 0;
+    update();
+  });
+  let sunTimer = null;
+  $('playSun').addEventListener('click', () => { if (sunTimer !== null) { clearInterval(sunTimer); sunTimer = null; $('playSun').textContent = 'Sonnenlauf abspielen'; return; } $('playSun').textContent = 'Sonnenlauf anhalten'; sunTimer = setInterval(() => { const next = Number($('sceneHour').value)+.25; $('sceneHour').value = next>24?0:next; update(); }, 120); });
+  let viewMoveTimer = null;
+  function stopViewMove() { if (viewMoveTimer !== null) { clearInterval(viewMoveTimer); viewMoveTimer = null; } }
+  function startViewMove(direction) { stopViewMove(); const move = () => { sceneView.panY += direction*8; update(); }; move(); viewMoveTimer = setInterval(move, 60); }
+  $('moveFieldUp').addEventListener('pointerdown', event => { event.preventDefault(); startViewMove(-1); });
+  $('moveFieldDown').addEventListener('pointerdown', event => { event.preventDefault(); startViewMove(1); });
+  ['pointerup','pointerleave','pointercancel'].forEach(name => { $('moveFieldUp').addEventListener(name, stopViewMove); $('moveFieldDown').addEventListener(name, stopViewMove); });
+  $('season').addEventListener('change', () => { if ($('season').value !== 'custom') $('simDate').value = seasonToDateValue($('season').value); update(); });
+  $('applyRecommended').addEventListener('click', () => { $('trackerMove').checked = true; frozenTilt = null; setManualOffset(0); });
+  let rotationTimer = null;
+  function stopFieldRotation() { if (rotationTimer !== null) { clearInterval(rotationTimer); rotationTimer = null; } }
+  function startFieldRotation(direction) { stopFieldRotation(); sceneView.rotation += direction*Math.PI/180; update(); rotationTimer = setInterval(() => { sceneView.rotation += direction*Math.PI/180; update(); }, 70); }
+  $('rotateFieldLeft').addEventListener('pointerdown', event => { event.preventDefault(); startFieldRotation(-1); });
+  $('rotateFieldRight').addEventListener('pointerdown', event => { event.preventDefault(); startFieldRotation(1); });
+  ['pointerup','pointerleave','pointercancel'].forEach(name => { $('rotateFieldLeft').addEventListener(name, stopFieldRotation); $('rotateFieldRight').addEventListener(name, stopFieldRotation); });
+  $('resetFieldView').addEventListener('click', () => { sceneView.rotation=0; sceneView.zoom=1; sceneView.panX=0; sceneView.panY=0; update(); });
+  $('scene3d').addEventListener('wheel', event => { event.preventDefault(); sceneView.zoom = Math.max(.65,Math.min(1.8,sceneView.zoom*(event.deltaY<0?1.08:.92))); update(); }, {passive:false});
+  $('scene3d').addEventListener('pointerdown', event => { sceneView.dragging=true; sceneView.lastX=event.clientX; sceneView.lastY=event.clientY; $('scene3d').setPointerCapture(event.pointerId); });
+  $('scene3d').addEventListener('pointermove', event => { if (!sceneView.dragging) return; const dx=event.clientX-sceneView.lastX; if (event.shiftKey) sceneView.rotation += dx*.01; else { sceneView.panX += dx; sceneView.panY += event.clientY-sceneView.lastY; } sceneView.lastX=event.clientX; sceneView.lastY=event.clientY; update(); });
+  $('scene3d').addEventListener('pointerup', event => { sceneView.dragging=false; $('scene3d').releasePointerCapture(event.pointerId); });
+  $('scene3d').addEventListener('pointercancel', () => { sceneView.dragging=false; });
+  $('reset').onclick = () => { ids.forEach(id => $(id).value = defaults[id]); $('trackerMove').checked = true; frozenTilt = null; $('simDate').value = new Date().toISOString().slice(0,10); syncSeasonFromDate(); update(); };
+  $('clear').onclick = () => { $('tempAbove').value=24; $('tempCanopy').value=24; $('rhAbove').value=65; $('rhCanopy').value=70; $('wind').value=2; $('cloud').value=0; $('pressure').value=1013; $('target').value=14; $('tracker').value=0; update(); };
+
+  function readValues() {
+    const v = Object.fromEntries(ids.map(id => [id, Number($(id).value)]));
+    v.offsetDeg = v.tracker;
+    v.trackerMotion = $('trackerMove').checked;
+    return v;
+  }
+  function updateLabels(v) {
+    $('tempAboveOut').value = v.tempAbove+' °C'; $('tempCanopyOut').value = v.tempCanopy+' °C';
+    $('rhAboveOut').value = v.rhAbove+' %'; $('rhCanopyOut').value = v.rhCanopy+' %';
+    $('windOut').value = v.wind.toFixed(1)+' m/s'; $('cloudOut').value = v.cloud+' %'; $('pressureOut').value = v.pressure+' hPa';
+    $('targetOut').value = v.target+' mol'; $('trackerOut').value = (v.tracker>=0?'+':'')+v.tracker+' °';
+    $('trackerNumber').value = v.tracker; $('scenePanelAngle').value = v.tracker; $('scenePanelAngleNumber').value = v.tracker;
+  }
+  function ref(x) { return Math.max(x, 0.001); }
+  function formatHour(hour) { const h=Math.floor(hour), m=Math.round((hour-h)*60); return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+  function saturationKpa(temp) { return 0.6108*Math.exp(17.27*temp/(temp+237.3)); }
+  function cumulativeDli(points, hour) {
+    const boundedHour = clamp(hour, 0, 24);
+    const wholeHours = Math.floor(boundedHour);
+    let dli = 0;
+    for (let index=0; index<wholeHours; index++) {
+      dli += (Math.max(0, points[index].cropPpfd) + Math.max(0, points[index+1].cropPpfd)) * 1800 / 1e6;
+    }
+    if (wholeHours < 24) {
+      const fraction = boundedHour - wholeHours;
+      const currentPpfd = points[wholeHours].cropPpfd + fraction * (points[wholeHours+1].cropPpfd - points[wholeHours].cropPpfd);
+      dli += (Math.max(0, points[wholeHours].cropPpfd) + Math.max(0, currentPpfd)) * fraction * 1800 / 1e6;
+    }
+    return dli;
+  }
+
+  function update() {
+    if (!$('simDate').value) $('simDate').value = new Date().toISOString().slice(0,10);
+    const dateParts = currentDateParts();
+    $('simDateOut').value = $('simDate').value;
+    const v = readValues();
+    updateLabels(v);
+
+    const day = buildDaySeries(v, dateParts);
+    const reference = buildDaySeries({...v, cloud:0, offsetDeg:0}, dateParts);
+    const dliDiff = day.dli - reference.dli, pvDiff = day.pvEnergyKwh - reference.pvEnergyKwh;
+    const vpd = Math.max(0, saturationKpa(v.tempCanopy)*(1-v.rhCanopy/100));
+
+    const currentHour = Number($('sceneHour').value);
+    const currentDli = cumulativeDli(day.points, currentHour);
+    const referenceDliToNow = cumulativeDli(reference.points, currentHour);
+    $('dli').textContent = currentDli.toFixed(1)+' mol';
+    $('dliChange').textContent = (currentDli-referenceDliToNow>=0?'+':'')+(currentDli-referenceDliToNow).toFixed(1)+' vs Referenz bis '+formatHour(currentHour);
+    $('biomass').textContent = day.growth.at(-1).toFixed(2)+' g/m²';
+    $('bioChange').textContent = ((day.growth.at(-1)-reference.growth.at(-1))/ref(reference.growth.at(-1))*100).toFixed(1)+' % vs Referenz';
+    $('pv').textContent = day.pvEnergyKwh.toFixed(1)+' kWh (108 kWp Anlage)';
+    $('pvChange').textContent = (pvDiff/ref(reference.pvEnergyKwh)*100).toFixed(1)+' % vs Referenz';
+
+    const anyStow = day.points.some(p => p.windStow);
+    const status = anyStow ? 'Wind-Stow' : day.dli<v.target*.9 ? 'Lichtmangel' : day.dli>v.target*1.2 ? 'zu viel Licht' : 'im Korridor';
+    $('status').textContent = status;
+    $('statusDetail').textContent = 'Ziel '+v.target.toFixed(1)+' mol/m²/Tag · VPD '+vpd.toFixed(2)+' kPa';
+
+    const now = computeTimestep(v, dateParts.year, dateParts.monthIndex0, dateParts.day, currentHour);
+    $('moduleAngle').textContent = (now.finalTilt>=0?'+':'')+now.finalTilt.toFixed(0)+'°';
+    $('angleRelation').textContent = 'Automatik '+(now.autoTilt>=0?'+':'')+now.autoTilt.toFixed(0)+'° · Offset '+(v.offsetDeg>=0?'+':'')+v.offsetDeg+'° · '+(now.windStow?'Wind-Stow aktiv':v.trackerMotion?'normal':'Tracker fixiert');
+
+    $('insight').innerHTML = '<strong>Beobachtung:</strong> '+insight(v, day, dliDiff, pvDiff, anyStow);
+    draw('lightChart', day.hours, day.points.map(p=>p.cropPpfd), reference.points.map(p=>p.cropPpfd), 'PPFD (µmol/m²/s)', '#286b52', '#d79a3e');
+    draw('growthChart', day.hours, day.growth, reference.growth, 'g/m²', '#286b52', '#d79a3e');
+    draw('climateChart', day.hours, day.hours.map(()=>v.tempCanopy), day.hours.map(()=>vpd*10), '°C / VPD×10', '#c9634d', '#32718a');
+    updateScenarioTable(v, dateParts, reference);
+
+    const sunTimes = findSunriseSunset(v, dateParts);
+    const dayLengthText = (sunTimes.sunrise!==null && sunTimes.sunset!==null) ? ('Tageslicht '+formatHour(sunTimes.sunrise)+'–'+formatHour(sunTimes.sunset)+' ('+(sunTimes.sunset-sunTimes.sunrise).toFixed(1)+' h)') : 'Polarnacht/-tag an diesem Datum';
+    $('sceneHourOut').value = formatHour(Number($('sceneHour').value));
+    drawScene(v, dateParts, now);
+    $('sceneReadout').textContent = 'Sonnenstand: Elevation '+now.sun.apparentElevation.toFixed(1)+'° · Azimut '+now.sun.azimuth.toFixed(0)+'° · PPFD '+now.cropPpfd.toFixed(0)+' µmol/m²/s · PV '+(now.pvPowerW/1000).toFixed(1)+' kW · Winkel '+(now.finalTilt>=0?'+':'')+now.finalTilt.toFixed(0)+'° ('+(now.windStow?'Wind-Stow':v.trackerMotion?'Automatik'+(v.offsetDeg?  ' + Offset':''):'Tracker fixiert')+') · '+dayLengthText;
+  }
+
+  function insight(v, day, d, p, anyStow) {
+    if (anyStow) return 'Wind-Stow ist an mindestens einer Tagesstunde aktiv (Wind ≥ 15 m/s): Sicherheit hat Vorrang vor Licht- und PV-Optimierung, der Offset-Regler wird dabei ignoriert.';
+    if (v.tempCanopy>30 && v.rhCanopy<55) return 'Hohe Bestandstemperatur und niedrige Feuchte ergeben ein hohes VPD. Ein negativer Offset (mehr Mittagsabschattung) reduziert die Einstrahlung, ersetzt aber keine Bewässerungs- oder Lüftungsentscheidung.';
+    if (v.cloud>60) return 'Die Bewölkung senkt den Klarheitsindex und damit GHI/DNI deutlich; der Diffusanteil (aus dem Erbs-Modell) bleibt wirksam, aber kein Trackerwinkel kann fehlende Photonen erzeugen.';
+    if (day.dli<v.target*.9) return 'Der Bestand liegt unter dem DLI-Ziel. Prüfe zuerst Bewölkung und Datum/Jahreszeit (Sonnenhöhe); ein Offset kann nur vorhandenes Licht umverteilen, nicht vermehren.';
+    if (day.dli>v.target*1.2) return 'Die DLI-Dosis liegt deutlich über dem Ziel. Bei hoher Bestandstemperatur oder hohem VPD kann ein negativer Offset (mehr Mittagsschattierung) sinnvoll sein.';
+    return 'Die Dosis liegt nahe am Ziel. Der automatische Backtracking-Winkel vermeidet bereits Reihe-zu-Reihe-Verschattung der Module; der Offset-Regler verschiebt nur, wie viel Licht zusätzlich auf den Boden statt auf die Module fällt.';
+  }
+
+  function updateScenarioTable(v, dateParts, reference) {
+    const scenarios = [
+      ['Heißer, trockener Tag', {...v, tempAbove:34, tempCanopy:34, rhAbove:45, rhCanopy:40, cloud:0}],
+      ['Mild / sonnig', {...v, cloud:0}],
+      ['Bewölkter Mittag', {...v, cloud:80}],
+      ['Aktuelles Wetter', v],
+      ['Starker Wind', {...v, wind:16}],
+    ];
+    const rows = scenarios.map(([name, values]) => {
+      const s = buildDaySeries(values, dateParts);
+      const d = s.dli - reference.dli, p = (s.pvEnergyKwh - reference.pvEnergyKwh)/ref(reference.pvEnergyKwh)*100;
+      const cls = x => x>=0 ? 'positive' : 'negative';
+      const suffix = x => (x>=0?'+':'')+x.toFixed(1);
+      return '<tr><td>'+name+'</td><td>'+((values.offsetDeg>=0?'+':'')+values.offsetDeg)+' °</td><td>'+s.dli.toFixed(1)+'</td><td class="'+cls(d)+'">'+suffix(d)+'</td><td>'+s.pvEnergyKwh.toFixed(1)+'</td><td class="'+cls(p)+'">'+suffix(p)+' %</td><td>'+s.growth.at(-1).toFixed(2)+'</td></tr>';
+    }).join('');
+    $('scenarioTable').innerHTML = rows;
+  }
+
+  // ============================================================================
+  // 3D scene rendering. Geometry/camera code is unchanged; sun placement and
+  // panel tilt now come from the real ephemeris/backtracking computation above.
+  // ============================================================================
+  function drawScene(v, dateParts, now) {
+    const canvas = $('scene3d'), dpr = devicePixelRatio||1, w = canvas.clientWidth, h = 370;
+    canvas.width = w*dpr; canvas.height = h*dpr;
+    const ctx = canvas.getContext('2d'); ctx.scale(dpr,dpr); ctx.clearRect(0,0,w,h);
+    const ox = w*.5+sceneView.panX, oy = h*.75+sceneView.panY;
+    const scale = Math.min(w/18, h/9)*sceneView.zoom;
+    const viewCos = Math.cos(sceneView.rotation), viewSin = Math.sin(sceneView.rotation);
+    const project = (x,y,z) => { const rx=x*viewCos-y*viewSin, ry=x*viewSin+y*viewCos; return [ox+(rx-ry)*scale*.7, oy+(rx+ry)*scale*.25-z*scale]; };
+    const p = (x,y,z) => project(x,y,z), sky = (x,y,z) => project(x,y,z);
+
+    // Real compass direction: N=0°(-y/"up"), E=90°(+x/"right"), S=180°(+y), W=270°(-x).
+    const elevRad = Math.max(0, now.sun.apparentElevation)*DEG, azRad = now.sun.azimuth*DEG;
+    const sunDirX = Math.cos(elevRad)*Math.sin(azRad), sunDirY = -Math.cos(elevRad)*Math.cos(azRad), sunDirZ = Math.sin(elevRad);
+    // Horizontal reach and vertical rise are tuned to stay within the stylized
+    // canvas/projection below (which is itself non-isometric); only the true
+    // compass direction (sunDirX/Y/Z, scaled identically for x and y) matters
+    // physically, the two scale constants are cosmetic.
+    const sunHorizontal = 10, sunRise = 5;
+    const sunX = sunDirX*sunHorizontal, sunY = sunDirY*sunHorizontal, sunZ = 2 + sunDirZ*sunRise;
+
+    ctx.fillStyle='#b9d7a8'; ctx.beginPath(); [[-9,-8,0],[9,-8,0],[9,8,0],[-9,8,0]].forEach((q,i)=>i?ctx.lineTo(...p(...q)):ctx.moveTo(...p(...q))); ctx.closePath(); ctx.fill(); ctx.strokeStyle='#91b493'; ctx.lineWidth=1; ctx.stroke();
+    const bedRows=[-1.7,1.7];
+    const tilt = now.finalTilt*DEG, panelWidth=1.1, panelRise=-Math.sin(tilt)*1.15;
+    for (const row of bedRows) { ctx.fillStyle='#71a765'; ctx.beginPath(); ctx.moveTo(...p(row-.55,-6,.03)); ctx.lineTo(...p(row+.55,-6,.03)); ctx.lineTo(...p(row+.55,6,.03)); ctx.lineTo(...p(row-.55,6,.03)); ctx.closePath(); ctx.fill(); ctx.fillStyle='#3e7d54'; for (let plant=-5.2; plant<=5.2; plant+=.8) { const pt=p(row,plant,.12); ctx.beginPath(); ctx.arc(pt[0],pt[1],3,0,Math.PI*2); ctx.fill(); } }
+
+    if (now.sunUp && sunDirZ > 0) {
+      const projectToGround = (x,y,z) => p(x - sunDirX*z/sunDirZ, y - sunDirY*z/sunDirZ, 0);
+      const visibleShadowHalfLength = 5.2 * 1.08;
+      ctx.fillStyle='rgba(110,70,60,.34)';
+      for (const row of bedRows) {
+        const frontRow=row-panelWidth*.5, backRow=row+panelWidth*.5;
+        const corners = [
+          projectToGround(frontRow, -visibleShadowHalfLength, 2.8),
+          projectToGround(frontRow, visibleShadowHalfLength, 2.8),
+          projectToGround(backRow, visibleShadowHalfLength, 2.8+panelRise),
+          projectToGround(backRow, -visibleShadowHalfLength, 2.8+panelRise),
+        ];
+        ctx.beginPath(); corners.forEach((point,index)=>index?ctx.lineTo(...point):ctx.moveTo(...point)); ctx.closePath(); ctx.fill();
+      }
+    }
+
+    for (const row of bedRows) {
+      const frontRow=row-panelWidth*.5, backRow=row+panelWidth*.5;
+      const left=p(frontRow,-5.2,2.8), right=p(frontRow,5.2,2.8), panelBackLeft=p(backRow,-5.2,2.8+panelRise), panelBackRight=p(backRow,5.2,2.8+panelRise);
+      const carrierRows=[frontRow,row,backRow]; ctx.strokeStyle='#596963'; ctx.lineWidth=4;
+      for (const carrierRow of carrierRows) { const carrierZ=2.8+(carrierRow-frontRow)/panelWidth*panelRise; ctx.beginPath(); ctx.moveTo(...p(carrierRow,-5.2,carrierZ)); ctx.lineTo(...p(carrierRow,5.2,carrierZ)); ctx.stroke(); }
+      ctx.strokeStyle='#596963'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(...p(frontRow,0,2.8)); ctx.lineTo(...p(backRow,0,2.8+panelRise)); ctx.stroke();
+      ctx.strokeStyle='#4b625d'; ctx.lineWidth=4; for (const end of [-5.2,5.2]) { ctx.beginPath(); ctx.moveTo(...p(row,end,0)); ctx.lineTo(...p(row,end,2.8+panelRise*.5)); ctx.stroke(); }
+      const panelCorners = [left, right, panelBackRight, panelBackLeft];
+      const cameraX = Math.cos(sceneView.rotation) + Math.sin(sceneView.rotation);
+      const cameraZ = 2.0;
+      const panelNormalX = Math.sin(tilt);
+      const panelNormalZ = Math.cos(tilt);
+      const frontIsVisible = panelNormalX*cameraX + panelNormalZ*cameraZ > 0;
+      ctx.fillStyle=frontIsVisible?'#b8c2c0':'#4c5756';
+      ctx.beginPath(); panelCorners.forEach((point,index)=>index?ctx.lineTo(...point):ctx.moveTo(...point)); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='#293534'; ctx.lineWidth=2; ctx.stroke();
+      ctx.strokeStyle='#65877a'; ctx.lineWidth=1; for (let module=-4.7; module<=4.7; module+=1.2) { ctx.beginPath(); ctx.moveTo(...p(frontRow,module,2.8)); ctx.lineTo(...p(backRow,module,2.8+panelRise)); ctx.stroke(); }
+    }
+
+    if (now.sunUp) {
+      const sun = sky(sunX,sunY,sunZ);
+      ctx.fillStyle = now.clearSkyIndex<0.4 ? '#a9b8b4' : '#d79a3e';
+      ctx.beginPath(); ctx.arc(sun[0],sun[1],12,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#d79a3e'; ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(...sun); ctx.lineTo(...p(0,0,0)); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='#40544b'; ctx.font='12px Arial'; ctx.fillText('Sonne '+formatHour(Number($('sceneHour').value)), sun[0]-35, sun[1]-18);
+    } else {
+      ctx.fillStyle='#65736d'; ctx.font='12px Arial'; ctx.fillText('Sonne unter Horizont', w-170, h-30);
+    }
+    drawCompass(ctx, w, h);
+  }
+  function drawCompass(ctx, w, h) {
+    const cx=w-54, cy=47, radius=24, boxX=w-92, boxY=12;
+    ctx.fillStyle='rgba(255,253,248,.94)'; ctx.fillRect(boxX,boxY,78,72); ctx.strokeStyle='#b8c8be'; ctx.strokeRect(boxX,boxY,78,72);
+    ctx.strokeStyle='#82978c'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(cx,cy-radius); ctx.lineTo(cx,cy+radius); ctx.moveTo(cx-radius,cy); ctx.lineTo(cx+radius,cy); ctx.stroke();
+    const directions=[['N',-Math.PI/2],['E',0],['S',Math.PI/2],['W',Math.PI]];
+    ctx.fillStyle='#40544b'; ctx.font='700 13px Arial'; ctx.textAlign='center';
+    for (const [label,angle] of directions) { const rotated=angle+sceneView.rotation; ctx.fillText(label, cx+Math.cos(rotated)*radius, cy+Math.sin(rotated)*radius+4); }
+    ctx.textAlign='left';
+  }
+
+  function draw(id, x, a, b, label, colorA, colorB) {
+    const c=$(id), dpr=devicePixelRatio||1, w=c.clientWidth, h=255; c.width=w*dpr; c.height=h*dpr;
+    const ctx=c.getContext('2d'); ctx.scale(dpr,dpr); ctx.clearRect(0,0,w,h);
+    const pad={l:52,r:20,t:14,b:34}, spread=Math.max(...a,...b)-Math.min(...a,...b), max=Math.max(...a,...b)+(spread||1)*.12, min=Math.min(...a,...b)-(spread||1)*.08;
+    const X = i => pad.l+i/(x.length-1)*(w-pad.l-pad.r), Y = v => h-pad.b-(v-min)/(max-min)*(h-pad.t-pad.b);
+    ctx.strokeStyle='#d7ddd5'; ctx.lineWidth=1;
+    for (let i=0;i<4;i++) { let y=pad.t+i/3*(h-pad.t-pad.b); ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke(); ctx.fillStyle='#65736d'; ctx.font='11px Arial'; ctx.fillText((max-(max-min)*i/3).toFixed(0),4,y+4); }
+    for (let hour=0; hour<=24; hour+=3) { const index=hour===24?x.length-1:Math.round(hour/(x[x.length-1]-x[0])*(x.length-1)); const xPos=X(index); ctx.strokeStyle='#e7ebe6'; ctx.beginPath(); ctx.moveTo(xPos,pad.t); ctx.lineTo(xPos,h-pad.b); ctx.stroke(); ctx.fillStyle='#65736d'; ctx.font='11px Arial'; ctx.textAlign=hour===0?'left':hour===24?'right':'center'; ctx.fillText(String(hour).padStart(2,'0')+':00', xPos, h-10); }
+    ctx.textAlign='left';
+    function line(data,col) { ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.beginPath(); data.forEach((v,i)=>i?ctx.lineTo(X(i),Y(v)):ctx.moveTo(X(i),Y(v))); ctx.stroke(); }
+    line(a,colorA); line(b,colorB); ctx.fillStyle='#65736d'; ctx.font='11px Arial'; ctx.fillText(label, w-150, 12);
+  }
+
+  window.addEventListener('resize', update);
+  update();
+</script>
+
+</body>
+</html>

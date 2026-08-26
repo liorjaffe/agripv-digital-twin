@@ -1,0 +1,1 @@
+"""AgriPV project package."""
