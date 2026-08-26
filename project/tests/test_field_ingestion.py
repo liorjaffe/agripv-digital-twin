@@ -213,6 +213,7 @@ def test_process_field_export_runs_end_to_end_with_synthetic_station_export():
     assert np.isfinite(results["pv_power_w"]).all()
     assert np.isfinite(results["crop_ppfd_umol_m2_s"]).all()
     assert (results["pv_power_w"] >= 0.0).all()
+    assert results["pv_power_w"].max() <= 32000.0
     assert not telemetry.empty
     assert "input_data_complete_fraction" in daily.columns
 

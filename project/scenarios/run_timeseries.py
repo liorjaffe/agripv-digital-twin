@@ -25,7 +25,7 @@ def run_timeseries_pipeline(
     gcr: float = 0.3973,
     height_m: float = 2.6,
     pitch_m: float = 12.0,
-    pdc0_w: float = 108000.0,
+    pdc0_w: float = 32000.0,
     temperature_c: float | pd.Series | None = None,
     dli_target_mol_m2_day: float = 14.0,
     control_interval: str = "15min",

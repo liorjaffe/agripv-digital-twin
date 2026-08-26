@@ -41,12 +41,23 @@
     .scene-tools { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; margin:10px 0 4px; font:12px Arial,sans-serif; }
     .scene-tools label { display:flex; gap:8px; align-items:center; }
     .scene-location { color:var(--muted); white-space:nowrap; }
+    .sensor-controls { display:flex; flex-wrap:wrap; gap:7px 14px; align-items:center; margin:8px 0 2px; color:var(--muted); font:11px Arial,sans-serif; }
+    .sensor-controls strong { color:var(--ink); }
+    .sensor-controls label { display:flex; gap:5px; align-items:center; }
     select { padding:8px 9px; border:1px solid var(--line); border-radius:4px; background:white; color:var(--ink); }
     #scene3d { display:block; width:100%; height:370px; background:linear-gradient(#dcebea,#f5f2e8); border:1px solid #cbd8d0; border-radius:5px; cursor:grab; touch-action:none; }
     #scene3d:active { cursor:grabbing; }
     .scene-readout { color:var(--muted); font:12px/1.45 Arial,sans-serif; }
     .scene-help { color:var(--muted); font:11px Arial,sans-serif; }
     .scene-legend { margin-top:8px; padding:8px 10px; border-top:1px solid #cbd8d0; color:var(--muted); font:11px/1.45 Arial,sans-serif; }
+    .sensor-legend { margin-top:5px; padding:7px 10px; border-top:1px solid #cbd8d0; color:var(--muted); font:11px/1.45 Arial,sans-serif; }
+    .sensor-key { display:inline-flex; align-items:center; gap:4px; margin-right:12px; white-space:nowrap; }
+    .sensor-symbol { display:inline-block; width:10px; height:10px; border:1px solid #29433a; }
+    .sensor-symbol.circle { border-radius:50%; }
+    .sensor-symbol.triangle { width:0; height:0; border-width:0 5px 10px; border-style:solid; border-color:transparent transparent #8bcf27; background:transparent; }
+    .sensor-symbol.cross { position:relative; border:0; background:transparent; }
+    .sensor-symbol.cross::before, .sensor-symbol.cross::after { content:""; position:absolute; left:4px; top:0; width:2px; height:10px; background:#3b9ec4; }
+    .sensor-symbol.cross::after { transform:rotate(90deg); }
     .module-control { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; padding:10px 0 4px; font:12px Arial,sans-serif; }
     .module-control input[type=range] { min-width:180px; width:28vw; max-width:290px; margin:0; }
     .module-control input[type=number] { width:68px; padding:7px; border:1px solid var(--line); border-radius:4px; }
@@ -77,11 +88,13 @@
     <div class="subtitle">Eine interaktive Darstellung des Zusammenspiels von Sonnenstand, Trackerstellung, Pflanzenlicht, DLI und PV-Ertrag.</div>
   </header>
   <section class="panel scene-panel">
-    <div class="chart-head"><div><h2>3D-Szenario: zwei Trackerreihen und Beete</h2><p class="chart-copy">Die zwei Reihen verlaufen als Nord–Süd-Reihen. Jede Reihe hat zwei einfache Längsträger aus Stahl. Die Modulfläche liegt zwischen diesen beiden Trägern und dreht morgens nach Osten, mittags flach und abends nach Westen. Unter jeder Reihe liegt ein zugeordnetes Beet. Der dunkle Bereich markiert ausschließlich den realen Schattenwurf auf Boden und Beeten.</p></div></div>
+    <div class="chart-head"><div><h2>3D-Szenario: vier Trackerreihen und Beete</h2><p class="chart-copy">Dargestellt sind vier gleichartige parallele Nord–Süd-Trackerreihen: zwei Reihen gehören zu System 2 und zwei Reihen zu System 3. Jede Reihe besitzt zwei Längsträger und fünf Stahlstützen entlang der langen Modulfläche. Unter jeder Reihe liegt ein zugeordnetes Beet. Der dunkle Bereich markiert ausschließlich den realen Schattenwurf auf Boden und Beeten.</p></div></div>
     <div class="scene-tools"><span class="scene-location">Standort: Florianópolis, Brasilien · 27,5949° S, 48,5480° W</span><label for="simDate">Datum <output id="simDateOut"></output></label><input id="simDate" type="date"><label for="sceneHour">Sonnenzeit <output id="sceneHourOut">12:00</output></label><input id="sceneHour" type="range" min="0" max="24" value="12" step="0.25"><button class="secondary" id="playSun">Sonnenlauf abspielen</button><label for="season">Schnellwahl</label><select id="season"><option value="summer">Sommersonnenwende</option><option value="equinox" selected>Äquinoktium</option><option value="winter">Wintersonnenwende</option></select><label><input id="trackerMove" type="checkbox" checked> Module mit Sonne bewegen</label><button id="applyRecommended">Offset auf 0° setzen</button><button id="setFlat">Module flach stellen (0°)</button><button class="secondary" id="rotateFieldLeft">Feld ↶</button><button class="secondary" id="rotateFieldRight">Feld ↷</button><button class="secondary" id="moveFieldUp">Ansicht ↑</button><button class="secondary" id="moveFieldDown">Ansicht ↓</button><button class="secondary" id="resetFieldView">Ansicht zurücksetzen</button></div>
+    <div class="sensor-controls"><strong>Sensoren:</strong><label><input id="showSensors" type="checkbox" checked> anzeigen</label><label><input id="showEnvironmental" type="checkbox" checked> Umweltstation</label><label><input id="showControl" type="checkbox" checked> Kontrollfläche</label><label><input id="showFixed" type="checkbox" checked> feste PV-Fläche</label><label><input id="showVertical" type="checkbox" checked> vertikale PV-Fläche</label><label><input id="showTrackerSensors" type="checkbox" checked> Trackerfeld</label><label><input id="showCropSensors" type="checkbox" checked> Kulturen</label></div>
     <canvas id="scene3d" aria-label="3D-Simulation der Agrivoltaik-Anlage"></canvas>
     <div class="scene-readout" id="sceneReadout">–</div>
-    <div class="scene-legend"><strong>Legende:</strong> grün = Beet und Pflanzen · mittleres Grau = sichtbare PV-Vorderseite · dunkles Grau = sichtbare PV-Rückseite · dunkelbraun = Bodenschatten der Module · gold = Sonne. Die Modulfarbe richtet sich nur nach der Blickrichtung: Die Vorderseite bleibt heller, die Rückseite bleibt dunkler, unabhängig von der Sonnenbeleuchtung. <strong>PV-Leistung:</strong> zwei Trackerreihen mit zusammen 108 kWp DC = 108.000 Wp, rechnerisch ca. 54 kWp = 54.000 Wp pro Reihe. <strong>PPFD</strong> bezeichnet das momentane Pflanzenlicht; <strong>DLI</strong> ist die über den Tag integrierte Lichtmenge.</div>
+    <div class="scene-legend"><strong>Legende:</strong> grün = Beet und Pflanzen · mittleres Grau = sichtbare PV-Vorderseite · dunkles Grau = sichtbare PV-Rückseite · dunkelbraun = Bodenschatten der Module · gold = Sonne. Die Modulfarbe richtet sich nur nach der Blickrichtung: Die Vorderseite bleibt heller, die Rückseite bleibt dunkler, unabhängig von der Sonnenbeleuchtung. <strong>Anlagenlayout:</strong> vier gleichartige Trackerreihen, zwei für System 2 und zwei für System 3. Die beiden Systeme haben zusammen 2 × 16 kWp = 32 kWp DC = 32.000 Wp, rechnerisch ca. 8 kWp = 8.000 Wp pro Reihe. <strong>Sensoren:</strong> blau = Umweltstation/Kontrollfläche · orange = PV-Sensoren · grüne Dreiecke/Kreise = Agrarsensoren und Bodenpunkte. <strong>PPFD</strong> bezeichnet das momentane Pflanzenlicht; <strong>DLI</strong> ist die über den Tag integrierte Lichtmenge.</div>
+    <div class="sensor-legend"><strong>Sensorlegende:</strong> <span class="sensor-key"><span class="sensor-symbol" style="background:#3b9ec4"></span> Umweltstation/Kontrollsensorik</span><span class="sensor-key"><span class="sensor-symbol circle" style="background:#d97932"></span> PV-Sensor</span><span class="sensor-key"><span class="sensor-symbol circle" style="background:#2e8b57"></span> Bodensensor</span><span class="sensor-key"><span class="sensor-symbol triangle"></span> NDVI/Agrarsensor</span><span class="sensor-key"><span class="sensor-symbol cross"></span> Wind- oder Temperatur/Feuchte-Sensor</span> Bodensensoren liegen direkt auf der Beetoberfläche; PV-Sensoren liegen auf beziehungsweise an der Anlage. Die Gruppen können oben einzeln ein- oder ausgeblendet werden. Positionen sind relativ aus dem bereitgestellten Lageplan übernommen.</div>
     <div class="module-control"><strong>Manueller Offset zur automatischen Nachführung</strong><label for="scenePanelAngle">Offset</label><input id="scenePanelAngle" type="range" min="-90" max="90" value="0" step="1"><input id="scenePanelAngleNumber" type="number" min="-90" max="90" value="0" step="1"> ° <span>Die Python-Steuerung wählt genau so einen additiven Offset zur automatisch berechneten Backtracking-Grundstellung (siehe <code>project/scenarios/run_timeseries.py</code>, <code>tilt_offsets_deg</code>). Ab 15 m/s Wind wird der Offset ignoriert und 0° (Wind-Stow) erzwungen.</span></div>
     <div class="chart-copy">Die Trackerrotation folgt derselben Backtracking-Formel wie <code>pvlib.tracking.singleaxis</code> (Achsazimut, GCR, Reihenhöhe und -abstand aus <code>project/config/site.yaml</code>) und vermeidet damit modulseitige Reihe-zu-Reihe-Verschattung von selbst. Der dunkle Bereich zeigt ausschließlich den effektiven Schattenwurf auf Boden und Beeten, berechnet aus echtem Sonnenstand und derselben Geometrie — nie einen Schatten auf den Modulen.</div>
   </section>
@@ -134,7 +147,7 @@
   // code never parses it); these mirror the defaults actually wired in
   // project/scenarios/run_timeseries.py and project/control/smoothing.py. ----
   const SITE = { latitude: -27.5949, longitude: -48.5480, utcOffsetHours: -3, altitudeM: 20.0 };
-  const PV = { heightM: 2.6, pitchM: 12.0, gcr: 0.3973333333, axisAzimuthDeg: 0.0, maxTiltDeg: 90.0, bifaciality: 0.7, albedo: 0.18, pdc0W: 108000.0, gammaPdc: -0.004 };
+  const PV = { heightM: 2.6, pitchM: 12.0, gcr: 0.3973333333, axisAzimuthDeg: 0.0, maxTiltDeg: 90.0, bifaciality: 0.7, albedo: 0.18, pdc0W: 32000.0, gammaPdc: -0.004 };
   const TRACKER = { windStowSpeedMs: 15.0, faimanU0: 25.0, faimanU1: 6.84 };
   // Must match project/models/conversions.py exactly (PAR_FRACTION, PPFD_PER_PAR_WM2).
   const PAR_FRACTION = 0.45;
@@ -447,6 +460,7 @@
   syncSeasonFromDate();
 
   ids.filter(id => id !== 'tracker').forEach(id => $(id).addEventListener('input', update));
+  ['showSensors','showEnvironmental','showControl','showFixed','showVertical','showTrackerSensors','showCropSensors'].forEach(id => $(id).addEventListener('change', update));
   $('simDate').addEventListener('input', () => { syncSeasonFromDate(); update(); });
   $('trackerMove').addEventListener('change', () => {
     if ($('trackerMove').checked) {
@@ -557,7 +571,7 @@
     $('dliChange').textContent = (currentDli-referenceDliToNow>=0?'+':'')+(currentDli-referenceDliToNow).toFixed(1)+' vs Referenz bis '+formatHour(currentHour);
     $('biomass').textContent = day.growth.at(-1).toFixed(2)+' g/m²';
     $('bioChange').textContent = ((day.growth.at(-1)-reference.growth.at(-1))/ref(reference.growth.at(-1))*100).toFixed(1)+' % vs Referenz';
-    $('pv').textContent = day.pvEnergyKwh.toFixed(1)+' kWh (108 kWp Anlage)';
+    $('pv').textContent = day.pvEnergyKwh.toFixed(1)+' kWh (32 kWp Anlage)';
     $('pvChange').textContent = (pvDiff/ref(reference.pvEnergyKwh)*100).toFixed(1)+' % vs Referenz';
 
     const anyStow = day.points.some(p => p.windStow);
@@ -613,6 +627,88 @@
   // 3D scene rendering. Geometry/camera code is unchanged; sun placement and
   // panel tilt now come from the real ephemeris/backtracking computation above.
   // ============================================================================
+  function sensorMarker(ctx, p, x, y, color, shape='circle', size=4, z=0.04) {
+    const [screenX, screenY] = p(x, y, z);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#29433a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (shape === 'triangle') {
+      ctx.moveTo(screenX, screenY-size);
+      ctx.lineTo(screenX+size, screenY+size);
+      ctx.lineTo(screenX-size, screenY+size);
+      ctx.closePath();
+    } else if (shape === 'square') {
+      ctx.rect(screenX-size, screenY-size, size*2, size*2);
+    } else if (shape === 'cross') {
+      ctx.moveTo(screenX-size, screenY-size); ctx.lineTo(screenX+size, screenY+size);
+      ctx.moveTo(screenX+size, screenY-size); ctx.lineTo(screenX-size, screenY+size);
+    } else {
+      ctx.arc(screenX, screenY, size, 0, Math.PI*2);
+    }
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function sensorOverlayEnabled(groupId) {
+    return $('showSensors').checked && $(groupId).checked;
+  }
+
+  function drawSensorOverlays(ctx, p, trackerRows) {
+    if (!$('showSensors').checked) return;
+    const blue = '#3b9ec4', orange = '#d97932', red = '#d34c3d', green = '#2e8b57', lime = '#8bcf27';
+
+    if (sensorOverlayEnabled('showEnvironmental')) {
+      sensorMarker(ctx, p, -7.4, 4.8, blue, 'square', 5, 1.3);
+      sensorMarker(ctx, p, -7.9, 4.2, blue, 'circle', 4);
+      sensorMarker(ctx, p, -7.0, 4.2, blue, 'cross', 4, 1.8);
+    }
+    if (sensorOverlayEnabled('showControl')) {
+      for (let index=0; index<6; index++) sensorMarker(ctx, p, -5.6 + (index%3)*.42, 5.6 + Math.floor(index/3)*.38, green, 'circle', 3);
+      sensorMarker(ctx, p, -4.9, 6.0, green, 'circle', 4);
+      sensorMarker(ctx, p, -5.25, 6.0, lime, 'triangle', 4);
+      sensorMarker(ctx, p, -4.55, 5.55, blue, 'square', 4, 1.0);
+      sensorMarker(ctx, p, -4.2, 5.55, blue, 'cross', 4, 1.0);
+    }
+    if (sensorOverlayEnabled('showFixed')) {
+      for (let index=0; index<8; index++) sensorMarker(ctx, p, -7.3 + (index%4)*.35, -2.2 + Math.floor(index/4)*.45, green, 'circle', 3);
+      sensorMarker(ctx, p, -6.9, -1.4, red, 'circle', 4, 2.9);
+      sensorMarker(ctx, p, -6.55, -1.4, orange, 'circle', 4, 2.9);
+      sensorMarker(ctx, p, -6.2, -1.4, '#e2a63a', 'circle', 4, 2.9);
+      sensorMarker(ctx, p, -5.85, -1.4, '#e2a63a', 'circle', 4, 2.9);
+      sensorMarker(ctx, p, -7.0, -2.9, blue, 'square', 4, 1.0);
+      sensorMarker(ctx, p, -6.55, -2.9, blue, 'cross', 4, 1.0);
+      sensorMarker(ctx, p, -6.1, -2.9, green, 'circle', 4);
+      sensorMarker(ctx, p, -5.65, -2.9, lime, 'triangle', 4);
+    }
+    if (sensorOverlayEnabled('showVertical')) {
+      sensorMarker(ctx, p, 5.6, 1.2, orange, 'circle', 4, 2.9);
+      sensorMarker(ctx, p, 6.0, 1.2, orange, 'circle', 4, 2.9);
+      sensorMarker(ctx, p, 6.4, 1.2, red, 'circle', 4, 2.9);
+    }
+    if (sensorOverlayEnabled('showTrackerSensors')) {
+      trackerRows.forEach((row, index) => {
+        sensorMarker(ctx, p, row.center-.38, -3.8, red, 'circle', 3.5, 2.93);
+        sensorMarker(ctx, p, row.center-.12, -2.5, orange, 'circle', 3.5, 2.93);
+        sensorMarker(ctx, p, row.center+.12, 2.5, '#e2a63a', 'circle', 3.5, 2.93);
+        sensorMarker(ctx, p, row.center+.38, 0.0, green, 'circle', 4, 2.98);
+        sensorMarker(ctx, p, row.center+.52, 0.7, lime, 'triangle', 4, 3.0);
+        sensorMarker(ctx, p, row.center+.48, -1.2, '#efb35a', 'square', 2.8, 2.94);
+        sensorMarker(ctx, p, row.center+.48, 1.2, '#efb35a', 'square', 2.8, 2.94);
+      });
+      sensorMarker(ctx, p, 0, 5.9, blue, 'cross', 4);
+      sensorMarker(ctx, p, .45, 5.9, blue, 'square', 4);
+    }
+    if (sensorOverlayEnabled('showCropSensors')) {
+      trackerRows.forEach(row => {
+        for (let index=0; index<6; index++) {
+          const y = -4.4 + index*1.76;
+          sensorMarker(ctx, p, row.center, y, green, 'circle', 3);
+        }
+      });
+    }
+  }
+
   function drawScene(v, dateParts, now) {
     const canvas = $('scene3d'), dpr = devicePixelRatio||1, w = canvas.clientWidth, h = 370;
     canvas.width = w*dpr; canvas.height = h*dpr;
@@ -634,7 +730,13 @@
     const sunX = sunDirX*sunHorizontal, sunY = sunDirY*sunHorizontal, sunZ = 2 + sunDirZ*sunRise;
 
     ctx.fillStyle='#b9d7a8'; ctx.beginPath(); [[-9,-8,0],[9,-8,0],[9,8,0],[-9,8,0]].forEach((q,i)=>i?ctx.lineTo(...p(...q)):ctx.moveTo(...p(...q))); ctx.closePath(); ctx.fill(); ctx.strokeStyle='#91b493'; ctx.lineWidth=1; ctx.stroke();
-    const bedRows=[-1.7,1.7];
+    const trackerRows=[
+      {system:'2', center:-3.6},
+      {system:'2', center:-1.2},
+      {system:'3', center:1.2},
+      {system:'3', center:3.6},
+    ];
+    const bedRows=trackerRows.map(row => row.center);
     const tilt = now.finalTilt*DEG, panelWidth=1.1, panelRise=-Math.sin(tilt)*1.15;
     for (const row of bedRows) { ctx.fillStyle='#71a765'; ctx.beginPath(); ctx.moveTo(...p(row-.55,-6,.03)); ctx.lineTo(...p(row+.55,-6,.03)); ctx.lineTo(...p(row+.55,6,.03)); ctx.lineTo(...p(row-.55,6,.03)); ctx.closePath(); ctx.fill(); ctx.fillStyle='#3e7d54'; for (let plant=-5.2; plant<=5.2; plant+=.8) { const pt=p(row,plant,.12); ctx.beginPath(); ctx.arc(pt[0],pt[1],3,0,Math.PI*2); ctx.fill(); } }
 
@@ -657,21 +759,25 @@
     for (const row of bedRows) {
       const frontRow=row-panelWidth*.5, backRow=row+panelWidth*.5;
       const left=p(frontRow,-5.2,2.8), right=p(frontRow,5.2,2.8), panelBackLeft=p(backRow,-5.2,2.8+panelRise), panelBackRight=p(backRow,5.2,2.8+panelRise);
-      const carrierRows=[frontRow,row,backRow]; ctx.strokeStyle='#596963'; ctx.lineWidth=4;
+      const carrierRows=[frontRow,backRow]; ctx.strokeStyle='#596963'; ctx.lineWidth=4;
       for (const carrierRow of carrierRows) { const carrierZ=2.8+(carrierRow-frontRow)/panelWidth*panelRise; ctx.beginPath(); ctx.moveTo(...p(carrierRow,-5.2,carrierZ)); ctx.lineTo(...p(carrierRow,5.2,carrierZ)); ctx.stroke(); }
       ctx.strokeStyle='#596963'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(...p(frontRow,0,2.8)); ctx.lineTo(...p(backRow,0,2.8+panelRise)); ctx.stroke();
-      ctx.strokeStyle='#4b625d'; ctx.lineWidth=4; for (const end of [-5.2,5.2]) { ctx.beginPath(); ctx.moveTo(...p(row,end,0)); ctx.lineTo(...p(row,end,2.8+panelRise*.5)); ctx.stroke(); }
+      ctx.strokeStyle='#4b625d'; ctx.lineWidth=4; for (let support=0; support<5; support++) { const end=-5.2+support*(10.4/4); ctx.beginPath(); ctx.moveTo(...p(row,end,0)); ctx.lineTo(...p(row,end,2.8+panelRise*.5)); ctx.stroke(); }
       const panelCorners = [left, right, panelBackRight, panelBackLeft];
       const cameraX = Math.cos(sceneView.rotation) + Math.sin(sceneView.rotation);
       const cameraZ = 2.0;
       const panelNormalX = Math.sin(tilt);
       const panelNormalZ = Math.cos(tilt);
       const frontIsVisible = panelNormalX*cameraX + panelNormalZ*cameraZ > 0;
-      ctx.fillStyle=frontIsVisible?'#b8c2c0':'#4c5756';
+      ctx.fillStyle=frontIsVisible ? '#b8c2c0' : '#4c5756';
       ctx.beginPath(); panelCorners.forEach((point,index)=>index?ctx.lineTo(...point):ctx.moveTo(...point)); ctx.closePath(); ctx.fill();
       ctx.strokeStyle='#293534'; ctx.lineWidth=2; ctx.stroke();
       ctx.strokeStyle='#65877a'; ctx.lineWidth=1; for (let module=-4.7; module<=4.7; module+=1.2) { ctx.beginPath(); ctx.moveTo(...p(frontRow,module,2.8)); ctx.lineTo(...p(backRow,module,2.8+panelRise)); ctx.stroke(); }
+      const rowLabelPoint = p(row, -5.75, 0.05);
+      ctx.fillStyle='#40544b'; ctx.font='700 11px Arial'; ctx.fillText('System '+trackerRows.find(tracker => tracker.center === row).system, rowLabelPoint[0], rowLabelPoint[1]);
     }
+
+    drawSensorOverlays(ctx, p, trackerRows);
 
     if (now.sunUp) {
       const sun = sky(sunX,sunY,sunZ);

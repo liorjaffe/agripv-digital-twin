@@ -6,6 +6,8 @@ site:
   altitude_m: 20.0
 
 pv:
+  system_count: 2
+  pdc0_w: 32000.0
   height_m: 2.6
   pitch_m: 12.0
   row_width_m: 4.768
