@@ -449,6 +449,7 @@
     'grün = Beet und Pflanzen · mittleres Grau = sichtbare PV-Vorderseite · dunkles Grau = sichtbare PV-Rückseite · dunkelbraun = Bodenschatten der Module · gold = Sonne.':'verde = canteiro e plantas · cinza médio = frente visível dos módulos · cinza escuro = verso visível dos módulos · marrom escuro = sombra dos módulos no solo · dourado = sol.',
     'DLI Bestand bis jetzt':'DLI da cultura até agora', 'Trockenmasse':'Biomassa seca', 'PV-Energie (Tag)':'Energia FV (dia)', 'Lichtstatus':'Status da luz', 'Modulwinkel':'Ângulo do módulo',
     'Was-wäre-wenn?':'E se?', 'Mikroklima':'Microclima', 'Himmel und Nachführung':'Céu e rastreamento',
+    'Temperatur über Bestand':'Temperatura acima do dossel', 'Temperatur am Bestand':'Temperatura no dossel', 'Relative Feuchte über Bestand':'Umidade relativa acima do dossel', 'Relative Feuchte am Bestand':'Umidade relativa no dossel', 'Wind in Bestandshöhe':'Vento na altura do dossel', 'Bewölkung / Trübung':'Nebulosidade / turbidez', 'Luftdruck':'Pressão atmosférica', 'DLI-Ziel':'Meta de DLI', 'Manueller Nachführ-Offset':'Offset manual do rastreamento',
     'Trackerwinkel direkt testen':'Testar diretamente o ângulo do rastreador', 'Licht über den Tag':'Luz ao longo do dia', 'Biomasseverlauf':'Evolução da biomassa', 'Klima am Bestand':'Clima na cultura', 'Winkel × Wettereinfluss':'Ângulo × influência do clima',
     'Zurücksetzen':'Redefinir', 'Klare Referenz':'Referência clara', 'Offset':'Offset',
     'Umweltstation':'Estação ambiental', 'Kontrollfläche':'Área de controle', 'feste PV-Fläche':'Área FV fixa', 'vertikale PV-Fläche':'Área FV vertical', 'Trackerfeld':'Campo de rastreadores', 'Kulturen':'Culturas', 'anzeigen':'mostrar',
@@ -521,7 +522,21 @@
       ['Tagesdosis: Integral der PPFD am Bestand über den ganzen Tag, wie project.models.conversions.dli_from_timeseries.','Daily dose: integral of canopy PPFD over the full day, as in project.models.conversions.dli_from_timeseries.'],
       ['Additiver Offset zur automatischen Backtracking-Grundstellung, wie tilt_offsets_deg in project/scenarios/run_timeseries.py. Bei Wind-Stow wirkungslos.','Additive offset from the automatic backtracking baseline, as tilt_offsets_deg in project/scenarios/run_timeseries.py. Ignored during wind stow.'],
     ];
-    document.querySelectorAll('.controls .hint').forEach((element,index) => { if (hints[index]) element.textContent = tr(hints[index][0], hints[index][1]); });
+    document.querySelectorAll('.controls .hint').forEach((element,index) => {
+      if (!hints[index]) return;
+      const portugueseHints = [
+        'Temperatura ambiente usada no modelo térmico FV (Faiman) e na correção de refração da posição solar.',
+        'Entra diretamente no modelo de crescimento de Van Henten como u_T e no cálculo de VPD.',
+        'Apenas informativa; o VPD é calculado com base na umidade no dossel.',
+        'Alta umidade reduz o déficit de pressão de vapor (VPD); umidade persistentemente alta pode ser agronomicamente arriscada.',
+        'Resfria os módulos pelo modelo de Faiman; a partir de 15 m/s, a proteção contra vento (0°) é ativada automaticamente.',
+        'Define o índice de céu claro (0 = céu limpo, 100 = muito nublado). O GHI vem do modelo de Haurwitz × índice; os componentes direto/difuso vêm de Erbs, a mesma cadeia usada para reconstruir a irradiância a partir de PAR sem piranômetro.',
+        'Usado apenas na correção de refração da posição solar, com pequeno efeito perto do horizonte.',
+        'Dose diária: integral do PPFD no dossel ao longo do dia inteiro, como em project.models.conversions.dli_from_timeseries.',
+        'Offset aditivo em relação à posição automática de backtracking, como tilt_offsets_deg em project/scenarios/run_timeseries.py. Ignorado durante a proteção contra vento.',
+      ];
+      element.textContent = language === 'pt' ? portugueseHints[index] : tr(hints[index][0], hints[index][1]);
+    });
     const copies = [
       ['Der Offset-Regler wird zur automatisch berechneten Backtracking-Grundstellung addiert — genau wie tilt_offsets_deg in der Python-Steuerung. Vergleiche das Ergebnis sofort mit der Referenz (Offset 0°, wolkenloser Himmel).','The offset is added to the automatically calculated backtracking baseline, exactly like tilt_offsets_deg in the Python controller. Compare the result with the reference (0° offset, clear sky).'],
       ['Berechneter PPFD am Bestand (Sonnenstand × Backtracking-Geometrie × Bodenverschattung). Die Fläche unter dieser Kurve wird zum DLI integriert. Das ist nicht dasselbe wie GHI über den Modulen.','Calculated canopy PPFD (solar position × backtracking geometry × ground shading). The area under this curve is integrated into DLI. This is not the same as GHI above the modules.'],
