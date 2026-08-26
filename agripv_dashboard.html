@@ -55,6 +55,8 @@
     .scene-legend { margin-top:8px; padding:8px 10px; border-top:1px solid #cbd8d0; color:var(--muted); font:11px/1.45 Arial,sans-serif; }
     .sensor-legend { margin-top:5px; padding:7px 10px; border-top:1px solid #cbd8d0; color:var(--muted); font:11px/1.45 Arial,sans-serif; }
     .sensor-key { display:inline-flex; align-items:center; gap:4px; margin-right:12px; white-space:nowrap; }
+    .sensor-key-button { border:0; margin:0 12px 0 0; padding:2px 4px; color:var(--muted); background:transparent; font:11px/1.45 Arial,sans-serif; cursor:pointer; }
+    .sensor-key-button:hover, .sensor-key-button.active { color:var(--ink); background:#e3eee8; border-radius:3px; }
     .sensor-symbol { display:inline-block; width:10px; height:10px; border:1px solid #29433a; }
     .sensor-symbol.circle { border-radius:50%; }
     .sensor-symbol.triangle { width:0; height:0; border-width:0 5px 10px; border-style:solid; border-color:transparent transparent #8bcf27; background:transparent; }
@@ -97,7 +99,7 @@
     <canvas id="scene3d" aria-label="3D-Simulation der Agrivoltaik-Anlage"></canvas>
     <div class="scene-readout" id="sceneReadout">–</div>
     <div class="scene-legend" id="plantLegend"><strong>Legende:</strong> grün = Beet und Pflanzen · mittleres Grau = sichtbare PV-Vorderseite · dunkles Grau = sichtbare PV-Rückseite · dunkelbraun = Bodenschatten der Module · gold = Sonne. Die Modulfarbe richtet sich nur nach der Blickrichtung: Die Vorderseite bleibt heller, die Rückseite bleibt dunkler, unabhängig von der Sonnenbeleuchtung. <strong>Anlagenlayout:</strong> vier gleichartige Trackerreihen, zwei für System 2 und zwei für System 3. Die beiden Systeme haben zusammen 2 × 16 kWp = 32 kWp DC = 32.000 Wp, rechnerisch ca. 8 kWp = 8.000 Wp pro Reihe. <strong>Sensoren:</strong> blau = Umweltstation · orange = PV-Sensoren · grüne Dreiecke/Kreise = Agrarsensoren und Bodenpunkte. <strong>PPFD</strong> bezeichnet das momentane Pflanzenlicht; <strong>DLI</strong> ist die über den Tag integrierte Lichtmenge.</div>
-    <div class="sensor-legend" id="sensorLegend"><strong>Sensorlegende:</strong> <span class="sensor-key"><span class="sensor-symbol" style="background:#3b9ec4"></span> Umweltstation/Kontrollsensorik</span><span class="sensor-key"><span class="sensor-symbol circle" style="background:#d97932"></span> PV-Sensor</span><span class="sensor-key"><span class="sensor-symbol circle" style="background:#2e8b57"></span> Bodensensor</span><span class="sensor-key"><span class="sensor-symbol triangle"></span> NDVI/Agrarsensor</span><span class="sensor-key"><span class="sensor-symbol cross"></span> Wind- oder Temperatur/Feuchte-Sensor</span> Bodensensoren liegen direkt auf der Beetoberfläche; PV-Sensoren liegen auf beziehungsweise an der Anlage. Die Gruppen können oben einzeln ein- oder ausgeblendet werden. Positionen sind relativ aus dem bereitgestellten Lageplan übernommen.</div>
+    <div class="sensor-legend" id="sensorLegend"><strong>Sensorlegende:</strong> <button class="sensor-key-button" type="button" data-sensor-kind="environmental" aria-pressed="false"><span class="sensor-symbol" style="background:#3b9ec4"></span> Umweltstation/Kontrollsensorik</button><button class="sensor-key-button" type="button" data-sensor-kind="pv" aria-pressed="false"><span class="sensor-symbol circle" style="background:#d97932"></span> PV-Sensor</button><button class="sensor-key-button" type="button" data-sensor-kind="soil" aria-pressed="false"><span class="sensor-symbol circle" style="background:#2e8b57"></span> Bodensensor</button><button class="sensor-key-button" type="button" data-sensor-kind="ndvi" aria-pressed="false"><span class="sensor-symbol triangle"></span> NDVI/Agrarsensor</button><button class="sensor-key-button" type="button" data-sensor-kind="weather" aria-pressed="false"><span class="sensor-symbol cross"></span> Wind- oder Temperatur/Feuchte-Sensor</button> Bodensensoren liegen direkt auf der Beetoberfläche; PV-Sensoren liegen auf beziehungsweise an der Anlage. Die Gruppen können oben einzeln ein- oder ausgeblendet werden. Klicke einen Sensortyp an, um seine Positionen im Feld hervorzuheben. Positionen sind relativ aus dem bereitgestellten Lageplan übernommen.</div>
     <div class="module-control"><strong>Manueller Offset zur automatischen Nachführung</strong><label for="scenePanelAngle">Offset</label><input id="scenePanelAngle" type="range" min="-90" max="90" value="0" step="1"><input id="scenePanelAngleNumber" type="number" min="-90" max="90" value="0" step="1"> ° <span>Die Python-Steuerung wählt genau so einen additiven Offset zur automatisch berechneten Backtracking-Grundstellung (siehe <code>project/scenarios/run_timeseries.py</code>, <code>tilt_offsets_deg</code>). Ab 15 m/s Wind wird der Offset ignoriert und 0° (Wind-Stow) erzwungen.</span></div>
     <div class="chart-copy">Die Trackerrotation folgt derselben Backtracking-Formel wie <code>pvlib.tracking.singleaxis</code> (Achsazimut, GCR, Reihenhöhe und -abstand aus <code>project/config/site.yaml</code>) und vermeidet damit modulseitige Reihe-zu-Reihe-Verschattung von selbst. Der dunkle Bereich zeigt ausschließlich den effektiven Schattenwurf auf Boden und Beeten, berechnet aus echtem Sonnenstand und derselben Geometrie — nie einen Schatten auf den Modulen.</div>
   </section>
@@ -437,6 +439,7 @@
   const sceneView = { rotation: 0, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0 };
   let frozenTilt = null;
   const defaults = { tempAbove:24, tempCanopy:25, rhAbove:70, rhCanopy:75, wind:2, cloud:15, pressure:1013, target:14, tracker:0 };
+  let selectedSensorKind = null;
   let language = 'de';
   const pt = {
     'Deutsch':'Alemão', 'English':'Inglês', 'Language / Sprache':'Idioma',
@@ -494,7 +497,7 @@
       'Four identical parallel north–south tracker rows are shown: two belong to system 2 and two to system 3. Each row has two longitudinal beams and five steel supports along the long module surface. Each row has one associated crop bed below it. The dark area marks only the physical shadow cast onto the ground and beds.'
     );
     $('plantLegend').innerHTML = '<strong>'+tr('Legende:', 'Legend:')+'</strong> '+tr('grün = Beet und Pflanzen · mittleres Grau = sichtbare PV-Vorderseite · dunkles Grau = sichtbare PV-Rückseite · dunkelbraun = Bodenschatten der Module · gold = Sonne.', 'green = crop bed and plants · medium gray = visible PV front · dark gray = visible PV rear · dark brown = module ground shadow · gold = sun.')+' <strong>'+tr('Anlagenlayout:', 'Plant layout:')+'</strong> '+tr('vier gleichartige Trackerreihen, zwei für System 2 und zwei für System 3. Die beiden Systeme haben zusammen 2 × 16 kWp = 32 kWp DC = 32.000 Wp, rechnerisch ca. 8 kWp = 8.000 Wp pro Reihe.', 'four identical tracker rows, two for system 2 and two for system 3. Together the systems have 2 × 16 kWp = 32 kWp DC = 32,000 Wp, approximately 8 kWp = 8,000 Wp per row.')+' <strong>'+tr('Sensoren:', 'Sensors:')+'</strong> '+tr('blau = Umweltstation · orange = PV-Sensoren · grüne Dreiecke/Kreise = Agrarsensoren und Bodenpunkte.', 'blue = environmental station · orange = PV sensors · green triangles/circles = agronomic and soil sensors.')+' <strong>PPFD</strong> '+tr('bezeichnet das momentane Pflanzenlicht; <strong>DLI</strong> ist die über den Tag integrierte Lichtmenge.', 'is instantaneous crop light; <strong>DLI</strong> is the integrated daily light amount.');
-    $('sensorLegend').innerHTML = '<strong>'+tr('Sensorlegende:', 'Sensor legend:')+'</strong> <span class="sensor-key"><span class="sensor-symbol" style="background:#3b9ec4"></span> '+tr('Umweltstation/Kontrollsensorik', 'environmental/control sensors')+'</span><span class="sensor-key"><span class="sensor-symbol circle" style="background:#d97932"></span> '+tr('PV-Sensor', 'PV sensor')+'</span><span class="sensor-key"><span class="sensor-symbol circle" style="background:#2e8b57"></span> '+tr('Bodensensor', 'soil sensor')+'</span><span class="sensor-key"><span class="sensor-symbol triangle"></span> '+tr('NDVI/Agrarsensor', 'NDVI/agronomic sensor')+'</span><span class="sensor-key"><span class="sensor-symbol cross"></span> '+tr('Wind- oder Temperatur/Feuchte-Sensor', 'wind or temperature/humidity sensor')+'</span> '+tr('Bodensensoren liegen direkt auf der Beetoberfläche; PV-Sensoren liegen auf beziehungsweise an der Anlage. Die Gruppen können oben einzeln ein- oder ausgeblendet werden. Positionen sind relativ aus dem bereitgestellten Lageplan übernommen.', 'Soil sensors lie directly on the bed surface; PV sensors are mounted on or beside the plant. Groups can be toggled individually above. Positions are relative to the supplied site plan.');
+    $('sensorLegend').innerHTML = '<strong>'+tr('Sensorlegende:', 'Sensor legend:')+'</strong> <button class="sensor-key-button" type="button" data-sensor-kind="environmental" aria-pressed="false"><span class="sensor-symbol" style="background:#3b9ec4"></span> '+tr('Umweltstation/Kontrollsensorik', 'environmental/control sensors')+'</button><button class="sensor-key-button" type="button" data-sensor-kind="pv" aria-pressed="false"><span class="sensor-symbol circle" style="background:#d97932"></span> '+tr('PV-Sensor', 'PV sensor')+'</button><button class="sensor-key-button" type="button" data-sensor-kind="soil" aria-pressed="false"><span class="sensor-symbol circle" style="background:#2e8b57"></span> '+tr('Bodensensor', 'soil sensor')+'</button><button class="sensor-key-button" type="button" data-sensor-kind="ndvi" aria-pressed="false"><span class="sensor-symbol triangle"></span> '+tr('NDVI/Agrarsensor', 'NDVI/agronomic sensor')+'</button><button class="sensor-key-button" type="button" data-sensor-kind="weather" aria-pressed="false"><span class="sensor-symbol cross"></span> '+tr('Wind- oder Temperatur/Feuchte-Sensor', 'wind or temperature/humidity sensor')+'</button> '+tr('Bodensensoren liegen direkt auf der Beetoberfläche; PV-Sensoren liegen auf beziehungsweise an der Anlage. Die Gruppen können oben einzeln ein- oder ausgeblendet werden. Klicke einen Sensortyp an, um seine Positionen im Feld hervorzuheben. Positionen sind relativ aus dem bereitgestellten Lageplan übernommen.', 'Soil sensors lie directly on the bed surface; PV sensors are mounted on or beside the plant. Groups can be toggled individually above. Click a sensor type to highlight its positions in the field. Positions are relative to the supplied site plan.');
     setLabel('simDate', 'Datum', 'Date'); setLabel('sceneHour', 'Sonnenzeit', 'Solar time'); setLabel('season', 'Schnellwahl', 'Quick select');
     setCheckLabel('trackerMove', 'Module mit Sonne bewegen', 'Move modules with sun');
     $('playSun').textContent = tr('Sonnenlauf abspielen', 'Play sun path'); $('applyRecommended').textContent = tr('Offset auf 0° setzen', 'Set offset to 0°'); $('setFlat').textContent = tr('Module flach stellen (0°)', 'Set modules flat (0°)');
@@ -569,6 +572,39 @@
     localized(chartLegends[3], 'Änderung gegenüber Referenzwinkel 0°', 'Change versus 0° reference offset', 'Variação em relação ao offset de referência de 0°');
     localized(document.querySelector('.note'), 'Beobachtung: Bewege einen Regler. Die Oberfläche rechnet die Wirkung sofort neu.', 'Observation: Move a control. The interface recalculates the effect immediately.', 'Observação: mova um controle. A interface recalcula o efeito imediatamente.');
     localized(document.querySelector('.footer'), 'Interaktiver Sensitivitäts-Sandbox. Sonnenstand, Backtracking-Geometrie, Bodenverschattung, Klarhimmel/Erbs-Zerlegung, DLI-Integration und das Van-Henten-Wachstumsmodell sind direkte Portierungen derselben Formeln aus project/models/radiation.py und project/models/lettuce.py. Nur das PV-Ertragsmodell ist eine vereinfachte isotrope Transposition anstelle des vollen pvlib.bifacial.infinite_sheds-Modells, und reale Sensorwerte/kalibrierte Pflanzenparameter bleiben der Python-Pipeline vorbehalten.', 'Interactive sensitivity sandbox. Solar position, backtracking geometry, ground shading, clear-sky/Erbs decomposition, DLI integration, and the Van Henten growth model are direct ports of the same formulas in project/models/radiation.py and project/models/lettuce.py. The PV-yield model is a simplified isotropic transposition rather than the full pvlib.bifacial.infinite_sheds model; real sensor values and calibrated crop parameters remain in the Python pipeline.', 'Sandbox interativo de sensibilidade. A posição solar, a geometria de backtracking, o sombreamento do solo, a decomposição de céu claro/Erbs, a integração do DLI e o modelo de crescimento de Van Henten são implementações diretas das mesmas fórmulas em project/models/radiation.py e project/models/lettuce.py. O modelo de produção FV usa uma transposição isotrópica simplificada em vez do modelo completo pvlib.bifacial.infinite_sheds; valores reais dos sensores e parâmetros calibrados da cultura permanecem na pipeline Python.');
+    const sensorLabels = document.querySelectorAll('[data-sensor-kind]');
+    const sensorText = {
+      environmental: ['Umweltstation/Kontrollsensorik', 'environmental/control sensors', 'sensores ambientais/de controle'],
+      pv: ['PV-Sensor', 'PV sensor', 'sensor FV'],
+      soil: ['Bodensensor', 'soil sensor', 'sensor de solo'],
+      ndvi: ['NDVI/Agrarsensor', 'NDVI/agronomic sensor', 'sensor NDVI/agronômico'],
+      weather: ['Wind- oder Temperatur/Feuchte-Sensor', 'wind or temperature/humidity sensor', 'sensor de vento ou temperatura/umidade'],
+    };
+    sensorLabels.forEach(button => {
+      const kind = sensorText[button.dataset.sensorKind];
+      if (!kind) return;
+      const textNode = [...button.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim());
+      if (textNode) textNode.nodeValue = ' '+tr(kind[0], kind[1]);
+      button.classList.toggle('active', button.dataset.sensorKind === selectedSensorKind);
+      button.setAttribute('aria-pressed', button.dataset.sensorKind === selectedSensorKind);
+    });
+  }
+
+  function bindSensorLegend() {
+    document.querySelectorAll('[data-sensor-kind]').forEach(button => {
+      button.addEventListener('click', () => {
+        selectedSensorKind = selectedSensorKind === button.dataset.sensorKind ? null : button.dataset.sensorKind;
+        $('showSensors').checked = true;
+        if (selectedSensorKind === 'environmental' || selectedSensorKind === 'weather') $('showEnvironmental').checked = true;
+        if (selectedSensorKind === 'pv' || selectedSensorKind === 'weather' || selectedSensorKind === 'ndvi') $('showTrackerSensors').checked = true;
+        if (selectedSensorKind === 'soil' || selectedSensorKind === 'ndvi') $('showCropSensors').checked = true;
+        document.querySelectorAll('[data-sensor-kind]').forEach(item => {
+          item.classList.toggle('active', item.dataset.sensorKind === selectedSensorKind);
+          item.setAttribute('aria-pressed', item.dataset.sensorKind === selectedSensorKind);
+        });
+        update();
+      });
+    });
   }
 
   function currentDateParts() {
@@ -596,9 +632,9 @@
   syncSeasonFromDate();
 
   ids.filter(id => id !== 'tracker').forEach(id => $(id).addEventListener('input', update));
-  $('languageDe').addEventListener('click', () => { language = 'de'; applyLanguage(); update(); });
-  $('languageEn').addEventListener('click', () => { language = 'en'; applyLanguage(); update(); });
-  $('languagePt').addEventListener('click', () => { language = 'pt'; applyLanguage(); update(); });
+  $('languageDe').addEventListener('click', () => { language = 'de'; applyLanguage(); bindSensorLegend(); update(); });
+  $('languageEn').addEventListener('click', () => { language = 'en'; applyLanguage(); bindSensorLegend(); update(); });
+  $('languagePt').addEventListener('click', () => { language = 'pt'; applyLanguage(); bindSensorLegend(); update(); });
   ['showSensors','showEnvironmental','showTrackerSensors','showCropSensors'].forEach(id => $(id).addEventListener('change', update));
   $('simDate').addEventListener('input', () => { syncSeasonFromDate(); update(); });
   $('trackerMove').addEventListener('change', () => {
@@ -768,25 +804,33 @@
   // ============================================================================
   function sensorMarker(ctx, p, x, y, color, shape='circle', size=4, z=0.04) {
     const [screenX, screenY] = p(x, y, z);
+    const kind = shape === 'triangle' ? 'ndvi' : shape === 'cross' ? 'weather' : color === '#2e8b57' ? 'soil' : color === '#d97932' || color === '#d34c3d' || color === '#e2a63a' || color === '#efb35a' ? 'pv' : 'environmental';
+    const selected = selectedSensorKind === null || selectedSensorKind === kind;
+    const markerSize = selected && selectedSensorKind !== null ? size*1.7 : size;
+    ctx.globalAlpha = selected ? 1 : .22;
     ctx.fillStyle = color;
     ctx.strokeStyle = '#29433a';
     ctx.lineWidth = 1;
+    if (selected && selectedSensorKind !== null) {
+      ctx.beginPath(); ctx.arc(screenX, screenY, markerSize+3, 0, Math.PI*2); ctx.fillStyle='rgba(215,154,62,.24)'; ctx.fill();
+    }
     ctx.beginPath();
     if (shape === 'triangle') {
-      ctx.moveTo(screenX, screenY-size);
-      ctx.lineTo(screenX+size, screenY+size);
-      ctx.lineTo(screenX-size, screenY+size);
+      ctx.moveTo(screenX, screenY-markerSize);
+      ctx.lineTo(screenX+markerSize, screenY+markerSize);
+      ctx.lineTo(screenX-markerSize, screenY+markerSize);
       ctx.closePath();
     } else if (shape === 'square') {
-      ctx.rect(screenX-size, screenY-size, size*2, size*2);
+      ctx.rect(screenX-markerSize, screenY-markerSize, markerSize*2, markerSize*2);
     } else if (shape === 'cross') {
-      ctx.moveTo(screenX-size, screenY-size); ctx.lineTo(screenX+size, screenY+size);
-      ctx.moveTo(screenX+size, screenY-size); ctx.lineTo(screenX-size, screenY+size);
+      ctx.moveTo(screenX-markerSize, screenY-markerSize); ctx.lineTo(screenX+markerSize, screenY+markerSize);
+      ctx.moveTo(screenX+markerSize, screenY-markerSize); ctx.lineTo(screenX-markerSize, screenY+markerSize);
     } else {
-      ctx.arc(screenX, screenY, size, 0, Math.PI*2);
+      ctx.arc(screenX, screenY, markerSize, 0, Math.PI*2);
     }
     ctx.fill();
     ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   function sensorOverlayEnabled(groupId) {
@@ -931,6 +975,7 @@
 
   window.addEventListener('resize', update);
   applyLanguage();
+  bindSensorLegend();
   update();
 </script>
 
