@@ -163,7 +163,7 @@
   // code never parses it); these mirror the defaults actually wired in
   // project/scenarios/run_timeseries.py and project/control/smoothing.py. ----
   const SITE = { latitude: -27.5949, longitude: -48.5480, utcOffsetHours: -3, altitudeM: 20.0 };
-  const PV = { heightM: 2.6, pitchM: 12.0, gcr: 0.3973333333, axisAzimuthDeg: 0.0, maxTiltDeg: 90.0, bifaciality: 0.7, albedo: 0.18, pdc0W: 32000.0, gammaPdc: -0.004 };
+  const PV = { heightM: 2.6, pitchM: 12.0, rowWidthM: 4.768, gcr: 0.3973333333, axisAzimuthDeg: 0.0, maxTiltDeg: 90.0, bifaciality: 0.7, albedo: 0.18, pdc0W: 32000.0, gammaPdc: -0.004 };
   const TRACKER = { windStowSpeedMs: 15.0, faimanU0: 25.0, faimanU1: 6.84 };
   // Must match project/models/conversions.py exactly (PAR_FRACTION, PPFD_PER_PAR_WM2).
   const PAR_FRACTION = 0.45;
@@ -334,6 +334,15 @@
     const cosine = Math.max(cosd(apparentZenithDeg), 0);
     return Math.max(0, unshaded*dni*cosine + viewFactor*dhi);
   }
+  // Direct port of pvlib.shading.shaded_fraction1d for equal neighboring
+  // tracker rows (axis tilt and surface-to-axis offset are zero here).
+  function moduleRowShadedFraction(trackerRotationDeg, apparentZenithDeg, azimuthDeg) {
+    if (apparentZenithDeg >= 90) return 0;
+    const projectedSolarZenith = trueTrackingAngle(apparentZenithDeg, azimuthDeg, PV.axisAzimuthDeg);
+    const cosineDenominator = Math.abs(cosd(trackerRotationDeg-projectedSolarZenith));
+    if (cosineDenominator < 1e-6) return 1;
+    return clamp(1 - (PV.pitchM/PV.rowWidthM)*cosd(projectedSolarZenith)/cosineDenominator, 0, 1);
+  }
 
   // ---- PAR/PPFD conversions, must match project/models/conversions.py exactly. ----
   const ghiToPar = ghi => ghi*PAR_FRACTION;
@@ -399,15 +408,17 @@
 
     const cropGhi = sunUp ? cropGroundIrradiance(decomposed.dni, decomposed.dhi, sun.apparentZenith, sun.azimuth, orientation.surfaceTilt, orientation.surfaceAzimuth, PV.gcr, PV.heightM, PV.pitchM) : 0;
     const cropPpfd = ghiToPpfd(cropGhi);
-    const poa = sunUp ? poaIsotropic(decomposed.dni, decomposed.dhi, ghi, sun.apparentZenith, sun.azimuth, orientation.surfaceTilt, orientation.surfaceAzimuth, PV.albedo) : 0;
+    const cosineAoi = cosd(sun.apparentZenith)*cosd(orientation.surfaceTilt) + sind(sun.apparentZenith)*sind(orientation.surfaceTilt)*cosd(sun.azimuth-orientation.surfaceAzimuth);
+    const directPoa = Math.max(0, decomposed.dni*cosineAoi);
+    const unshadedPoa = sunUp ? poaIsotropic(decomposed.dni, decomposed.dhi, ghi, sun.apparentZenith, sun.azimuth, orientation.surfaceTilt, orientation.surfaceAzimuth, PV.albedo) : 0;
+    const moduleShadeFraction = moduleRowShadedFraction(finalTilt, sun.apparentZenith, sun.azimuth);
+    const poa = Math.max(0, unshadedPoa - directPoa*moduleShadeFraction);
     const cellTemp = faimanCellTemp(poa, values.tempAbove, values.wind);
-    // The simplified POA model has no module-row shading term, so 0°
-    // backtracking is the physical PV ceiling for every offset.
     const autoOrientation = surfaceOrientation(autoTilt, PV.axisAzimuthDeg, 0);
     const autoPoa = sunUp ? poaIsotropic(decomposed.dni, decomposed.dhi, ghi, sun.apparentZenith, sun.azimuth, autoOrientation.surfaceTilt, autoOrientation.surfaceAzimuth, PV.albedo) : 0;
     const pvPowerW = Math.min(pvwattsDc(poa, cellTemp), pvwattsDc(autoPoa, faimanCellTemp(autoPoa, values.tempAbove, values.wind)));
 
-    return { sun, ghi, dni: decomposed.dni, dhi: decomposed.dhi, clearSkyIndex, autoTilt, finalTilt, windStow, cropGhi, cropPpfd, poa, cellTemp, pvPowerW, sunUp };
+    return { sun, ghi, dni: decomposed.dni, dhi: decomposed.dhi, clearSkyIndex, autoTilt, finalTilt, windStow, cropGhi, cropPpfd, poa, moduleShadeFraction, cellTemp, pvPowerW, sunUp };
   }
 
   function buildDaySeries(values, dateParts) {
