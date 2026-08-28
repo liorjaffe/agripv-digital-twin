@@ -1,6 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#f4f1e8"/>
-  <path d="M78 343h356M119 343l47-151h180l47 151M145 274h222M181 192l-30 151M331 192l30 151" fill="none" stroke="#286b52" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"/>
-  <path d="M256 119c-43 0-73 31-73 70 43 0 73-31 73-70Zm0 0c43 0 73 31 73 70-43 0-73-31-73-70Z" fill="#d79a3e"/>
-  <path d="M256 189v58" fill="none" stroke="#d79a3e" stroke-linecap="round" stroke-width="18"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Green lettuce growing on a Florianopolis beach beside a surfboard">
+  <defs>
+    <clipPath id="corner"><rect width="512" height="512" rx="96"/></clipPath>
+  </defs>
+  <g clip-path="url(#corner)">
+    <rect width="512" height="512" fill="#86d8e8"/>
+    <circle cx="408" cy="93" r="48" fill="#f8c64a"/>
+    <path d="M0 218c59-31 117-31 178 0 64 32 123 31 183-1 56-30 107-29 151-7v156H0Z" fill="#2d92b3"/>
+    <path d="M0 261c70-27 134-20 190 7 54 26 111 28 167 3 52-23 103-25 155-6v57H0Z" fill="#d8f2ee" opacity=".9"/>
+    <path d="M0 319c83-23 166-23 249 0 84 23 171 23 263-2v195H0Z" fill="#eac47e"/>
+    <path d="M0 351c81-18 164-16 247 5 84 21 173 20 265-4" fill="none" stroke="#d3a960" stroke-width="8" opacity=".55"/>
+    <path d="M408 230c16 13 22 44 14 70-8 27-30 41-49 36-19-5-27-29-18-56 9-27 32-39 53-20Z" fill="#f7f4e9" stroke="#174c62" stroke-width="8"/>
+    <path d="M388 239c-3 28-4 54-3 79" fill="none" stroke="#e77d57" stroke-width="7" stroke-linecap="round"/>
+    <path d="M390 239c-13 18-17 35-18 51M391 239c11 18 15 35 14 51" fill="none" stroke="#174c62" stroke-width="5" stroke-linecap="round"/>
+    <path d="M257 275c-42-38-103-18-100 34-43-1-68 47-31 82-37 36 1 90 52 68 15 42 83 43 101 4 49 18 79-36 48-70 41-31 11-86-35-79-4-20-16-32-35-39Z" fill="#3d9a4f" stroke="#1f673d" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M258 298c-4 37-5 72-1 111M258 332c-25-19-44-24-68-25M259 352c26-18 45-24 69-23M252 381c-27 5-45 16-62 34M265 380c27 7 45 18 59 35" fill="none" stroke="#99d35e" stroke-width="10" stroke-linecap="round"/>
+    <ellipse cx="256" cy="414" rx="60" ry="13" fill="#b88945" opacity=".65"/>
+  </g>
 </svg>
