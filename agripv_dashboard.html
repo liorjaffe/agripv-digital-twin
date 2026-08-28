@@ -4,6 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AgriPV Control Lab</title>
+  <meta name="theme-color" content="#286b52">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
   <style>
     :root { --ink:#172522; --muted:#65736d; --paper:#f4f1e8; --panel:#fffdf8; --line:#d7ddd5; --green:#286b52; --blue:#32718a; --gold:#d79a3e; --red:#c9634d; }
     * { box-sizing:border-box; }
@@ -83,7 +89,7 @@
     .note strong { color:#8b5b19; }
     .footer { color:var(--muted); margin-top:22px; font:12px/1.5 Arial,sans-serif; }
     @media (max-width:850px) { header { display:block; } .subtitle { margin-top:16px; } .layout { grid-template-columns:1fr; } .metrics { grid-template-columns:repeat(2,1fr); } }
-    @media (max-width:480px) { main { padding:24px 14px 35px; } .metrics { gap:8px; } .metric { padding:12px; } .metric .value { font-size:23px; } }
+    @media (max-width:480px) { main { padding:24px 14px 35px; } .metrics { gap:8px; } .metric { padding:12px; } .metric .value { font-size:23px; } .chart-panel { overflow-x:auto; } .chart-panel table { min-width:680px; } }
   </style>
 </head>
 <body>
@@ -1564,6 +1570,9 @@
   applyLanguage();
   bindSensorLegend();
   update();
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  }
 </script>
 
 </body>

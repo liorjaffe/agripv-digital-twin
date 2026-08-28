@@ -1,0 +1,17 @@
+{
+  "name": "AgriPV Control Lab",
+  "short_name": "AgriPV",
+  "description": "Interactive agrivoltaic simulation dashboard.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f1e8",
+  "theme_color": "#286b52",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
