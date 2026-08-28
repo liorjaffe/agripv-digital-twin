@@ -1,4 +1,4 @@
-const CACHE_NAME = 'agripv-control-lab-v1';
+const CACHE_NAME = 'agripv-control-lab-v2';
 const APP_SHELL = ['./', './manifest.webmanifest', './icons/icon.svg'];
 
 self.addEventListener('install', event => {
