@@ -399,19 +399,13 @@
 
     const cropGhi = sunUp ? cropGroundIrradiance(decomposed.dni, decomposed.dhi, sun.apparentZenith, sun.azimuth, orientation.surfaceTilt, orientation.surfaceAzimuth, PV.gcr, PV.heightM, PV.pitchM) : 0;
     const cropPpfd = ghiToPpfd(cropGhi);
-    // The backtracking angle (autoTilt) is, by definition, the steepest tilt
-    // magnitude that captures irradiance without any row-to-row self-shading;
-    // poaIsotropic below has no shading-loss term of its own, so an offset
-    // that pushes the panel to a steeper magnitude than autoTilt would
-    // otherwise "capture" irradiance no real tracker could get without
-    // shading its neighbor. The panel still physically moves to finalTilt
-    // (crop shading above already reacts correctly to that), but PV output
-    // is capped at what the shading-free backtracking envelope allows.
-    const pvTilt = clamp(finalTilt, -Math.abs(autoTilt), Math.abs(autoTilt));
-    const pvOrientation = surfaceOrientation(pvTilt, PV.axisAzimuthDeg, 0);
-    const poa = sunUp ? poaIsotropic(decomposed.dni, decomposed.dhi, ghi, sun.apparentZenith, sun.azimuth, pvOrientation.surfaceTilt, pvOrientation.surfaceAzimuth, PV.albedo) : 0;
+    const poa = sunUp ? poaIsotropic(decomposed.dni, decomposed.dhi, ghi, sun.apparentZenith, sun.azimuth, orientation.surfaceTilt, orientation.surfaceAzimuth, PV.albedo) : 0;
     const cellTemp = faimanCellTemp(poa, values.tempAbove, values.wind);
-    const pvPowerW = pvwattsDc(poa, cellTemp);
+    // The simplified POA model has no module-row shading term, so 0°
+    // backtracking is the physical PV ceiling for every offset.
+    const autoOrientation = surfaceOrientation(autoTilt, PV.axisAzimuthDeg, 0);
+    const autoPoa = sunUp ? poaIsotropic(decomposed.dni, decomposed.dhi, ghi, sun.apparentZenith, sun.azimuth, autoOrientation.surfaceTilt, autoOrientation.surfaceAzimuth, PV.albedo) : 0;
+    const pvPowerW = Math.min(pvwattsDc(poa, cellTemp), pvwattsDc(autoPoa, faimanCellTemp(autoPoa, values.tempAbove, values.wind)));
 
     return { sun, ghi, dni: decomposed.dni, dhi: decomposed.dhi, clearSkyIndex, autoTilt, finalTilt, windStow, cropGhi, cropPpfd, poa, cellTemp, pvPowerW, sunUp };
   }
