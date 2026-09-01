@@ -140,6 +140,7 @@
         <div class="panel metric"><div class="name" id="dliName">DLI Bestand bis jetzt</div><div class="value" id="dli">–</div><div class="change" id="dliChange">–</div></div>
         <div class="panel metric"><div class="name" id="biomassName">Trockenmasse am Tagesende</div><div class="value" id="biomass">–</div><div class="change" id="bioChange">–</div></div>
         <div class="panel metric"><div class="name" id="pvName">PV-Energie (Tag)</div><div class="value" id="pv">–</div><div class="change" id="pvChange">–</div></div>
+        <div class="panel metric"><div class="name" id="pvNowName">PV-Leistung (jetzt)</div><div class="value" id="pvNow">–</div><div class="change" id="pvNowChange">–</div></div>
         <div class="panel metric"><div class="name" id="statusName">Lichtstatus</div><div class="value" id="status">–</div><div class="change" id="statusDetail">–</div></div>
         <div class="panel metric"><div class="name" id="angleName">Modulwinkel</div><div class="value" id="moduleAngle">–</div><div class="change" id="angleRelation">–</div></div>
         <div class="panel metric"><div class="name" id="thermalName">Zelltemperatur</div><div class="value" id="cellTemp">–</div><div class="change" id="thermalEffect">–</div></div>
@@ -822,7 +823,7 @@
     'Module mit Sonne bewegen':'Mover módulos com o sol', 'Offset auf 0° setzen':'Definir offset em 0°', 'Module flach stellen (0°)':'Colocar módulos planos (0°)',
     'Legende:':'Legenda:', 'Anlagenlayout:':'Layout da instalação:', 'Sensoren:':'Sensores:', 'Sensorlegende:':'Legenda dos sensores:',
     'grün = Beet und Pflanzen · mittleres Grau = sichtbare PV-Vorderseite · dunkles Grau = sichtbare PV-Rückseite · dunkelbraun = Bodenschatten der Module · gold = Sonne.':'verde = canteiro e plantas · cinza médio = frente visível dos módulos · cinza escuro = verso visível dos módulos · marrom escuro = sombra dos módulos no solo · dourado = sol.',
-    'DLI Bestand bis jetzt':'DLI da cultura até agora', 'Trockenmasse':'Biomassa seca', 'PV-Energie (Tag)':'Energia FV (dia)', 'Lichtstatus':'Status da luz', 'Modulwinkel':'Ângulo do módulo',
+    'DLI Bestand bis jetzt':'DLI da cultura até agora', 'Trockenmasse':'Biomassa seca', 'PV-Energie (Tag)':'Energia FV (dia)', 'PV-Leistung (jetzt)':'Potência FV (agora)', 'Wind-Stow: Offset inaktiv':'Proteção contra vento: offset inativo', 'Lichtstatus':'Status da luz', 'Modulwinkel':'Ângulo do módulo',
     'Was-wäre-wenn?':'E se?', 'Mikroklima':'Microclima', 'Himmel und Nachführung':'Céu e rastreamento',
     'Temperatur über Bestand':'Temperatura acima do dossel', 'Temperatur am Bestand':'Temperatura no dossel', 'Relative Feuchte über Bestand':'Umidade relativa acima do dossel', 'Relative Feuchte am Bestand':'Umidade relativa no dossel', 'Wind in Bestandshöhe':'Vento na altura do dossel', 'Bewölkung / Trübung':'Nebulosidade / turbidez', 'Luftdruck':'Pressão atmosférica', 'DLI-Ziel':'Meta de DLI', 'Manueller Nachführ-Offset':'Offset manual do rastreamento',
     'Trackerwinkel direkt testen':'Testar diretamente o ângulo do rastreador', 'Licht über den Tag':'Luz ao longo do dia', 'Biomasseverlauf':'Evolução da biomassa', 'Klima am Bestand':'Clima na cultura', 'Winkel × Wettereinfluss':'Ângulo × influência do clima',
@@ -922,7 +923,7 @@
     if ($('season').options[3]) $('season').options[3].textContent = tr('Eigenes Datum', 'Custom date');
     $('controlsHeading').textContent = tr('Was-wäre-wenn?', 'What if?'); $('microclimateHeading').textContent = tr('Mikroklima', 'Microclimate'); $('skyHeading').textContent = tr('Himmel und Nachführung', 'Sky and tracking');
     setLabel('tempAbove','Temperatur über Bestand','Temperature above canopy'); setLabel('tempCanopy','Temperatur am Bestand','Canopy temperature'); setLabel('rhAbove','Relative Feuchte über Bestand','Relative humidity above canopy'); setLabel('rhCanopy','Relative Feuchte am Bestand','Relative humidity at canopy'); setLabel('wind','Wind in Bestandshöhe','Wind at canopy height'); setLabel('cloud','Bewölkung / Trübung','Cloudiness / turbidity'); setLabel('pressure','Luftdruck','Air pressure'); setLabel('target','DLI-Ziel','DLI target'); setLabel('tracker','Manueller Nachführ-Offset','Manual tracking offset');
-    $('dliName').textContent = tr('DLI Bestand bis jetzt','Crop DLI so far'); $('biomassName').textContent = tr('Trockenmasse am Tagesende','Dry biomass at day end'); $('pvName').textContent = tr('PV-Energie (Tag)','PV energy (day)'); $('statusName').textContent = tr('Lichtstatus','Light status'); $('angleName').textContent = tr('Modulwinkel','Module angle'); $('thermalName').textContent = tr('Zelltemperatur','Cell temperature');
+    $('dliName').textContent = tr('DLI Bestand bis jetzt','Crop DLI so far'); $('biomassName').textContent = tr('Trockenmasse am Tagesende','Dry biomass at day end'); $('pvName').textContent = tr('PV-Energie (Tag)','PV energy (day)'); $('pvNowName').textContent = tr('PV-Leistung (jetzt)','PV power (now)'); $('statusName').textContent = tr('Lichtstatus','Light status'); $('angleName').textContent = tr('Modulwinkel','Module angle'); $('thermalName').textContent = tr('Zelltemperatur','Cell temperature');
     $('angleTitle').textContent = tr('Trackerwinkel direkt testen','Test tracker angle directly'); $('lightTitle').textContent = tr('Licht über den Tag','Light over the day'); $('growthTitle').textContent = tr('Biomasseverlauf','Biomass progression'); $('climateTitle').textContent = tr('Klima am Bestand','Canopy climate'); $('scenarioTitle').textContent = tr('Winkel × Wettereinfluss','Angle × weather influence');
     $('lightLegend').innerHTML = '<span style="color:#286b52">●</span> '+tr('Bestand (aktuelle Einstellungen)','Crop (current settings)')+' &nbsp; <span style="color:#d79a3e">●</span> '+tr('Referenz (wolkenlos, Offset 0°)','Reference (clear sky, 0° offset)');
     $('lightCopy').textContent = tr('Grün ist der PPFD-Verlauf mit Ihren aktuellen Reglerwerten (Bewölkung, Trackerwinkel usw.). Gold ist dieselbe Rechnung für denselben Tag und Ort, aber mit Bewölkung fest auf 0 % (wolkenlos) und Trackerwinkel-Offset fest auf 0° (nur automatisches Backtracking) — dieselbe Referenzbedingung, die auch bei DLI-, Biomasse- und PV-Vergleichswerten im Dashboard verwendet wird. Beide Kurven folgen dieser Kette: Sonnenstand → Trackerwinkel → Bodenverschattung → Direkt-/Diffusanteil (Erbs) → PPFD. Die Fläche unter der grünen Kurve wird zum DLI integriert; das ist nicht dasselbe wie GHI über den Modulen.', 'Green is the PPFD curve using your current control values (cloud cover, tracker offset, etc.). Gold is the identical calculation for the same day and location, but with cloud cover fixed at 0% (clear sky) and tracker offset fixed at 0° (automatic backtracking only) — the same reference condition used for the DLI, biomass, and PV comparison values elsewhere on the dashboard. Both curves follow this chain: solar position → tracker angle → ground shading → direct/diffuse split (Erbs) → PPFD. The area under the green curve is integrated into DLI; this is not the same as GHI above the modules.');
@@ -1227,6 +1228,8 @@
     const vpd = Math.max(0, saturationKpa(v.tempCanopy)*(1-v.rhCanopy/100));
 
     const currentHour = Number($('sceneHour').value);
+    const currentNow = computeTimestep(v, dateParts.year, dateParts.monthIndex0, dateParts.day, currentHour);
+    const currentZeroOffset = computeTimestep({...v, offsetDeg:0}, dateParts.year, dateParts.monthIndex0, dateParts.day, currentHour);
     const currentDli = cumulativeDli(day.points, currentHour);
     const referenceDliToNow = cumulativeDli(reference.points, currentHour);
     $('dli').textContent = currentDli.toFixed(1)+' mol';
@@ -1236,6 +1239,11 @@
     $('bioChange').textContent = (biomassGain>=0?'+':'')+biomassGain.toFixed(2)+' g/m² '+tr('heute · ','today · ')+((day.growth.at(-1)-reference.growth.at(-1))/ref(reference.growth.at(-1))*100).toFixed(1)+' % '+tr('vs Referenz','vs reference');
     $('pv').textContent = day.pvEnergyKwh.toFixed(1)+' kWh ('+tr('32 kWp Anlage','32 kWp plant')+')';
     $('pvChange').textContent = (pvDiff/ref(reference.pvEnergyKwh)*100).toFixed(1)+' % '+tr('vs Referenz','vs reference');
+    const currentPvDeltaKw = (currentNow.pvPowerW-currentZeroOffset.pvPowerW)/1000;
+    $('pvNow').textContent = (currentNow.pvPowerW/1000).toFixed(1)+' kW';
+    $('pvNowChange').textContent = currentNow.windStow
+      ? tr('Wind-Stow: Offset inaktiv','Wind stow: offset inactive')
+      : (currentPvDeltaKw >= 0 ? '+' : '')+currentPvDeltaKw.toFixed(2)+' kW '+tr('vs. Offset 0° um ','vs 0° offset at ')+formatHour(currentHour);
 
     const anyStow = day.points.some(p => p.windStow);
     const status = anyStow ? tr('Wind-Stow','Wind stow') : day.dli<v.target*.9 ? tr('Lichtmangel','Low light') : day.dli>v.target*1.2 ? tr('zu viel Licht','Excess light') : tr('im Korridor','Within target');
@@ -1377,7 +1385,7 @@
     }).join('');
     $('econScenarioReadout').textContent = tr('Ausgewählt: ','Selected: ')+selectedScenario.name+' ('+selectedScenario.offsetLabel+') — R$ '+selectedScenario.totalRevenueRS.toFixed(0)+' '+tr('gesamt','total')+' (PV R$ '+selectedScenario.pvRevenueRS.toFixed(0)+' + '+tr('Salat','lettuce')+' R$ '+selectedScenario.cropRevenueRS.toFixed(0)+', '+selectedScenario.freshYieldKg.toFixed(1)+' kg).';
 
-    const now = computeTimestep(v, dateParts.year, dateParts.monthIndex0, dateParts.day, currentHour);
+    const now = currentNow;
     $('moduleAngle').textContent = (now.finalTilt>=0?'+':'')+now.finalTilt.toFixed(0)+'°';
     $('angleRelation').textContent = tr('Automatik ','Automatic ')+(now.autoTilt>=0?'+':'')+now.autoTilt.toFixed(0)+'° · '+tr('Offset ','Offset ')+(v.offsetDeg>=0?'+':'')+v.offsetDeg+'° · '+(now.windStow?tr('Wind-Stow aktiv','wind stow active'):v.trackerMotion?tr('normal','normal'):tr('Tracker fixiert','tracker fixed'));
     const currentThermalFactor = now.poa > 0 ? now.pvPowerW / pvwattsDc(now.poa, 25) : 1;
