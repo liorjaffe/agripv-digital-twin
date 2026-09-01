@@ -15,6 +15,7 @@ from project.io.field_data import (
 )
 from project.io.grafana import telemetry_frame
 from project.io.ingestion import load_field_export, load_timeseries, validate_weather_contract
+from project.io.period_results import PeriodResultsInventory, period_results_weather
 from project.models.radiation import estimate_ghi_dni_dhi_from_ppfd
 from project.scenarios.run_timeseries import run_timeseries_pipeline
 
@@ -106,4 +107,22 @@ def process_field_export(
                 ))
         outputs[subzone_id] = (results, daily, telemetry_frame(results, subzone_id=subzone_id))
     return outputs
+
+
+def process_period_results_export(
+    source,
+    location: pvlib.location.Location,
+    **pipeline_options,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, PeriodResultsInventory]:
+    """Run model recommendations on real Period_Results irradiance only.
+
+    Outputs retain measured tracker angles in a separate column and are marked
+    ``observed_field_data``. No unidentified ``0A``--``5F`` channel is treated
+    as crop climate, temperature, or PAR until its installation metadata exists.
+    """
+    weather, observed_tracker, inventory = period_results_weather(source)
+    results, daily = run_timeseries_pipeline(weather, location, **pipeline_options)
+    results = results.join(observed_tracker).assign(data_source="observed_field_data")
+    daily = daily.assign(data_source="observed_field_data")
+    return results, daily, telemetry_frame(results, subzone_id="period-results"), inventory
 
