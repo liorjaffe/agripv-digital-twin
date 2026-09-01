@@ -23,6 +23,13 @@
     .language-switch { display:flex; justify-content:flex-end; gap:6px; margin-bottom:8px; }
     .language-button { width:36px; height:30px; padding:3px; border:1px solid var(--line); border-radius:4px; background:var(--panel); color:var(--ink); font:18px/1 Arial,sans-serif; cursor:pointer; opacity:.65; }
     .language-button:hover, .language-button.active { opacity:1; border-color:var(--green); box-shadow:0 0 0 2px rgba(40,107,82,.12); }
+    .data-mode { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:-10px 0 20px; padding:11px 13px; border:1px solid var(--line); border-radius:7px; background:#eef4f0; font:12px Arial,sans-serif; }
+    .data-mode strong { margin-right:4px; }
+    .data-mode button { padding:7px 10px; background:transparent; color:var(--green); }
+    .data-mode button.active { background:var(--green); color:white; }
+    #fieldDataPanel { display:none; padding:22px; }
+    body.field-data-mode .training-surface { display:none; }
+    body.field-data-mode #fieldDataPanel { display:block; }
     .layout { display:grid; grid-template-columns:340px 1fr; gap:18px; }
     .panel { background:rgba(255,253,248,.9); border:1px solid var(--line); border-radius:7px; box-shadow:0 10px 28px rgba(30,53,45,.06); }
     .controls { padding:22px; }
@@ -98,7 +105,9 @@
     <div><div class="eyebrow">Fotovoltaica / UFSC · Florianópolis</div><h1 id="appTitle">AgriPV Digital Twin Dashboard</h1></div>
     <div><div class="language-switch" aria-label="Language / Sprache / Idioma"><button class="language-button active" id="languageDe" type="button" title="Deutsch" aria-label="Deutsch" aria-pressed="true">🇩🇪</button><button class="language-button" id="languageEn" type="button" title="English" aria-label="English" aria-pressed="false">🇬🇧</button><button class="language-button" id="languagePt" type="button" title="Português (Brasil)" aria-label="Português (Brasil)" aria-pressed="false">🇧🇷</button></div><div class="subtitle" id="appSubtitle">Eine interaktive Darstellung des Zusammenspiels von Sonnenstand, Trackerstellung, Pflanzenlicht, DLI und PV-Ertrag.</div></div>
   </header>
-  <section class="panel scene-panel">
+  <div class="data-mode" aria-label="Data source mode"><strong id="dataModeLabel">Datenquelle</strong><button id="trainingMode" class="active" type="button" aria-pressed="true">Training / Modell</button><button id="fieldMode" type="button" aria-pressed="false">Echte Feldmessung</button><span id="dataModeState">Reglerbasierte Simulation; keine Messwerte.</span></div>
+  <section class="panel" id="fieldDataPanel"><h2 id="fieldDataTitle">Feldmessung: lokaler, getrennter Datenpfad</h2><p class="chart-copy" id="fieldDataCopy">Der reale Datensatz Period_Results.xlsx bleibt ausschließlich lokal und wird nicht an diese öffentliche Web-App übertragen. Die lokale Python-Pipeline nutzt 4.207 Zeitpunkte aus 2026 mit gemessenem GHI, DNI, DHI, Sonnenstand und Trackerwinkel; Ergebnisse tragen data_source = observed_field_data. Erfasste Kanäle: 8 feste Front-/Rückseiten-Sensoren, 32 Tracker-Front-/Rückseiten-Sensoren, 16 weitere Tracker-Nord-/Süd-Sensoren und 37 noch nicht physikalisch zugeordnete Rasterkanäle. Ohne Sensorplan werden diese 37 Kanäle weder als PAR noch als Temperatur, Feuchte, Wind oder Bestandswert interpretiert. Für eine reale Feldsimulation starten Sie lokal process_period_results_export(); die Trainingsregler und Diagramme sind absichtlich ausgeblendet, damit keine Vermischung entsteht.</p></section>
+  <section class="panel scene-panel training-surface">
     <div class="chart-head"><div><h2 id="sceneTitle">3D-Szenario: vier Trackerreihen und Beete</h2><p class="chart-copy" id="sceneDescription">Dargestellt sind vier gleichartige parallele Nord–Süd-Trackerreihen: zwei Reihen gehören zu System 2 und zwei Reihen zu System 3. Jede Reihe besitzt zwei Längsträger und fünf Stahlstützen entlang der langen Modulfläche. Unter jeder Reihe liegt ein zugeordnetes Beet. Der dunkle Bereich markiert ausschließlich den realen Schattenwurf auf Boden und Beeten.</p></div></div>
     <div class="scene-tools"><span class="scene-location">Standort: Florianópolis, Brasilien · 27,5949° S, 48,5480° W</span><label for="simDate">Datum <output id="simDateOut"></output></label><input id="simDate" type="date"><label for="sceneHour">Sonnenzeit <output id="sceneHourOut">12:00</output></label><input id="sceneHour" type="range" min="0" max="24" value="12" step="0.25"><button class="secondary" id="playSun">Sonnenlauf abspielen</button><label for="season">Schnellwahl</label><select id="season"><option value="summer">Sommersonnenwende</option><option value="equinox" selected>Äquinoktium</option><option value="winter">Wintersonnenwende</option></select><label><input id="trackerMove" type="checkbox" checked> Module mit Sonne bewegen</label><button id="applyRecommended">Offset auf 0° setzen</button><button id="setFlat">Module flach stellen (0°)</button><button class="secondary" id="rotateFieldLeft">Feld ↶</button><button class="secondary" id="rotateFieldRight">Feld ↷</button><button class="secondary" id="moveFieldUp">Ansicht ↑</button><button class="secondary" id="moveFieldDown">Ansicht ↓</button><button class="secondary" id="resetFieldView">Ansicht zurücksetzen</button></div>
     <div class="sensor-controls"><strong>Sensoren:</strong><label><input id="showSensors" type="checkbox" checked> anzeigen</label><label><input id="showEnvironmental" type="checkbox" checked> Umweltstation</label><label><input id="showTrackerSensors" type="checkbox" checked> Trackerfeld</label><label><input id="showCropSensors" type="checkbox" checked> Kulturen</label></div>
@@ -109,7 +118,7 @@
     <div class="module-control"><strong>Manueller Offset zur automatischen Nachführung</strong><label for="scenePanelAngle">Offset</label><input id="scenePanelAngle" type="range" min="-90" max="90" value="0" step="1"><input id="scenePanelAngleNumber" type="number" min="-90" max="90" value="0" step="1"> ° <span>Die Python-Steuerung wählt genau so einen additiven Offset zur automatisch berechneten Backtracking-Grundstellung (siehe <code>project/scenarios/run_timeseries.py</code>, <code>tilt_offsets_deg</code>). Ab 15 m/s Wind wird der Offset ignoriert und 0° (Wind-Stow) erzwungen.</span></div>
     <div class="chart-copy">Die Trackerrotation folgt derselben Backtracking-Formel wie <code>pvlib.tracking.singleaxis</code> (Achsazimut, GCR, Reihenhöhe und -abstand aus <code>project/config/site.yaml</code>) und vermeidet damit modulseitige Reihe-zu-Reihe-Verschattung von selbst. Der dunkle Bereich zeigt ausschließlich den effektiven Schattenwurf auf Boden und Beeten, berechnet aus echtem Sonnenstand und derselben Geometrie — nie einen Schatten auf den Modulen.</div>
   </section>
-  <div class="layout">
+  <div class="layout training-surface">
     <aside class="panel controls">
       <h2 id="controlsHeading">Was-wäre-wenn?</h2>
       <div class="info">Dies ist kein Live-Wetterfeed: Datum, Standort und Sonnenzeit bestimmen den Sonnenstand; die übrigen Werte stammen aus den Eingabereglern. Die Intensität wird aus dem Haurwitz-Klarhimmelmodell und einem Bewölkungs-/Klarheitsindex abgeleitet, der Direkt-/Diffusanteil mit Erbs. Echte PAR-, Temperatur-, Wind- und Druckzeitreihen werden in Python über <code>project/io/field_data.py</code> eingelesen. „über Bestand“ beschreibt das Mikroklima oberhalb des Blätterdachs, „am Bestand“ die Bedingungen am Pflanzenstandort.</div>
@@ -802,6 +811,7 @@
   let selectedSensorKind = null;
   let selectedScenarioId = 'max';
   let selectedTrackingHour = null;
+  let dataMode = 'training';
   let language = 'de';
   const pt = {
     'Deutsch':'Alemão', 'English':'Inglês', 'Language / Sprache':'Idioma',
@@ -852,6 +862,17 @@
     'Jede Zeile zeigt ein ganztägiges Simulationsszenario. „Aktuelle Eingaben“ bedeutet die Reglerwerte, nicht Live-Wetter. Der Winkel ist der Offset zur automatischen Nachführung; DLI und PV-Energie sind Tageswerte. Die momentane PV-Leistung zur gewählten Sonnenzeit steht im Readout an der 3D-Grafik.':'Cada linha mostra um cenário de simulação de um dia inteiro. “Entradas atuais” significa os valores dos controles, não o clima ao vivo. O ângulo é o offset em relação ao rastreamento automático; DLI e energia FV são valores diários. A potência FV instantânea no horário solar selecionado aparece no readout do gráfico 3D.'
   };
   const tr = (german, english) => language === 'de' ? german : language === 'pt' ? (pt[german] || english) : english;
+  function applyDataMode() {
+    const fieldData = dataMode === 'field';
+    document.body.classList.toggle('field-data-mode', fieldData);
+    $('trainingMode').classList.toggle('active', !fieldData);
+    $('fieldMode').classList.toggle('active', fieldData);
+    $('trainingMode').setAttribute('aria-pressed', String(!fieldData));
+    $('fieldMode').setAttribute('aria-pressed', String(fieldData));
+    $('dataModeState').textContent = fieldData
+      ? tr('Lokale Excel-Feldanalyse; keine Datenübertragung an die Web-App.','Local Excel field analysis; no data is sent to the web app.')
+      : tr('Reglerbasierte Simulation; keine Messwerte.','Control-based simulation; no field measurements.');
+  }
   function setLabel(forId, german, english) {
     const label = document.querySelector(`label[for="${forId}"]`);
     if (label && label.firstChild) label.firstChild.nodeValue = tr(german, english)+' ';
@@ -879,6 +900,12 @@
       'Eine interaktive Darstellung des Zusammenspiels von Sonnenstand, Trackerstellung, Pflanzenlicht, DLI und PV-Ertrag.',
       'An interactive view of the relationship between solar position, tracker angle, crop light, DLI, and PV yield.'
     );
+    $('dataModeLabel').textContent = tr('Datenquelle','Data source');
+    $('trainingMode').textContent = tr('Training / Modell','Training / model');
+    $('fieldMode').textContent = tr('Echte Feldmessung','Real field data');
+    $('fieldDataTitle').textContent = tr('Feldmessung: lokaler, getrennter Datenpfad','Field data: local, separate data path');
+    $('fieldDataCopy').textContent = tr('Der reale Datensatz Period_Results.xlsx bleibt ausschließlich lokal und wird nicht an diese öffentliche Web-App übertragen. Die lokale Python-Pipeline nutzt 4.207 Zeitpunkte aus 2026 mit gemessenem GHI, DNI, DHI, Sonnenstand und Trackerwinkel; Ergebnisse tragen data_source = observed_field_data. Erfasste Kanäle: 8 feste Front-/Rückseiten-Sensoren, 32 Tracker-Front-/Rückseiten-Sensoren, 16 weitere Tracker-Nord-/Süd-Sensoren und 37 noch nicht physikalisch zugeordnete Rasterkanäle. Ohne Sensorplan werden diese 37 Kanäle weder als PAR noch als Temperatur, Feuchte, Wind oder Bestandswert interpretiert. Für eine reale Feldsimulation starten Sie lokal process_period_results_export(); die Trainingsregler und Diagramme sind absichtlich ausgeblendet, damit keine Vermischung entsteht.','The real Period_Results.xlsx dataset stays local and is never sent to this public web app. The local Python pipeline uses 4,207 timestamps from 2026 with measured GHI, DNI, DHI, solar position, and tracker angle; results are marked data_source = observed_field_data. Captured channels: 8 fixed front/back sensors, 32 tracker front/back sensors, 16 additional tracker north/south sensors, and 37 grid channels not yet physically assigned. Without an installation map, the 37 channels are not interpreted as PAR, temperature, humidity, wind, or canopy values. For a real field simulation, run process_period_results_export() locally; training controls and charts are intentionally hidden to prevent data mixing.');
+    applyDataMode();
     $('sceneTitle').textContent = tr('3D-Szenario: vier Trackerreihen und Beete', '3D scenario: four tracker rows and crop beds');
     $('sceneDescription').textContent = tr(
       'Dargestellt sind vier gleichartige parallele Nord–Süd-Trackerreihen: zwei Reihen gehören zu System 2 und zwei Reihen zu System 3. Jede Reihe besitzt zwei Längsträger und fünf Stahlstützen entlang der langen Modulfläche. Unter jeder Reihe liegt ein zugeordnetes Beet. Der dunkle Bereich markiert ausschließlich den realen Schattenwurf auf Boden und Beeten.',
@@ -1061,6 +1088,8 @@
   ids.filter(id => id !== 'tracker').forEach(id => $(id).addEventListener('input', debouncedUpdate));
   cycleIds.forEach(id => $(id).addEventListener('input', debouncedUpdate));
   econIds.forEach(id => $(id).addEventListener('input', debouncedUpdate));
+  $('trainingMode').addEventListener('click', () => { dataMode = 'training'; applyDataMode(); });
+  $('fieldMode').addEventListener('click', () => { dataMode = 'field'; applyDataMode(); });
   $('resetEconPrices').addEventListener('click', () => { econIds.forEach(id => $(id).value = defaults[id]); update(); });
   $('econScenarioTable').addEventListener('click', e => {
     const row = e.target.closest('tr[data-scenario-id]');
