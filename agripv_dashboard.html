@@ -106,7 +106,7 @@
     <div><div class="language-switch" aria-label="Language / Sprache / Idioma"><button class="language-button active" id="languageDe" type="button" title="Deutsch" aria-label="Deutsch" aria-pressed="true">🇩🇪</button><button class="language-button" id="languageEn" type="button" title="English" aria-label="English" aria-pressed="false">🇬🇧</button><button class="language-button" id="languagePt" type="button" title="Português (Brasil)" aria-label="Português (Brasil)" aria-pressed="false">🇧🇷</button></div><div class="subtitle" id="appSubtitle">Eine interaktive Darstellung des Zusammenspiels von Sonnenstand, Trackerstellung, Pflanzenlicht, DLI und PV-Ertrag.</div></div>
   </header>
   <div class="data-mode" aria-label="Data source mode"><strong id="dataModeLabel">Datenquelle</strong><button id="trainingMode" class="active" type="button" aria-pressed="true">Training / Modell</button><button id="fieldMode" type="button" aria-pressed="false">Echte Feldmessung</button><span id="dataModeState">Reglerbasierte Simulation; keine Messwerte.</span></div>
-  <section class="panel" id="fieldDataPanel"><h2 id="fieldDataTitle">Feldmessung: lokaler, getrennter Datenpfad</h2><p class="chart-copy" id="fieldDataCopy">Der reale Datensatz Period_Results.xlsx bleibt ausschließlich lokal und wird nicht an diese öffentliche Web-App übertragen. Die lokale Python-Pipeline nutzt 4.207 Zeitpunkte aus 2026 mit gemessenem GHI, DNI, DHI, Sonnenstand und Trackerwinkel; Ergebnisse tragen data_source = observed_field_data. Erfasste Kanäle: 8 feste Front-/Rückseiten-Sensoren, 32 Tracker-Front-/Rückseiten-Sensoren, 16 weitere Tracker-Nord-/Süd-Sensoren und 37 noch nicht physikalisch zugeordnete Rasterkanäle. Ohne Sensorplan werden diese 37 Kanäle weder als PAR noch als Temperatur, Feuchte, Wind oder Bestandswert interpretiert. Für eine reale Feldsimulation starten Sie lokal process_period_results_export(); die Trainingsregler und Diagramme sind absichtlich ausgeblendet, damit keine Vermischung entsteht.</p></section>
+  <section class="panel" id="fieldDataPanel"><h2 id="fieldDataTitle">Feldmessung: lokaler, getrennter Datenpfad</h2><p class="chart-copy" id="fieldDataCopy">Der reale Datensatz Period_Results.xlsx bleibt ausschließlich lokal und wird nicht an diese öffentliche Web-App übertragen. Die lokale Python-Pipeline nutzt 4.207 Zeitpunkte aus 2026 mit gemessenem GHI, DNI, DHI, Sonnenstand und Trackerwinkel; Ergebnisse tragen data_source = observed_field_data. Erfasste Kanäle: 8 feste Front-/Rückseiten-Sensoren, 32 Tracker-Front-/Rückseiten-Sensoren, 16 weitere Tracker-Nord-/Süd-Sensoren und 37 noch nicht physikalisch zugeordnete Rasterkanäle. Ohne Sensorplan werden diese 37 Kanäle weder als PAR noch als Temperatur, Feuchte, Wind oder Bestandswert interpretiert. Für eine reale Feldsimulation starten Sie lokal process_period_results_export(); die Trainingsregler und Diagramme sind absichtlich ausgeblendet, damit keine Vermischung entsteht.</p><div id="fieldDataAvailable"><div class="module-control"><label for="fieldDay">Feldtag <output id="fieldDayOut">–</output></label><input id="fieldDay" type="range" min="1" max="365" value="1" step="1"></div><div class="metrics"><div class="panel metric"><div class="name">GHI (Tagesmittel)</div><div class="value" id="fieldGhi">–</div></div><div class="panel metric"><div class="name">DNI (Tagesmittel)</div><div class="value" id="fieldDni">–</div></div><div class="panel metric"><div class="name">DHI (Tagesmittel)</div><div class="value" id="fieldDhi">–</div></div><div class="panel metric"><div class="name">Trackerwinkel (Mittel)</div><div class="value" id="fieldTracker">–</div></div></div><div class="chart-head"><h2>Jahresverlauf: gemessene Strahlung</h2><div class="legend"><span style="color:#d79a3e">●</span> GHI <span style="color:#286b52">●</span> DNI</div></div><canvas id="fieldIrradianceChart"></canvas><div class="chart-head"><h2>Jahresverlauf: gemessener Trackerwinkel</h2><div class="legend" style="color:#32718a">● Beobachtung</div></div><canvas id="fieldTrackerChart"></canvas></div><p class="scene-readout" id="fieldDataUnavailable">Lokale Tagesdaten nicht gefunden. Die Excel-Datei bleibt absichtlich außerhalb der öffentlichen Web-App.</p></section>
   <section class="panel scene-panel training-surface">
     <div class="chart-head"><div><h2 id="sceneTitle">3D-Szenario: vier Trackerreihen und Beete</h2><p class="chart-copy" id="sceneDescription">Dargestellt sind vier gleichartige parallele Nord–Süd-Trackerreihen: zwei Reihen gehören zu System 2 und zwei Reihen zu System 3. Jede Reihe besitzt zwei Längsträger und fünf Stahlstützen entlang der langen Modulfläche. Unter jeder Reihe liegt ein zugeordnetes Beet. Der dunkle Bereich markiert ausschließlich den realen Schattenwurf auf Boden und Beeten.</p></div></div>
     <div class="scene-tools"><span class="scene-location">Standort: Florianópolis, Brasilien · 27,5949° S, 48,5480° W</span><label for="simDate">Datum <output id="simDateOut"></output></label><input id="simDate" type="date"><label for="sceneHour">Sonnenzeit <output id="sceneHourOut">12:00</output></label><input id="sceneHour" type="range" min="0" max="24" value="12" step="0.25"><button class="secondary" id="playSun">Sonnenlauf abspielen</button><label for="season">Schnellwahl</label><select id="season"><option value="summer">Sommersonnenwende</option><option value="equinox" selected>Äquinoktium</option><option value="winter">Wintersonnenwende</option></select><label><input id="trackerMove" type="checkbox" checked> Module mit Sonne bewegen</label><button id="applyRecommended">Offset auf 0° setzen</button><button id="setFlat">Module flach stellen (0°)</button><button class="secondary" id="rotateFieldLeft">Feld ↶</button><button class="secondary" id="rotateFieldRight">Feld ↷</button><button class="secondary" id="moveFieldUp">Ansicht ↑</button><button class="secondary" id="moveFieldDown">Ansicht ↓</button><button class="secondary" id="resetFieldView">Ansicht zurücksetzen</button></div>
@@ -159,6 +159,7 @@
   </div>
   <div class="footer">Interaktiver Sensitivitäts-Sandbox. Sonnenstand, Backtracking-Geometrie, Bodenverschattung, Klarhimmel/Erbs-Zerlegung, DLI-Integration und das Van-Henten-Wachstumsmodell sind direkte Portierungen derselben Formeln aus <code>project/models/radiation.py</code> und <code>project/models/lettuce.py</code>. Nur das PV-Ertragsmodell ist eine vereinfachte isotrope Transposition anstelle des vollen <code>pvlib.bifacial.infinite_sheds</code>-Modells, und reale Sensorwerte/kalibrierte Pflanzenparameter bleiben der Python-Pipeline vorbehalten.</div>
 </main>
+<script src="field-data.local.js"></script>
 <script>
   // ============================================================================
   // Physical core. Every formula below is a direct port of the pvlib functions
@@ -863,6 +864,23 @@
     'Jede Zeile zeigt ein ganztägiges Simulationsszenario. „Aktuelle Eingaben“ bedeutet die Reglerwerte, nicht Live-Wetter. Der Winkel ist der Offset zur automatischen Nachführung; DLI und PV-Energie sind Tageswerte. Die momentane PV-Leistung zur gewählten Sonnenzeit steht im Readout an der 3D-Grafik.':'Cada linha mostra um cenário de simulação de um dia inteiro. “Entradas atuais” significa os valores dos controles, não o clima ao vivo. O ângulo é o offset em relação ao rastreamento automático; DLI e energia FV são valores diários. A potência FV instantânea no horário solar selecionado aparece no readout do gráfico 3D.'
   };
   const tr = (german, english) => language === 'de' ? german : language === 'pt' ? (pt[german] || english) : english;
+  function renderFieldData() {
+    const daily = window.AGRIPV_FIELD_DAILY;
+    const available = Array.isArray(daily) && daily.length > 0;
+    $('fieldDataAvailable').style.display = available ? 'block' : 'none';
+    $('fieldDataUnavailable').style.display = available ? 'none' : 'block';
+    if (!available) return;
+    $('fieldDay').max = daily.length;
+    const index = clamp(Number($('fieldDay').value)-1, 0, daily.length-1);
+    const point = daily[index];
+    $('fieldDayOut').value = point.date;
+    $('fieldGhi').textContent = point.ghi.toFixed(0)+' W/m²';
+    $('fieldDni').textContent = point.dni.toFixed(0)+' W/m²';
+    $('fieldDhi').textContent = point.dhi.toFixed(0)+' W/m²';
+    $('fieldTracker').textContent = (point.tracker>=0?'+':'')+point.tracker.toFixed(1)+'°';
+    draw('fieldIrradianceChart', daily.map((_,i)=>i), daily.map(point=>point.ghi), daily.map(point=>point.dni), 'W/m²', '#d79a3e', '#286b52');
+    drawSingleSeriesChart('fieldTrackerChart', daily.map((_,i)=>i), daily.map(point=>point.tracker), '°', '#32718a', null);
+  }
   function applyDataMode() {
     const fieldData = dataMode === 'field';
     document.body.classList.toggle('field-data-mode', fieldData);
@@ -873,6 +891,7 @@
     $('dataModeState').textContent = fieldData
       ? tr('Lokale Excel-Feldanalyse; keine Datenübertragung an die Web-App.','Local Excel field analysis; no data is sent to the web app.')
       : tr('Reglerbasierte Simulation; keine Messwerte.','Control-based simulation; no field measurements.');
+    if (fieldData) renderFieldData();
   }
   function setLabel(forId, german, english) {
     const label = document.querySelector(`label[for="${forId}"]`);
@@ -1091,6 +1110,7 @@
   econIds.forEach(id => $(id).addEventListener('input', debouncedUpdate));
   $('trainingMode').addEventListener('click', () => { dataMode = 'training'; applyDataMode(); });
   $('fieldMode').addEventListener('click', () => { dataMode = 'field'; applyDataMode(); });
+  $('fieldDay').addEventListener('input', renderFieldData);
   $('resetEconPrices').addEventListener('click', () => { econIds.forEach(id => $(id).value = defaults[id]); update(); });
   $('econScenarioTable').addEventListener('click', e => {
     const row = e.target.closest('tr[data-scenario-id]');
