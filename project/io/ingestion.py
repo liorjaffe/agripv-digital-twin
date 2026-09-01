@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
 
 import pandas as pd
@@ -44,6 +45,31 @@ def load_timeseries(source: str | Path | pd.DataFrame, *, time_column: str = "ti
         timestamps = timestamps.tz_convert(timezone)
     frame.index = timestamps
     return frame.sort_index()
+
+
+def load_period_results_export(
+    source: str | Path,
+    *,
+    sheet_name: str = "in",
+    timezone: str = "America/Sao_Paulo",
+) -> pd.DataFrame:
+    """Load the Period_Results workbook without mixing it with synthetic inputs.
+
+    The field export is stored as CSV text in one Excel column. Its first row is
+    the CSV header (``date,datetime,GHI,...``), followed by one CSV record per
+    timestamp. This loader restores those columns and returns a time-indexed,
+    timezone-aware frame of measured/model-exported field values.
+    """
+    workbook_column = pd.read_excel(source, sheet_name=sheet_name, header=None).iloc[:, 0]
+    lines = workbook_column.dropna().astype(str)
+    header_at = next(
+        (index for index, line in enumerate(lines) if line.startswith("date,datetime,GHI,DNI,DHI,")),
+        None,
+    )
+    if header_at is None:
+        raise ValueError("Period_Results export header not found")
+    frame = pd.read_csv(StringIO("\n".join(lines.iloc[header_at:].tolist())))
+    return load_timeseries(frame, time_column="datetime", timezone=timezone)
 
 
 def load_field_export(
