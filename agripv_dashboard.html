@@ -509,6 +509,11 @@
     }
     return series;
   }
+  function seasonalClimateValues(startDateParts) {
+    const dayOfYear = dayOfYearUTC(startDateParts.year, startDateParts.monthIndex0, startDateParts.day);
+    const temperature = seasonalMeanTempC(dayOfYear);
+    return { tempAbove: temperature, tempCanopy: temperature };
+  }
 
   // ---- Full grow-cycle biomass: continues the same Euler integration used by
   // buildDaySeries across many calendar days instead of resetting at midnight,
@@ -574,16 +579,17 @@
     const monthNames = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
     return monthNames.map((label,monthIndex0) => {
       const start = {year:2026, monthIndex0, day:1};
-      const coupled = simulateCoupledCycle(values, start, 90);
+      const climateValues = {...values, ...seasonalClimateValues(start)};
+      const coupled = simulateCoupledCycle(climateValues, start, 90);
       const days = coupled.harvestDay ?? 90;
-      const tempSeries = seasonalCanopyTempSeries(values, start, days);
-      const openDay = buildUnshadedDaySeries(values, start);
-      const agriDay = buildDaySeries(values, start);
-      const openTotals = simulateUnshadedFullCycle(values, start, days);
+      const tempSeries = seasonalCanopyTempSeries(climateValues, start, days);
+      const openDay = buildUnshadedDaySeries(climateValues, start);
+      const agriDay = buildDaySeries(climateValues, start);
+      const openTotals = simulateUnshadedFullCycle(climateValues, start, days);
       const betweenLight = clamp(agriDay.dli/openDay.dli*1.08, 0, 1);
       const underLight = clamp(agriDay.dli/openDay.dli*.92, 0, 1);
-      const betweenTotals = simulateCycleWithLightScale(values, start, days, betweenLight);
-      const underTotals = simulateCycleWithLightScale(values, start, days, underLight);
+      const betweenTotals = simulateCycleWithLightScale(climateValues, start, days, betweenLight);
+      const underTotals = simulateCycleWithLightScale(climateValues, start, days, underLight);
       const openMass = openTotals.at(-1), betweenMass = betweenTotals.at(-1), underMass = underTotals.at(-1);
       const areaPerBed = CULTIVATION.plantsPerBed / plantDensity;
       const freshKg = dryGm2 => ((dryGm2/(dryMatterPct/100))/1000) * areaPerBed;
@@ -1406,7 +1412,7 @@
     const monthlyRows = monthlyReferenceRows(v, plantDensity, dryMatterPct);
     const pct = value => Math.round(value*100)+'%';
     $('monthlyReferenceTable').innerHTML = monthlyRows.map(row => '<tr><td>'+row.label+'</td><td>'+row.days+'</td><td>'+row.temp.toFixed(1)+'</td><td>'+row.openMass.toFixed(0)+'</td><td>'+pct(row.betweenLight)+'</td><td><strong>'+pct(row.betweenMass)+'</strong></td><td>'+pct(row.underLight)+'</td><td><strong>'+pct(row.underMass)+'</strong></td><td>'+pct(row.agripvSystem)+'</td><td>'+pct(row.openSystem)+'</td></tr>').join('') + '<tr style="font-weight:700;background:#eef4f0"><td>'+tr('Mittel','Mean')+'</td><td>–</td><td>–</td><td>'+(monthlyRows.reduce((a,r)=>a+r.openMass,0)/monthlyRows.length).toFixed(0)+'</td><td>'+pct(monthlyRows.reduce((a,r)=>a+r.betweenLight,0)/monthlyRows.length)+'</td><td>'+pct(monthlyRows.reduce((a,r)=>a+r.betweenMass,0)/monthlyRows.length)+'</td><td>'+pct(monthlyRows.reduce((a,r)=>a+r.underLight,0)/monthlyRows.length)+'</td><td>'+pct(monthlyRows.reduce((a,r)=>a+r.underMass,0)/monthlyRows.length)+'</td><td>'+pct(monthlyRows.reduce((a,r)=>a+r.agripvSystem,0)/monthlyRows.length)+'</td><td>100%</td></tr>';
-    $('monthlyReferenceReadout').textContent = tr('Alle Systeme werden bei gleichem GDD-Reifepunkt verglichen; Masse ist relative Frischmasse aus dem Van-Henten-Modell, bezogen auf die offene Kontrolle 0E–0D–0C.','All systems are compared at the same GDD maturity point; mass is relative fresh weight from the Van Henten model, referenced to the open control 0E–0D–0C.');
+    $('monthlyReferenceReadout').textContent = tr('Alle Systeme werden bei gleichem GDD-Reifepunkt verglichen; die Monatstabelle nutzt die Florianópolis-Saisonkurve ohne aktuelle Temperaturregler-Anomalie. Masse ist relative Frischmasse aus dem Van-Henten-Modell, bezogen auf die offene Kontrolle 0E–0D–0C.','All systems are compared at the same GDD maturity point; the monthly table uses the Florianopolis seasonal curve without the current temperature-slider anomaly. Mass is relative fresh weight from the Van Henten model, referenced to the open control 0E–0D–0C.');
     const harvestDryGm2 = cycleTotals.at(-1);
     const harvestFreshGm2 = harvestDryGm2 / (dryMatterPct/100);
     const harvestFreshKgM2 = harvestFreshGm2/1000;
