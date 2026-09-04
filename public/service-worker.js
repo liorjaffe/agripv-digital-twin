@@ -1,5 +1,5 @@
-const CACHE_NAME = 'agripv-control-lab-v4';
-const APP_SHELL = ['./', './manifest.webmanifest', './icons/icon.svg'];
+const CACHE_NAME = 'agripv-control-lab-v5';
+const APP_SHELL = ['./', './manifest.webmanifest', './icons/icon.svg?v=4', './data/period-results-2026.js'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
