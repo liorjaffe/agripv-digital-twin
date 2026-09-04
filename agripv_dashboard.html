@@ -108,7 +108,7 @@
   <div class="data-mode" aria-label="Data source mode"><strong id="dataModeLabel">Datenquelle</strong><button id="trainingMode" class="active" type="button" aria-pressed="true">Training / Modell</button><button id="fieldMode" type="button" aria-pressed="false">Period_Results-Jahresreihe</button><span id="dataModeState">Reglerbasierte Simulation; keine Messwerte.</span></div>
   <section class="panel" id="fieldDataPanel"><h2 id="fieldDataTitle">Period_Results: öffentliche GHI/DNI/DHI-Jahresreihe</h2><p class="chart-copy" id="fieldDataCopy">Diese Ansicht nutzt ausschließlich die von Ihnen freigegebene Jahresreihe aus Period_Results.xlsx: Datum/Zeit, GHI, DNI und DHI. Keine Sensor-, Standort-, Pflanzen- oder Rohdatenkanäle werden hier veröffentlicht. Die Werte sind getrennt vom Training: Die Trainingsregler erzeugen synthetische Szenarien, diese Ansicht zeigt dagegen die bereitgestellte Strahlungszeitreihe unverändert und berechnet daraus Tagesmittel und Jahresverläufe.</p><div id="fieldDataAvailable"><div class="module-control"><label for="fieldDay">Tag der Jahresreihe <output id="fieldDayOut">–</output></label><input id="fieldDay" type="range" min="1" max="365" value="1" step="1"></div><div class="metrics"><div class="panel metric"><div class="name">GHI (Tagesmittel)</div><div class="value" id="fieldGhi">–</div></div><div class="panel metric"><div class="name">DNI (Tagesmittel)</div><div class="value" id="fieldDni">–</div></div><div class="panel metric"><div class="name">DHI (Tagesmittel)</div><div class="value" id="fieldDhi">–</div></div><div class="panel metric"><div class="name">Zeitpunkte am Tag</div><div class="value" id="fieldSamples">–</div></div></div><div class="chart-head"><h2>Jahresverlauf: GHI und DNI</h2><div class="legend"><span style="color:#d79a3e">●</span> GHI <span style="color:#286b52">●</span> DNI</div></div><canvas id="fieldIrradianceChart"></canvas><div class="chart-head"><h2>Jahresverlauf: DHI</h2><div class="legend" style="color:#32718a">● Diffus horizontal</div></div><canvas id="fieldDhiChart"></canvas></div><p class="scene-readout" id="fieldDataUnavailable">Period_Results-Jahresdaten nicht geladen.</p></section>
   <section class="panel scene-panel training-surface">
-    <div class="chart-head"><div><h2 id="sceneTitle">3D-Szenario: Teilsystem 2A–2B–2C</h2><p class="chart-copy" id="sceneDescription">Dargestellt ist der Ausschnitt aus System 2: drei Beete 2C, 2B und 2A. PV-Module stehen nur über den äußeren Beeten 2C und 2A; 2B liegt frei in der Mitte. Das modellierte Teilsystem hat zusammen 8 kWp DC.</p></div></div>
+    <div class="chart-head"><div><h2 id="sceneTitle">3D-Szenario: Teilsystem 2A–2B–2C</h2><p class="chart-copy" id="sceneDescription">Dargestellt ist der Ausschnitt aus System 2: drei AgriPV-Beete 2C, 2B und 2A sowie nördlich davon die unverschatteten Kontrollbeete 0E, 0D und 0C. PV-Module stehen nur über den äußeren AgriPV-Beeten 2C und 2A; 2B liegt frei in der Mitte. Das modellierte Teilsystem hat zusammen 8 kWp DC.</p></div></div>
     <div class="scene-tools"><span class="scene-location">Standort: Florianópolis, Brasilien · 27,5949° S, 48,5480° W</span><label for="simDate">Datum <output id="simDateOut"></output></label><input id="simDate" type="date"><label for="sceneHour">Sonnenzeit <output id="sceneHourOut">12:00</output></label><input id="sceneHour" type="range" min="0" max="24" value="12" step="0.25"><button class="secondary" id="playSun">Sonnenlauf abspielen</button><label for="season">Schnellwahl</label><select id="season"><option value="summer">Sommersonnenwende</option><option value="equinox" selected>Äquinoktium</option><option value="winter">Wintersonnenwende</option></select><label><input id="trackerMove" type="checkbox" checked> Module mit Sonne bewegen</label><button id="applyRecommended">Offset auf 0° setzen</button><button id="setFlat">Module flach stellen (0°)</button><button class="secondary" id="rotateFieldLeft">Feld ↶</button><button class="secondary" id="rotateFieldRight">Feld ↷</button><button class="secondary" id="moveFieldUp">Ansicht ↑</button><button class="secondary" id="moveFieldDown">Ansicht ↓</button><button class="secondary" id="resetFieldView">Ansicht zurücksetzen</button></div>
     <div class="sensor-controls"><strong>Sensoren:</strong><label><input id="showSensors" type="checkbox" checked> anzeigen</label><label><input id="showEnvironmental" type="checkbox" checked> Umweltstation</label><label><input id="showTrackerSensors" type="checkbox" checked> Trackerfeld</label><label><input id="showCropSensors" type="checkbox" checked> Kulturen</label></div>
     <canvas id="scene3d" aria-label="3D-Simulation der Agrivoltaik-Anlage"></canvas>
@@ -147,6 +147,7 @@
       </div>
       <div class="angle-box"><div><h2 id="angleTitle">Trackerwinkel direkt testen</h2><p>Der Offset-Regler wird zur automatisch berechneten Backtracking-Grundstellung addiert — genau wie <code>tilt_offsets_deg</code> in der Python-Steuerung. Vergleiche das Ergebnis sofort mit der Referenz (Offset 0°, wolkenloser Himmel).</p></div><div class="angle-input"><label for="trackerNumber">Offset</label><input id="trackerNumber" type="number" min="-90" max="90" step="1" value="0"> °</div></div>
       <div class="panel chart-panel"><div class="chart-head"><h2 id="lightTitle">Licht über den Tag</h2><div class="legend" id="lightLegend"><span style="color:#286b52">●</span> Bestand (aktuelle Einstellungen) &nbsp; <span style="color:#d79a3e">●</span> Referenz (wolkenlos, Offset 0°)</div></div><p class="chart-copy" id="lightCopy">Grün ist der PPFD-Verlauf mit Ihren aktuellen Reglerwerten (Bewölkung, Trackerwinkel usw.). Gold ist dieselbe Rechnung für denselben Tag und Ort, aber mit Bewölkung fest auf 0 % (wolkenlos) und Trackerwinkel-Offset fest auf 0° (nur automatisches Backtracking) — dieselbe Referenzbedingung, die auch bei DLI-, Biomasse- und PV-Vergleichswerten im Dashboard verwendet wird. Beide Kurven folgen dieser Kette: Sonnenstand → Trackerwinkel → Bodenverschattung → Direkt-/Diffusanteil (Erbs) → PPFD. Die Fläche unter der grünen Kurve wird zum DLI integriert; das ist nicht dasselbe wie GHI über den Modulen.</p><canvas id="lightChart"></canvas></div>
+      <div class="panel chart-panel" id="referenceBedsPanel"><div class="chart-head"><h2 id="referenceBedsTitle">Unverschattete Referenz: 0E–0D–0C vs. AgriPV 2C–2B–2A</h2><div class="legend" id="referenceBedsLegend"><span style="color:#2f8f5b">●</span> AgriPV unter PV/zwischen PV &nbsp; <span style="color:#d79a3e">●</span> 0E–0D–0C unverschattet</div></div><p class="chart-copy" id="referenceBedsCopy">Vergleicht denselben Zeitraum, dasselbe Datum und dieselben Klima-Regler: 0E, 0D und 0C erhalten unverschattetes horizontales Licht; 2C, 2B und 2A erhalten das modellierte Pflanzenlicht unter beziehungsweise zwischen den PV-Reihen. So bleibt der Unterschied zwischen Kontrollwachstum ohne PV-Schatten und AgriPV-Wachstum direkt sichtbar.</p><div class="metrics"><div class="panel metric"><div class="name" id="referenceDliName">DLI 0E–0D–0C</div><div class="value" id="referenceDli">–</div><div class="change" id="referenceDliDelta">–</div></div><div class="panel metric"><div class="name" id="agripvDliName">DLI 2C–2B–2A</div><div class="value" id="agripvDli">–</div><div class="change" id="agripvDliDelta">–</div></div><div class="panel metric"><div class="name" id="referenceBiomassName">Biomasse 0E–0D–0C</div><div class="value" id="referenceBiomass">–</div><div class="change" id="referenceBiomassDelta">–</div></div><div class="panel metric"><div class="name" id="agripvBiomassName">Biomasse 2C–2B–2A</div><div class="value" id="agripvBiomass">–</div><div class="change" id="agripvBiomassDelta">–</div></div></div><canvas id="referenceBedsChart"></canvas><div class="scene-readout" id="referenceBedsReadout">–</div></div>
       <div class="panel chart-panel"><div class="chart-head"><h2 id="growthTitle">Biomasseverlauf</h2><div class="legend" id="growthLegend">Szenario gegenüber Referenz</div></div><p class="chart-copy" id="growthCopy">Exakte Van-Henten-Wachstumsgleichungen mit denselben Konstanten wie <code>project/models/lettuce.py</code>, per Euler-Schritt über den Tag integriert. Die Karte zeigt die Gesamt-Trockenmasse am Tagesende; die grüne Kurve beginnt bei 11 g/m² (8 g/m² strukturell + 3 g/m² nicht-strukturell). Für belastbare Feldvorhersagen fehlt weiterhin die Kalibrierung der zwei freien Parameter an UFSC-Erntedaten.</p><canvas id="growthChart"></canvas></div>
       <div class="panel chart-panel" id="cyclePanel"><div class="chart-head"><h2 id="cycleTitle">Voller Wachstumszyklus → Ernteertrag</h2><div class="legend" id="cycleLegend">Zyklus gegenüber Referenz</div></div><p class="chart-copy" id="cycleCopy">Setzt die Van-Henten-Integration Tag für Tag fort (kein Reset auf 8+3 g/m² um Mitternacht), ausgehend vom gewählten Datum als Pflanztermin. Sonnenstand und Tageslänge ändern sich real mit jedem Kalendertag; die Bestandstemperatur folgt einem saisonalen Jahresverlauf (kälter im Winter, wärmer im Sommer), verankert am aktuellen Reglerwert für „Temperatur am Bestand“ am Starttag. Bewölkung und Wind bleiben dagegen über den ganzen Zyklus eingefroren (keine Tageswetter-Vorhersage). Trockenmasse → Frischmasse ist eine einstellbare Annahme, die noch an UFSC-Ernten kalibriert werden muss.</p><div class="module-control"><label for="cycleDays">Zyklusdauer</label><input id="cycleDays" type="range" min="20" max="90" value="45" step="1"><output id="cycleDaysOut">45 Tage</output><label for="plantDensity">Pflanzdichte</label><input id="plantDensity" type="range" min="4" max="40" value="20" step="1"><output id="plantDensityOut">20 /m²</output><label for="dryMatterPct">Trockenmasseanteil</label><input id="dryMatterPct" type="range" min="2" max="10" value="5" step="0.5"><output id="dryMatterPctOut">5 %</output></div><canvas id="cycleChart"></canvas><div class="scene-readout" id="cycleReadout">–</div></div>
       <div class="panel chart-panel" id="coupledPanel"><div class="chart-head"><h2 id="coupledTitle">Gekoppeltes Modell: Temperatursumme entscheidet Erntezeitpunkt</h2><div class="legend" id="coupledLegend">Van Henten (durchgehend) vs. gekoppelt (gestrichelt nach Reife)</div></div><p class="chart-copy" id="coupledCopy">Nutzt dieselbe Van-Henten-Biomasse-Integration wie oben, liest die Erntemasse aber erst am Tag ab, den das UFSC-Temperatursummenmodell (GDD) als physiologisch reif einstuft, statt nach einer willkürlich festen Zyklusdauer. Aussaat→Umpflanzung: Basis 4,1 °C, 398,67 GDD; Umpflanzung→Ernte: Basis 6,1 °C, 472,79 GDD. Die Bestandstemperatur folgt jetzt demselben saisonalen Jahresverlauf wie oben (verankert am Reglerwert für „Temperatur am Bestand“ am Pflanztermin), sodass eine im Sommer gepflanzte Kultur automatisch schneller reift als dieselbe Kultur im Winter — probieren Sie unterschiedliche Pflanztermine im Jahresverlauf, um das zu sehen. Die Zyklusdauer oben dient hier als Simulationsobergrenze. Der gestrichelte Linienabschnitt nach dem Reifepunkt zeigt, wie die Biomasse weiter zunähme, würde man nicht ernten — physikalisch identische Fortsetzung derselben Integration, nur nicht mehr Teil der Ernteempfehlung. Wichtig: „reif“ heißt hier nicht „Wachstum hört auf“ — das Temperatursummenmodell markiert den Zeitpunkt kommerzieller/physiologischer Reife anhand von Erfahrungswerten (UFSC-Studie), unabhängig vom aktuellen Tageszuwachs. Reale Pflanzen wachsen über diesen Punkt hinaus meist munter weiter (das Wachstum sättigt erst durch Selbstbeschattung bei viel höherer Biomasse); länger warten erhöht aber Risiken wie Schossen, Blattrandnekrose oder Qualitätsverlust und ist deshalb in der Praxis meist nicht sinnvoll, selbst wenn der Tageszuwachs noch kräftig ist.</p><canvas id="coupledChart"></canvas><div class="scene-readout" id="coupledReadout">–</div></div>
@@ -460,6 +461,26 @@
     };
   }
 
+  function buildUnshadedDaySeries(values, dateParts) {
+    const hours = Array.from({length:25}, (_,i)=>i);
+    const points = hours.map(h => {
+      const point = computeTimestep(values, dateParts.year, dateParts.monthIndex0, dateParts.day, h);
+      return {...point, cropGhi: point.ghi, cropPpfd: ghiToPpfd(point.ghi)};
+    });
+    let xSdw = 8.0, xNsdw = 3.0;
+    const growth = [xSdw+xNsdw];
+    for (let i=1; i<points.length; i++) {
+      const uPar = points[i-1].cropGhi * PAR_FRACTION;
+      const [dxSdw, dxNsdw] = lettuceRhs(xSdw, xNsdw, values.tempCanopy, uPar, 420.0);
+      xSdw = Math.max(0, xSdw + dxSdw*3600);
+      xNsdw = Math.max(0, xNsdw + dxNsdw*3600);
+      growth.push(xSdw+xNsdw);
+    }
+    let dli = 0;
+    for (let i=0; i<24; i++) dli += Math.max(0,points[i].cropPpfd)*3600/1e6;
+    return { hours, points, growth, dli };
+  }
+
   function addDays(dateParts, n) {
     const d = new Date(Date.UTC(dateParts.year, dateParts.monthIndex0, dateParts.day));
     d.setUTCDate(d.getUTCDate()+n);
@@ -502,6 +523,24 @@
       for (let hour=0; hour<24; hour++) {
         const point = computeTimestep(values, dateParts.year, dateParts.monthIndex0, dateParts.day, hour);
         const uPar = point.cropGhi * PAR_FRACTION;
+        const [dxSdw, dxNsdw] = lettuceRhs(xSdw, xNsdw, dailyTempC[day], uPar, 420.0);
+        xSdw = Math.max(0, xSdw + dxSdw*3600);
+        xNsdw = Math.max(0, xNsdw + dxNsdw*3600);
+      }
+      totals.push(xSdw+xNsdw);
+    }
+    return totals;
+  }
+
+  function simulateUnshadedFullCycle(values, startDateParts, cycleDays) {
+    let xSdw = 8.0, xNsdw = 3.0;
+    const totals = [xSdw+xNsdw];
+    const dailyTempC = seasonalCanopyTempSeries(values, startDateParts, cycleDays);
+    for (let day=0; day<cycleDays; day++) {
+      const dateParts = addDays(startDateParts, day);
+      for (let hour=0; hour<24; hour++) {
+        const point = computeTimestep(values, dateParts.year, dateParts.monthIndex0, dateParts.day, hour);
+        const uPar = point.ghi * PAR_FRACTION;
         const [dxSdw, dxNsdw] = lettuceRhs(xSdw, xNsdw, dailyTempC[day], uPar, 420.0);
         xSdw = Math.max(0, xSdw + dxSdw*3600);
         xNsdw = Math.max(0, xNsdw + dxNsdw*3600);
@@ -936,10 +975,10 @@
     applyDataMode();
     $('sceneTitle').textContent = tr('3D-Szenario: Teilsystem 2A–2B–2C', '3D scenario: subsystem 2A–2B–2C');
     $('sceneDescription').textContent = tr(
-      'Dargestellt ist der Ausschnitt aus System 2: drei Beete 2C, 2B und 2A. PV-Module stehen nur über den äußeren Beeten 2C und 2A; 2B liegt frei in der Mitte. Das modellierte Teilsystem hat zusammen 8 kWp DC.',
-      'The System 2 subset is shown: three crop beds 2C, 2B, and 2A. PV modules are mounted only above the outer beds 2C and 2A; 2B remains open in the middle. The modeled subsystem totals 8 kWp DC.'
+      'Dargestellt ist der Ausschnitt aus System 2: drei AgriPV-Beete 2C, 2B und 2A sowie nördlich davon die unverschatteten Kontrollbeete 0E, 0D und 0C. PV-Module stehen nur über den äußeren AgriPV-Beeten 2C und 2A; 2B liegt frei in der Mitte. Das modellierte Teilsystem hat zusammen 8 kWp DC.',
+      'The System 2 subset is shown: three AgriPV beds 2C, 2B, and 2A plus the unshaded control beds 0E, 0D, and 0C to the north. PV modules are mounted only above the outer AgriPV beds 2C and 2A; 2B remains open in the middle. The modeled subsystem totals 8 kWp DC.'
     );
-    $('plantLegend').innerHTML = '<strong>'+tr('Legende:', 'Legend:')+'</strong> '+tr('grün = Beete 2C/2B/2A und Pflanzen · mittleres Grau = sichtbare PV-Vorderseite · dunkles Grau = sichtbare PV-Rückseite · dunkelbraun = Bodenschatten der Module · gold = Sonne.', 'green = beds 2C/2B/2A and plants · medium gray = visible PV front · dark gray = visible PV rear · dark brown = module ground shadow · gold = sun.')+' <strong>'+tr('Anlagenlayout:', 'Plant layout:')+'</strong> '+tr('Teilsystem 2 mit drei Pflanzbeeten: PV über 2C und 2A, 2B frei in der Mitte, zusammen 8 kWp DC.', 'System 2 subset with three crop beds: PV over 2C and 2A, open 2B in the middle, totaling 8 kWp DC.')+' <strong>'+tr('Sensoren:', 'Sensors:')+'</strong> '+tr('blau = Umweltstation · orange = PV-Sensoren · grüne Dreiecke/Kreise = Agrarsensoren und Bodenpunkte.', 'blue = environmental station · orange = PV sensors · green triangles/circles = agronomic and soil sensors.')+' <strong>PPFD</strong> '+tr('bezeichnet das momentane Pflanzenlicht; <strong>DLI</strong> ist die über den Tag integrierte Lichtmenge.', 'is instantaneous crop light; <strong>DLI</strong> is the integrated daily light amount.');
+    $('plantLegend').innerHTML = '<strong>'+tr('Legende:', 'Legend:')+'</strong> '+tr('hellgrün = unverschattete Referenzbeete 0E/0D/0C · grün = AgriPV-Beete 2C/2B/2A · mittleres Grau = sichtbare PV-Vorderseite · dunkles Grau = sichtbare PV-Rückseite · dunkelbraun = Bodenschatten der Module · gold = Sonne.', 'light green = unshaded reference beds 0E/0D/0C · green = AgriPV beds 2C/2B/2A · medium gray = visible PV front · dark gray = visible PV rear · dark brown = module ground shadow · gold = sun.')+' <strong>'+tr('Anlagenlayout:', 'Plant layout:')+'</strong> '+tr('Kontrolle 0E–0D–0C nördlich ohne Module; Teilsystem 2 südlich mit PV über 2C und 2A, 2B frei in der Mitte, zusammen 8 kWp DC.', 'Control 0E–0D–0C to the north without modules; System 2 subset to the south with PV over 2C and 2A, open 2B in the middle, totaling 8 kWp DC.')+' <strong>'+tr('Sensoren:', 'Sensors:')+'</strong> '+tr('blau = Umweltstation · orange = PV-Sensoren · grüne Dreiecke/Kreise = Agrarsensoren und Bodenpunkte.', 'blue = environmental station · orange = PV sensors · green triangles/circles = agronomic and soil sensors.')+' <strong>PPFD</strong> '+tr('bezeichnet das momentane Pflanzenlicht; <strong>DLI</strong> ist die über den Tag integrierte Lichtmenge.', 'is instantaneous crop light; <strong>DLI</strong> is the integrated daily light amount.');
     $('sensorLegend').innerHTML = '<strong>'+tr('Sensorlegende:', 'Sensor legend:')+'</strong> <button class="sensor-key-button" type="button" data-sensor-kind="environmental" aria-pressed="false"><span class="sensor-symbol" style="background:#3b9ec4"></span> '+tr('Umweltstation/Kontrollsensorik', 'environmental/control sensors')+'</button><button class="sensor-key-button" type="button" data-sensor-kind="pv" aria-pressed="false"><span class="sensor-symbol circle" style="background:#d97932"></span> '+tr('PV-Sensor', 'PV sensor')+'</button><button class="sensor-key-button" type="button" data-sensor-kind="soil" aria-pressed="false"><span class="sensor-symbol circle" style="background:#2e8b57"></span> '+tr('Bodensensor', 'soil sensor')+'</button><button class="sensor-key-button" type="button" data-sensor-kind="ndvi" aria-pressed="false"><span class="sensor-symbol triangle"></span> '+tr('NDVI/Agrarsensor', 'NDVI/agronomic sensor')+'</button><button class="sensor-key-button" type="button" data-sensor-kind="weather" aria-pressed="false"><span class="sensor-symbol cross"></span> '+tr('Wind- oder Temperatur/Feuchte-Sensor', 'wind or temperature/humidity sensor')+'</button> '+tr('Bodensensoren liegen direkt auf der Beetoberfläche; PV-Sensoren liegen auf beziehungsweise an der Anlage. Die Gruppen können oben einzeln ein- oder ausgeblendet werden. Klicke einen Sensortyp an, um seine Positionen im Feld hervorzuheben. Positionen sind relativ aus dem bereitgestellten Lageplan übernommen.', 'Soil sensors lie directly on the bed surface; PV sensors are mounted on or beside the plant. Groups can be toggled individually above. Click a sensor type to highlight its positions in the field. Positions are relative to the supplied site plan.');
     setLabel('simDate', 'Datum', 'Date'); setLabel('sceneHour', 'Sonnenzeit', 'Solar time'); setLabel('season', 'Schnellwahl', 'Quick select');
     setCheckLabel('trackerMove', 'Module mit Sonne bewegen', 'Move modules with sun');
@@ -954,6 +993,10 @@
     $('angleTitle').textContent = tr('Trackerwinkel direkt testen','Test tracker angle directly'); $('lightTitle').textContent = tr('Licht über den Tag','Light over the day'); $('growthTitle').textContent = tr('Biomasseverlauf','Biomass progression'); $('climateTitle').textContent = tr('Klima am Bestand','Canopy climate'); $('scenarioTitle').textContent = tr('Winkel × Wettereinfluss','Angle × weather influence');
     $('lightLegend').innerHTML = '<span style="color:#286b52">●</span> '+tr('Bestand (aktuelle Einstellungen)','Crop (current settings)')+' &nbsp; <span style="color:#d79a3e">●</span> '+tr('Referenz (wolkenlos, Offset 0°)','Reference (clear sky, 0° offset)');
     $('lightCopy').textContent = tr('Grün ist der PPFD-Verlauf mit Ihren aktuellen Reglerwerten (Bewölkung, Trackerwinkel usw.). Gold ist dieselbe Rechnung für denselben Tag und Ort, aber mit Bewölkung fest auf 0 % (wolkenlos) und Trackerwinkel-Offset fest auf 0° (nur automatisches Backtracking) — dieselbe Referenzbedingung, die auch bei DLI-, Biomasse- und PV-Vergleichswerten im Dashboard verwendet wird. Beide Kurven folgen dieser Kette: Sonnenstand → Trackerwinkel → Bodenverschattung → Direkt-/Diffusanteil (Erbs) → PPFD. Die Fläche unter der grünen Kurve wird zum DLI integriert; das ist nicht dasselbe wie GHI über den Modulen.', 'Green is the PPFD curve using your current control values (cloud cover, tracker offset, etc.). Gold is the identical calculation for the same day and location, but with cloud cover fixed at 0% (clear sky) and tracker offset fixed at 0° (automatic backtracking only) — the same reference condition used for the DLI, biomass, and PV comparison values elsewhere on the dashboard. Both curves follow this chain: solar position → tracker angle → ground shading → direct/diffuse split (Erbs) → PPFD. The area under the green curve is integrated into DLI; this is not the same as GHI above the modules.');
+    $('referenceBedsTitle').textContent = tr('Unverschattete Referenz: 0E–0D–0C vs. AgriPV 2C–2B–2A','Unshaded reference: 0E–0D–0C vs AgriPV 2C–2B–2A');
+    $('referenceBedsLegend').innerHTML = '<span style="color:#2f8f5b">●</span> '+tr('AgriPV unter PV/zwischen PV','AgriPV under/between PV')+' &nbsp; <span style="color:#d79a3e">●</span> '+tr('0E–0D–0C unverschattet','0E–0D–0C unshaded');
+    $('referenceBedsCopy').textContent = tr('Vergleicht denselben Zeitraum, dasselbe Datum und dieselben Klima-Regler: 0E, 0D und 0C erhalten unverschattetes horizontales Licht; 2C, 2B und 2A erhalten das modellierte Pflanzenlicht unter beziehungsweise zwischen den PV-Reihen. So bleibt der Unterschied zwischen Kontrollwachstum ohne PV-Schatten und AgriPV-Wachstum direkt sichtbar.','Compares the same period, date, and climate controls: 0E, 0D, and 0C receive unshaded horizontal light; 2C, 2B, and 2A receive modeled crop light under or between the PV rows. This keeps control growth without PV shade directly comparable with AgriPV growth.');
+    $('referenceDliName').textContent = tr('DLI 0E–0D–0C','DLI 0E–0D–0C'); $('agripvDliName').textContent = tr('DLI 2C–2B–2A','DLI 2C–2B–2A'); $('referenceBiomassName').textContent = tr('Biomasse 0E–0D–0C','Biomass 0E–0D–0C'); $('agripvBiomassName').textContent = tr('Biomasse 2C–2B–2A','Biomass 2C–2B–2A');
     $('growthLegend').textContent = tr('Szenario gegenüber Referenz','Scenario versus reference');
     $('growthCopy').textContent = tr('Exakte Van-Henten-Wachstumsgleichungen mit denselben Konstanten wie project/models/lettuce.py, per Euler-Schritt über den Tag integriert. Die Karte zeigt die Gesamt-Trockenmasse am Tagesende; die grüne Kurve beginnt bei 11 g/m² (8 g/m² strukturell + 3 g/m² nicht-strukturell). Für belastbare Feldvorhersagen fehlt weiterhin die Kalibrierung der zwei freien Parameter an UFSC-Erntedaten.', 'Exact Van Henten growth equations with the same constants as project/models/lettuce.py, integrated over the day with Euler steps. The card shows total dry biomass at day end; the green curve starts at 11 g/m² (8 g/m² structural + 3 g/m² non-structural). Reliable field forecasts still require calibration of the two free parameters against UFSC harvest data.');
     $('climateLegend').innerHTML = '<span style="color:#c9634d">●</span> '+tr('Temperatur am Bestand','Canopy temperature')+' &nbsp; <span style="color:#32718a">●</span> VPD×10';
@@ -1026,7 +1069,7 @@
     const headerTexts = language === 'de' ? ['Simulationsszenario','Offset','DLI (Tag)','Δ DLI','PV-Energie (Tag)','Δ PV','Biomasse'] : ['Simulation scenario','Offset','DLI (day)','Δ DLI','PV energy (day)','Δ PV','Biomass'];
     headers.forEach((header,index) => { if (headerTexts[index]) header.textContent = headerTexts[index]; });
     const localized = (element, german, english, portuguese) => { if (element) element.textContent = language === 'de' ? german : language === 'pt' ? portuguese : english; };
-    localized($('sceneDescription'), 'Dargestellt ist der Ausschnitt aus System 2: drei Beete 2C, 2B und 2A. PV-Module stehen nur über den äußeren Beeten 2C und 2A; 2B liegt frei in der Mitte. Das modellierte Teilsystem hat zusammen 8 kWp DC.', 'The System 2 subset is shown: three crop beds 2C, 2B, and 2A. PV modules are mounted only above the outer beds 2C and 2A; 2B remains open in the middle. The modeled subsystem totals 8 kWp DC.', 'É mostrado o recorte do sistema 2: três canteiros 2C, 2B e 2A. Os módulos FV ficam apenas sobre os canteiros externos 2C e 2A; 2B permanece livre no meio. O subsistema modelado soma 8 kWp DC.');
+    localized($('sceneDescription'), 'Dargestellt ist der Ausschnitt aus System 2: drei AgriPV-Beete 2C, 2B und 2A sowie nördlich davon die unverschatteten Kontrollbeete 0E, 0D und 0C. PV-Module stehen nur über den äußeren AgriPV-Beeten 2C und 2A; 2B liegt frei in der Mitte. Das modellierte Teilsystem hat zusammen 8 kWp DC.', 'The System 2 subset is shown: three crop beds 2C, 2B, and 2A. PV modules are mounted only above the outer beds 2C and 2A; 2B remains open in the middle. The modeled subsystem totals 8 kWp DC.', 'É mostrado o recorte do sistema 2: três canteiros 2C, 2B e 2A. Os módulos FV ficam apenas sobre os canteiros externos 2C e 2A; 2B permanece livre no meio. O subsistema modelado soma 8 kWp DC.');
     localized(document.querySelector('.controls .info'), 'Dies ist kein Live-Wetterfeed: Datum, Standort und Sonnenzeit bestimmen den Sonnenstand; die übrigen Werte stammen aus den Eingabereglern. Die Intensität wird aus dem Haurwitz-Klarhimmelmodell und einem Bewölkungs-/Klarheitsindex abgeleitet, der Direkt-/Diffusanteil mit Erbs. Echte PAR-, Temperatur-, Wind- und Druckzeitreihen werden in Python über project/io/field_data.py eingelesen. „über Bestand“ beschreibt das Mikroklima oberhalb des Blätterdachs, „am Bestand“ die Bedingungen am Pflanzenstandort.', 'This is not a live weather feed: date, location, and solar time determine the sun position; all other values come from the input controls. Irradiance is derived from the Haurwitz clear-sky model and a cloud/clearness index, with direct and diffuse components from Erbs. Real PAR, temperature, wind, and pressure time series are ingested in Python through project/io/field_data.py. “Above canopy” describes the microclimate above the crop canopy; “at canopy” describes crop conditions.', 'Esta não é uma fonte de clima ao vivo: data, local e hora solar determinam a posição do sol; os demais valores vêm dos controles de entrada. A irradiância é derivada do modelo de céu claro de Haurwitz e de um índice de nebulosidade/clareza, com componentes direta e difusa calculadas por Erbs. Séries reais de PAR, temperatura, vento e pressão são importadas em Python por project/io/field_data.py. “Acima do dossel” descreve o microclima acima das plantas; “no dossel” descreve as condições da cultura.');
     localized(document.querySelector('.angle-box p'), 'Der Offset-Regler wird zur automatisch berechneten Backtracking-Grundstellung addiert — genau wie tilt_offsets_deg in der Python-Steuerung. Vergleiche das Ergebnis sofort mit der Referenz (Offset 0°, wolkenloser Himmel).', 'The offset is added to the automatically calculated backtracking baseline, exactly like tilt_offsets_deg in the Python controller. Compare the result with the reference (0° offset, clear sky).', 'O offset é somado à posição automática de backtracking, exatamente como tilt_offsets_deg no controlador Python. Compare o resultado com a referência (offset de 0°, céu claro).');
     localized(document.querySelector('.scene-panel > .chart-copy:last-of-type'), 'Die Trackerrotation folgt derselben Backtracking-Formel wie pvlib.tracking.singleaxis (Achsazimut, GCR, Reihenhöhe und -abstand aus project/config/site.yaml) und vermeidet damit modulseitige Reihe-zu-Reihe-Verschattung von selbst. Der dunkle Bereich zeigt ausschließlich den effektiven Schattenwurf auf Boden und Beeten, berechnet aus echtem Sonnenstand und derselben Geometrie — nie einen Schatten auf den Modulen.', 'Tracker rotation follows the same backtracking formula as pvlib.tracking.singleaxis (axis azimuth, GCR, row height, and pitch from project/config/site.yaml), automatically avoiding module row-to-row shading. The dark area shows only the effective shadow cast onto the ground and beds, calculated from the real solar position and the same geometry — never a shadow on the modules.', 'A rotação dos rastreadores segue a mesma fórmula de backtracking de pvlib.tracking.singleaxis (azimute do eixo, GCR, altura e espaçamento das fileiras em project/config/site.yaml), evitando automaticamente o sombreamento entre fileiras. A área escura mostra apenas a sombra projetada no solo e nos canteiros, calculada com a posição solar real e a mesma geometria — nunca uma sombra sobre os módulos.');
@@ -1273,6 +1316,8 @@
       ? tr('Wind-Stow: Offset inaktiv','Wind stow: offset inactive')
       : (currentPvDeltaKw >= 0 ? '+' : '')+currentPvDeltaKw.toFixed(2)+' kW '+tr('vs. Offset 0° um ','vs 0° offset at ')+formatHour(currentHour);
 
+    const unshadedDay = buildUnshadedDaySeries(v, dateParts);
+
     const anyStow = day.points.some(p => p.windStow);
     const status = anyStow ? tr('Wind-Stow','Wind stow') : day.dli<v.target*.9 ? tr('Lichtmangel','Low light') : day.dli>v.target*1.2 ? tr('zu viel Licht','Excess light') : tr('im Korridor','Within target');
     $('status').textContent = status;
@@ -1281,7 +1326,20 @@
     const cycleDays = Number($('cycleDays').value), plantDensity = Number($('plantDensity').value), dryMatterPct = Number($('dryMatterPct').value);
     $('cycleDaysOut').value = cycleDays+' '+tr('Tage','days'); $('plantDensityOut').value = plantDensity+' /m²'; $('dryMatterPctOut').value = dryMatterPct+' %';
     const cycleTotals = simulateFullCycle(v, dateParts, cycleDays);
+    const unshadedCycleTotals = simulateUnshadedFullCycle(v, dateParts, cycleDays);
     const cycleReferenceTotals = simulateFullCycle({...v, cloud:0, offsetDeg:0}, dateParts, cycleDays);
+    const agripvDli = day.dli, unshadedDli = unshadedDay.dli;
+    const agripvBiomass = cycleTotals.at(-1), unshadedBiomass = unshadedCycleTotals.at(-1);
+    $('referenceDli').textContent = unshadedDli.toFixed(1)+' mol';
+    $('agripvDli').textContent = agripvDli.toFixed(1)+' mol';
+    $('referenceDliDelta').textContent = tr('Kontrolle 0E–0D–0C','control 0E–0D–0C');
+    $('agripvDliDelta').textContent = ((agripvDli/unshadedDli-1)*100).toFixed(1)+' % '+tr('vs unverschattet','vs unshaded');
+    $('referenceBiomass').textContent = unshadedBiomass.toFixed(1)+' g/m²';
+    $('agripvBiomass').textContent = agripvBiomass.toFixed(1)+' g/m²';
+    $('referenceBiomassDelta').textContent = cycleDays+' '+tr('Tage','days')+' · '+tr('ohne PV-Schatten','without PV shade');
+    $('agripvBiomassDelta').textContent = ((agripvBiomass/unshadedBiomass-1)*100).toFixed(1)+' % '+tr('vs unverschattet','vs unshaded');
+    drawCycleChart('referenceBedsChart', cycleTotals.map((_,i)=>i), cycleTotals, unshadedCycleTotals, 'g/m² '+tr('Trockenmasse','dry matter'), '#2f8f5b', '#d79a3e');
+    $('referenceBedsReadout').textContent = tr('Nach ','After ')+cycleDays+' '+tr('Tagen','days')+': '+tr('AgriPV 2C–2B–2A ','AgriPV 2C–2B–2A ')+agripvBiomass.toFixed(1)+' g/m² '+tr('gegenüber Referenz 0E–0D–0C ','versus reference 0E–0D–0C ')+unshadedBiomass.toFixed(1)+' g/m² ('+((agripvBiomass/unshadedBiomass-1)*100).toFixed(1)+' %).';
     const harvestDryGm2 = cycleTotals.at(-1);
     const harvestFreshGm2 = harvestDryGm2 / (dryMatterPct/100);
     const harvestFreshKgM2 = harvestFreshGm2/1000;
@@ -1500,7 +1558,7 @@
     return $('showSensors').checked && $(groupId).checked;
   }
 
-  function drawSensorOverlays(ctx, p, bedRows, trackerRows) {
+  function drawSensorOverlays(ctx, p, bedRows, trackerRows, referenceRows=[]) {
     if (!$('showSensors').checked) return;
     const blue = '#3b9ec4', orange = '#d97932', red = '#d34c3d', green = '#2e8b57', lime = '#8bcf27';
 
@@ -1511,21 +1569,22 @@
     }
     if (sensorOverlayEnabled('showTrackerSensors')) {
       trackerRows.forEach((row, index) => {
-        sensorMarker(ctx, p, row.center-.38, -3.8, red, 'circle', 3.5, 2.93);
-        sensorMarker(ctx, p, row.center-.12, -2.5, orange, 'circle', 3.5, 2.93);
-        sensorMarker(ctx, p, row.center+.12, 2.5, '#e2a63a', 'circle', 3.5, 2.93);
-        sensorMarker(ctx, p, row.center+.38, 0.0, green, 'circle', 4, 2.98);
-        sensorMarker(ctx, p, row.center+.52, 0.7, lime, 'triangle', 4, 3.0);
-        sensorMarker(ctx, p, row.center+.48, -1.2, '#efb35a', 'square', 2.8, 2.94);
-        sensorMarker(ctx, p, row.center+.48, 1.2, '#efb35a', 'square', 2.8, 2.94);
+        sensorMarker(ctx, p, row.center-.38, row.yCenter-3.8, red, 'circle', 3.5, 2.93);
+        sensorMarker(ctx, p, row.center-.12, row.yCenter-2.5, orange, 'circle', 3.5, 2.93);
+        sensorMarker(ctx, p, row.center+.12, row.yCenter+2.5, '#e2a63a', 'circle', 3.5, 2.93);
+        sensorMarker(ctx, p, row.center+.38, row.yCenter, green, 'circle', 4, 2.98);
+        sensorMarker(ctx, p, row.center+.52, row.yCenter+.7, lime, 'triangle', 4, 3.0);
+        sensorMarker(ctx, p, row.center+.48, row.yCenter-1.2, '#efb35a', 'square', 2.8, 2.94);
+        sensorMarker(ctx, p, row.center+.48, row.yCenter+1.2, '#efb35a', 'square', 2.8, 2.94);
       });
       sensorMarker(ctx, p, 0, 5.9, blue, 'cross', 4);
       sensorMarker(ctx, p, .45, 5.9, blue, 'square', 4);
     }
     if (sensorOverlayEnabled('showCropSensors')) {
-      bedRows.forEach(row => {
+      [...referenceRows, ...bedRows].forEach(row => {
         for (let index=0; index<6; index++) {
-          const y = -4.4 + index*1.76;
+          const span = row.hasPv === undefined ? 2.4 : 8.8;
+          const y = row.yCenter - span/2 + index*(span/5);
           sensorMarker(ctx, p, row.center, y, green, 'circle', 3);
         }
       });
@@ -1552,15 +1611,21 @@
     const sunHorizontal = 10, sunRise = 5;
     const sunX = sunDirX*sunHorizontal, sunY = sunDirY*sunHorizontal, sunZ = 2 + sunDirZ*sunRise;
 
-    ctx.fillStyle='#b9d7a8'; ctx.beginPath(); [[-9,-8,0],[9,-8,0],[9,8,0],[-9,8,0]].forEach((q,i)=>i?ctx.lineTo(...p(...q)):ctx.moveTo(...p(...q))); ctx.closePath(); ctx.fill(); ctx.strokeStyle='#91b493'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle='#b9d7a8'; ctx.beginPath(); [[-9,-10,0],[9,-10,0],[9,10,0],[-9,10,0]].forEach((q,i)=>i?ctx.lineTo(...p(...q)):ctx.moveTo(...p(...q))); ctx.closePath(); ctx.fill(); ctx.strokeStyle='#91b493'; ctx.lineWidth=1; ctx.stroke();
+    const referenceRows=[
+      {label:'0E', center:-2.4, yCenter:-7.6},
+      {label:'0D', center:0, yCenter:-7.6},
+      {label:'0C', center:2.4, yCenter:-7.6},
+    ];
     const bedRows=[
-      {label:'2C', center:-2.4, hasPv:true},
-      {label:'2B', center:0, hasPv:false},
-      {label:'2A', center:2.4, hasPv:true},
+      {label:'2C', center:-2.4, yCenter:2.2, hasPv:true},
+      {label:'2B', center:0, yCenter:2.2, hasPv:false},
+      {label:'2A', center:2.4, yCenter:2.2, hasPv:true},
     ];
     const trackerRows=bedRows.filter(row => row.hasPv);
     const tilt = now.finalTilt*DEG, panelWidth=1.1, panelRise=-Math.sin(tilt)*1.15;
-    for (const bed of bedRows) { ctx.fillStyle=bed.hasPv?'#71a765':'#84b974'; ctx.beginPath(); ctx.moveTo(...p(bed.center-.55,-6,.03)); ctx.lineTo(...p(bed.center+.55,-6,.03)); ctx.lineTo(...p(bed.center+.55,6,.03)); ctx.lineTo(...p(bed.center-.55,6,.03)); ctx.closePath(); ctx.fill(); ctx.fillStyle='#3e7d54'; for (let plant=-5.2; plant<=5.2; plant+=.8) { const pt=p(bed.center,plant,.12); ctx.beginPath(); ctx.arc(pt[0],pt[1],3,0,Math.PI*2); ctx.fill(); } const labelPoint=p(bed.center,-6.35,.06); ctx.fillStyle='#244338'; ctx.font='700 13px Arial'; ctx.fillText(bed.label, labelPoint[0], labelPoint[1]); }
+    for (const bed of referenceRows) { const y0=bed.yCenter-1.5, y1=bed.yCenter+1.5; ctx.fillStyle='#a8cf79'; ctx.beginPath(); ctx.moveTo(...p(bed.center-.55,y0,.03)); ctx.lineTo(...p(bed.center+.55,y0,.03)); ctx.lineTo(...p(bed.center+.55,y1,.03)); ctx.lineTo(...p(bed.center-.55,y1,.03)); ctx.closePath(); ctx.fill(); ctx.fillStyle='#4a8e48'; for (let plant=y0+.25; plant<=y1-.25; plant+=.55) { const pt=p(bed.center,plant,.12); ctx.beginPath(); ctx.arc(pt[0],pt[1],3,0,Math.PI*2); ctx.fill(); } const labelPoint=p(bed.center,y0-.35,.06); ctx.fillStyle='#244338'; ctx.font='700 13px Arial'; ctx.fillText(bed.label, labelPoint[0], labelPoint[1]); }
+    for (const bed of bedRows) { const y0=bed.yCenter-5.2, y1=bed.yCenter+5.2; ctx.fillStyle=bed.hasPv?'#71a765':'#84b974'; ctx.beginPath(); ctx.moveTo(...p(bed.center-.55,y0,.03)); ctx.lineTo(...p(bed.center+.55,y0,.03)); ctx.lineTo(...p(bed.center+.55,y1,.03)); ctx.lineTo(...p(bed.center-.55,y1,.03)); ctx.closePath(); ctx.fill(); ctx.fillStyle='#3e7d54'; for (let plant=y0+.3; plant<=y1-.3; plant+=.8) { const pt=p(bed.center,plant,.12); ctx.beginPath(); ctx.arc(pt[0],pt[1],3,0,Math.PI*2); ctx.fill(); } const labelPoint=p(bed.center,y0-.55,.06); ctx.fillStyle='#244338'; ctx.font='700 13px Arial'; ctx.fillText(bed.label, labelPoint[0], labelPoint[1]); }
 
     if (now.sunUp && sunDirZ > 0) {
       const projectToGround = (x,y,z) => p(x - sunDirX*z/sunDirZ, y - sunDirY*z/sunDirZ, 0);
@@ -1568,11 +1633,12 @@
       ctx.fillStyle='rgba(110,70,60,.34)';
       for (const row of trackerRows) {
         const frontRow=row.center-panelWidth*.5, backRow=row.center+panelWidth*.5;
+        const y0=row.yCenter-visibleShadowHalfLength, y1=row.yCenter+visibleShadowHalfLength;
         const corners = [
-          projectToGround(frontRow, -visibleShadowHalfLength, 2.8),
-          projectToGround(frontRow, visibleShadowHalfLength, 2.8),
-          projectToGround(backRow, visibleShadowHalfLength, 2.8+panelRise),
-          projectToGround(backRow, -visibleShadowHalfLength, 2.8+panelRise),
+          projectToGround(frontRow, y0, 2.8),
+          projectToGround(frontRow, y1, 2.8),
+          projectToGround(backRow, y1, 2.8+panelRise),
+          projectToGround(backRow, y0, 2.8+panelRise),
         ];
         ctx.beginPath(); corners.forEach((point,index)=>index?ctx.lineTo(...point):ctx.moveTo(...point)); ctx.closePath(); ctx.fill();
       }
@@ -1580,11 +1646,12 @@
 
     for (const row of trackerRows) {
       const frontRow=row.center-panelWidth*.5, backRow=row.center+panelWidth*.5;
-      const left=p(frontRow,-5.2,2.8), right=p(frontRow,5.2,2.8), panelBackLeft=p(backRow,-5.2,2.8+panelRise), panelBackRight=p(backRow,5.2,2.8+panelRise);
+      const y0=row.yCenter-5.2, y1=row.yCenter+5.2;
+      const left=p(frontRow,y0,2.8), right=p(frontRow,y1,2.8), panelBackLeft=p(backRow,y0,2.8+panelRise), panelBackRight=p(backRow,y1,2.8+panelRise);
       const carrierRows=[frontRow,backRow]; ctx.strokeStyle='#596963'; ctx.lineWidth=4;
-      for (const carrierRow of carrierRows) { const carrierZ=2.8+(carrierRow-frontRow)/panelWidth*panelRise; ctx.beginPath(); ctx.moveTo(...p(carrierRow,-5.2,carrierZ)); ctx.lineTo(...p(carrierRow,5.2,carrierZ)); ctx.stroke(); }
-      ctx.strokeStyle='#596963'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(...p(frontRow,0,2.8)); ctx.lineTo(...p(backRow,0,2.8+panelRise)); ctx.stroke();
-      ctx.strokeStyle='#4b625d'; ctx.lineWidth=4; for (let support=0; support<5; support++) { const end=-5.2+support*(10.4/4); ctx.beginPath(); ctx.moveTo(...p(row.center,end,0)); ctx.lineTo(...p(row.center,end,2.8+panelRise*.5)); ctx.stroke(); }
+      for (const carrierRow of carrierRows) { const carrierZ=2.8+(carrierRow-frontRow)/panelWidth*panelRise; ctx.beginPath(); ctx.moveTo(...p(carrierRow,y0,carrierZ)); ctx.lineTo(...p(carrierRow,y1,carrierZ)); ctx.stroke(); }
+      ctx.strokeStyle='#596963'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(...p(frontRow,row.yCenter,2.8)); ctx.lineTo(...p(backRow,row.yCenter,2.8+panelRise)); ctx.stroke();
+      ctx.strokeStyle='#4b625d'; ctx.lineWidth=4; for (let support=0; support<5; support++) { const end=y0+support*((y1-y0)/4); ctx.beginPath(); ctx.moveTo(...p(row.center,end,0)); ctx.lineTo(...p(row.center,end,2.8+panelRise*.5)); ctx.stroke(); }
       const panelCorners = [left, right, panelBackRight, panelBackLeft];
       const cameraX = Math.cos(sceneView.rotation) + Math.sin(sceneView.rotation);
       const cameraZ = 2.0;
@@ -1594,12 +1661,12 @@
       ctx.fillStyle=frontIsVisible ? '#b8c2c0' : '#4c5756';
       ctx.beginPath(); panelCorners.forEach((point,index)=>index?ctx.lineTo(...point):ctx.moveTo(...point)); ctx.closePath(); ctx.fill();
       ctx.strokeStyle='#293534'; ctx.lineWidth=2; ctx.stroke();
-      ctx.strokeStyle='#65877a'; ctx.lineWidth=1; for (let module=-4.7; module<=4.7; module+=1.2) { ctx.beginPath(); ctx.moveTo(...p(frontRow,module,2.8)); ctx.lineTo(...p(backRow,module,2.8+panelRise)); ctx.stroke(); }
-      const rowLabelPoint = p(row.center, -5.75, 0.05);
+      ctx.strokeStyle='#65877a'; ctx.lineWidth=1; for (let module=y0+.5; module<=y1-.5; module+=1.2) { ctx.beginPath(); ctx.moveTo(...p(frontRow,module,2.8)); ctx.lineTo(...p(backRow,module,2.8+panelRise)); ctx.stroke(); }
+      const rowLabelPoint = p(row.center, y0-.95, 0.05);
       ctx.fillStyle='#40544b'; ctx.font='700 11px Arial'; ctx.fillText('PV über '+row.label, rowLabelPoint[0], rowLabelPoint[1]);
     }
 
-    drawSensorOverlays(ctx, p, bedRows, trackerRows);
+    drawSensorOverlays(ctx, p, bedRows, trackerRows, referenceRows);
 
     if (now.sunUp) {
       const sun = sky(sunX,sunY,sunZ);
