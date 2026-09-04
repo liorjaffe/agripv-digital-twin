@@ -847,7 +847,8 @@
   const cycleIds = ['cycleDays','plantDensity','dryMatterPct'];
   const econIds = ['lettucePrice','electricityPrice','pvUtilization','bedArea'];
   const $ = id => document.getElementById(id);
-  const sceneView = { rotation: 0, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0 };
+  const PLAN_NORTH_UP_ROTATION = -Math.PI/4;
+  const sceneView = { rotation: PLAN_NORTH_UP_ROTATION, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0 };
   let frozenTilt = null;
   const defaults = { tempAbove:24, tempCanopy:25, rhAbove:70, rhCanopy:75, wind:2, cloud:15, pressure:1013, target:14, tracker:0, cycleDays:45, plantDensity:20, dryMatterPct:5, lettucePrice:6.7, electricityPrice:0.696, pvUtilization:100, bedArea:100 };
   let selectedSensorKind = null;
@@ -1248,7 +1249,7 @@
   $('rotateFieldLeft').addEventListener('pointerdown', event => { event.preventDefault(); startFieldRotation(-1); });
   $('rotateFieldRight').addEventListener('pointerdown', event => { event.preventDefault(); startFieldRotation(1); });
   ['pointerup','pointerleave','pointercancel'].forEach(name => { $('rotateFieldLeft').addEventListener(name, stopFieldRotation); $('rotateFieldRight').addEventListener(name, stopFieldRotation); });
-  $('resetFieldView').addEventListener('click', () => { sceneView.rotation=0; sceneView.zoom=1; sceneView.panX=0; sceneView.panY=0; update(); });
+  $('resetFieldView').addEventListener('click', () => { sceneView.rotation=PLAN_NORTH_UP_ROTATION; sceneView.zoom=1; sceneView.panX=0; sceneView.panY=0; update(); });
   $('scene3d').addEventListener('wheel', event => { event.preventDefault(); sceneView.zoom = Math.max(.65,Math.min(1.8,sceneView.zoom*(event.deltaY<0?1.08:.92))); update(); }, {passive:false});
   $('scene3d').addEventListener('pointerdown', event => { sceneView.dragging=true; sceneView.lastX=event.clientX; sceneView.lastY=event.clientY; $('scene3d').setPointerCapture(event.pointerId); });
   $('scene3d').addEventListener('pointermove', event => { if (!sceneView.dragging) return; const dx=event.clientX-sceneView.lastX; if (event.shiftKey) sceneView.rotation += dx*.01; else { sceneView.panX += dx; sceneView.panY += event.clientY-sceneView.lastY; } sceneView.lastX=event.clientX; sceneView.lastY=event.clientY; update(); });
@@ -1711,7 +1712,7 @@
     ctx.strokeStyle='#82978c'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(cx,cy-radius); ctx.lineTo(cx,cy+radius); ctx.moveTo(cx-radius,cy); ctx.lineTo(cx+radius,cy); ctx.stroke();
     const directions=[['N',-Math.PI/2],['E',0],['S',Math.PI/2],['W',Math.PI]];
     ctx.fillStyle='#40544b'; ctx.font='700 13px Arial'; ctx.textAlign='center';
-    for (const [label,angle] of directions) { const rotated=angle+sceneView.rotation; ctx.fillText(label, cx+Math.cos(rotated)*radius, cy+Math.sin(rotated)*radius+4); }
+    for (const [label,angle] of directions) { const rotated=angle+sceneView.rotation-PLAN_NORTH_UP_ROTATION; ctx.fillText(label, cx+Math.cos(rotated)*radius, cy+Math.sin(rotated)*radius+4); }
     ctx.textAlign='left';
   }
 
