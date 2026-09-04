@@ -519,7 +519,7 @@ irradiance = crop_and_pv_irradiance(
 # For simplicity, we use the PVWatts model:
 
 # UFSC pilot rating from the project brief; replace with subzone ratings later.
-pdc0 = 32000  # [W] total DC nameplate power: 2 systems x 16 kWp
+pdc0 = 8000  # [W] subsystem 2A-2B-2C nameplate power
 
 gamma_pdc = -0.004  # [1/degrees C]
 

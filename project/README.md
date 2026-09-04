@@ -1,6 +1,6 @@
 # AgriPV Control Project
 
-This project is organized around the brief for an agrivoltaic lettuce control pipeline for the Fotovoltaica/UFSC pilot in Florianópolis. The modeled plant is two 16 kWp systems (32 kWp DC total) represented by four equivalent tracker rows, two assigned to system 2 and two assigned to system 3.
+This project is organized around the brief for an agrivoltaic lettuce control pipeline for the Fotovoltaica/UFSC pilot in Florianópolis. The modeled plant is now the 8 kWp subsystem 2A-2B-2C from system 2: modules over beds 2A and 2C, with bed 2B open in the middle.
 
 ## Structure
 

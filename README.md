@@ -1,6 +1,6 @@
 # AgriPV Digital Twin
 
-Physically grounded AgriPV simulation and tracker-control pipeline for the Fotovoltaica / UFSC pilot in Florianopolis, Brazil. The current modeled plant is 2 x 16 kWp = 32 kWp DC across four equivalent tracker rows: two for system 2 and two for system 3.
+Physically grounded AgriPV simulation and tracker-control pipeline for the Fotovoltaica / UFSC pilot in Florianopolis, Brazil. The current modeled plant is the 8 kWp subsystem 2A-2B-2C from system 2: PV modules over beds 2A and 2C, with bed 2B open in the middle.
 
 ## Start here
 
@@ -12,7 +12,7 @@ Physically grounded AgriPV simulation and tracker-control pipeline for the Fotov
 
 ## Scientific and software foundations
 
-- **pvlib-python** (`pvlib==0.13.0` in the tested environment): solar position, single-axis tracker geometry, backtracking, bifacial/crop irradiance, Faiman temperature, and PVWatts DC power for the 32 kWp modeled plant.
+- **pvlib-python** (`pvlib==0.13.0` in the tested environment): solar position, single-axis tracker geometry, backtracking, bifacial/crop irradiance, Faiman temperature, and PVWatts DC power for the 8 kWp modeled subsystem.
 - **Van Henten lettuce growth model**: structural/non-structural dry biomass, photosynthesis, respiration, temperature response, and growth integration. The implementation in `project/models/lettuce.py` is an adaptation of the scientific model, not a verbatim copy of an original software implementation.
 - **Campbell Scientific / Grafana field exports**: native logger columns are mapped, checked against physical bounds, and aggregated in `project/io/field_data.py` and `project/qc/cleaning.py`.
 
