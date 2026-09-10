@@ -14,7 +14,7 @@ import pvlib
 import pytest
 
 from project.io.field_data import classify_column, classify_columns, raw_probe_quality_report, to_canonical_frames
-from project.io.ingestion import load_field_export
+from project.io.ingestion import load_field_export, load_period_results_export
 from project.io.commands import DryRunCommandSink
 from project.io.service import process_field_export, send_manual_tracker_override
 from project.models.radiation import estimate_ghi_dni_dhi_from_ppfd
@@ -232,6 +232,28 @@ def test_load_field_export_skips_unmapped_columns_without_raising():
     frames = load_field_export(raw)
     assert "CR1Kx" in frames
     assert MODULE_TEMP_C in frames["CR1Kx"].columns
+
+
+def test_load_period_results_export_accepts_direct_csv(tmp_path):
+    csv_path = tmp_path / "Period_Components.csv"
+    pd.DataFrame(
+        {
+            "date": ["2026-01-01"],
+            "datetime": ["2026-01-01 07:00:00-03:00"],
+            "GHI": [49.0],
+            "DNI": [0.0],
+            "DHI": [49.0],
+            "Solar_Azimuth": [106.5],
+            "Solar_Zenith": [70.7],
+            "Solar_Elevation": [19.3],
+            "Tracker_Angle": [55.0],
+        }
+    ).to_csv(csv_path, index=False)
+
+    loaded = load_period_results_export(csv_path)
+
+    assert loaded.index.tz is not None
+    assert loaded.loc[loaded.index[0], "GHI"] == 49.0
 
 
 def test_validate_radiation_reports_no_data_explicitly():

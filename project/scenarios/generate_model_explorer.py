@@ -1,0 +1,175 @@
+"""Create the standalone year-at-a-glance lettuce/PV model explorer."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+from pathlib import Path
+
+import pandas as pd
+import pvlib
+
+from project.io.service import process_period_results_export
+from project.io.ingestion import load_period_results_export
+from project.models.lettuce import simulate_growth_timeseries
+from project.models.lettuce_development import LettuceThermalDevelopment
+
+ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
+DEFAULT_OUTPUT = ROOT / "standalone" / "lettuce-pv-model-report.html"
+
+
+def finite_values(values: pd.Series) -> list[float | None]:
+    return [float(value) if math.isfinite(float(value)) else None for value in values]
+
+
+def seasonal_mean_temp_c(day_of_year: int) -> float:
+    """Match the original dashboard's Florianopolis seasonal canopy curve."""
+    return 20.5 + 5.0 * math.cos(2.0 * math.pi * (day_of_year - 34.0) / 365.25)
+
+
+def seasonal_canopy_temperature(times: pd.DatetimeIndex, planting_temp_c: float = 24.0) -> pd.Series:
+    planting_day = int(times[0].dayofyear)
+    planting_offset = planting_temp_c - seasonal_mean_temp_c(planting_day)
+    return pd.Series(
+        [seasonal_mean_temp_c(int(timestamp.dayofyear)) + planting_offset for timestamp in times],
+        index=times,
+    )
+
+
+def simulate_repeated_crops(results: pd.DataFrame, light_column: str, max_cycle_days: int = 120) -> pd.DataFrame:
+    """Run Van Henten repeatedly, with each harvest determined by daily GDD."""
+    records = []
+    start = 0
+    cycle_number = 1
+    while start < len(results):
+        candidate = results.iloc[start:start + max_cycle_days * 24]
+        temperatures = seasonal_canopy_temperature(candidate.index)
+        thermal = LettuceThermalDevelopment()
+        harvest_position = len(candidate) - 1
+        matured = False
+        for date, day_temperature in temperatures.groupby(temperatures.index.normalize()).mean().items():
+            state = thermal.update(float(day_temperature))
+            if state["harvest_ready"]:
+                day_positions = [position for position, timestamp in enumerate(candidate.index) if timestamp.normalize() == date]
+                harvest_position = day_positions[-1]
+                matured = True
+                break
+        crop = candidate.iloc[:harvest_position + 1]
+        growth = simulate_growth_timeseries(
+            crop.index,
+            crop[light_column] * 0.45,
+            seasonal_canopy_temperature(crop.index),
+            x_sdw0=8.0,
+            x_nsdw0=3.0,
+        )
+        initial_dry_mass = 11.0
+        cycle = pd.DataFrame(index=crop.index)
+        cycle["cycle_id"] = cycle_number
+        cycle["cycle_dry_biomass_g_m2"] = growth["total_dry_biomass"]
+        cycle["cycle_fresh_biomass_g_m2"] = (
+            (growth["total_dry_biomass"] - initial_dry_mass).clip(lower=0.0) / 0.05
+        )
+        cycle["harvest"] = False
+        if matured:
+            cycle.iloc[-1, cycle.columns.get_loc("harvest")] = True
+        records.append(cycle)
+        start += len(crop)
+        cycle_number += 1
+    return pd.concat(records)
+
+
+def build_report(input_path: Path, output_path: Path) -> None:
+    location = pvlib.location.Location(
+        latitude=-27.5949, longitude=-48.5480, tz="America/Sao_Paulo", altitude=20.0
+    )
+    results, _daily, _telemetry, _inventory = process_period_results_export(
+        input_path, location, dli_target_mol_m2_day=14.0
+    )
+    hourly = results.resample("1h").mean(numeric_only=True)
+    period = load_period_results_export(input_path).resample("1h").mean(numeric_only=True)
+    open_columns = [f"0{letter}_AVG" for letter in "ABCDE"]
+    period["light_open_w_m2"] = period[open_columns].mean(axis=1)
+    period["light_between_w_m2"] = period["2B_AVG"]
+    period["light_under_w_m2"] = period[["2A_AVG", "2C_AVG"]].mean(axis=1)
+    hourly = hourly.join(period[["light_open_w_m2", "light_between_w_m2", "light_under_w_m2"]])
+    cycle_frames = {
+        "open": simulate_repeated_crops(hourly, "light_open_w_m2"),
+        "between": simulate_repeated_crops(hourly, "light_between_w_m2"),
+        "under": simulate_repeated_crops(hourly, "light_under_w_m2"),
+    }
+    for setup, cycle in cycle_frames.items():
+        hourly[f"fresh_{setup}_g_m2"] = cycle["cycle_fresh_biomass_g_m2"]
+        hourly[f"harvest_{setup}"] = cycle["harvest"]
+    model_data = {
+        "timestamps": [timestamp.isoformat() for timestamp in hourly.index],
+        "series": {
+            "light_open": {"label": "open reference light (0A-0E)", "unit": "W/m2", "color": "#d48300", "values": finite_values(hourly["light_open_w_m2"])},
+            "light_between": {"label": "between trackers light (2B)", "unit": "W/m2", "color": "#2f82b9", "values": finite_values(hourly["light_between_w_m2"])},
+            "light_under": {"label": "under tracker light (2A/2C)", "unit": "W/m2", "color": "#a33c70", "values": finite_values(hourly["light_under_w_m2"])},
+            "pv": {"label": "PV power", "unit": "kW", "color": "#2f82b9", "values": finite_values(hourly["pv_power_w"] / 1000.0)},
+            "fresh_open": {"label": "fresh biomass, open reference (0A-0E)", "unit": "g/m2", "color": "#d48300", "values": finite_values(hourly["fresh_open_g_m2"])},
+            "fresh_between": {"label": "fresh biomass, between trackers (2B)", "unit": "g/m2", "color": "#2f82b9", "values": finite_values(hourly["fresh_between_g_m2"])},
+            "fresh_under": {"label": "fresh biomass, under tracker (2A/2C)", "unit": "g/m2", "color": "#a33c70", "values": finite_values(hourly["fresh_under_g_m2"])},
+            "tracker": {"label": "observed tracker angle", "unit": "degrees", "color": "#4d8b61", "values": finite_values(hourly["observed_tracker_angle_deg"])},
+        },
+        "cycle_count": int(cycle_frames["open"]["cycle_id"].max()),
+        "harvest_mode": "thermal GDD",
+        "harvest_indices": [index for index, is_harvest in enumerate(hourly["harvest_open"]) if is_harvest],
+    }
+    report = TEMPLATE.replace("__DATA__", json.dumps(model_data, separators=(",", ":")))
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(report, encoding="utf-8")
+    print(f"Wrote {output_path}")
+
+
+TEMPLATE = r'''<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A year, hour by hour</title>
+<style>
+:root{--ink:#252720;--muted:#7d8175;--line:#dedfd7;--paper:#fafaf7;--card:#fff;--gold:#c97800;--blue:#2f82b9;--pink:#a33c70;--green:#4d8b61}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 Georgia,serif}main{max-width:1320px;margin:auto;padding:28px 20px 70px}.eyebrow,.label{color:var(--muted);font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.16em;text-transform:uppercase}h1{margin:8px 0 10px;font-size:clamp(2.5rem,6vw,5.3rem);line-height:.98;font-weight:400}.intro{max-width:720px;color:#596057;font-size:1.08rem}.stats{display:flex;flex-wrap:wrap;gap:28px;margin:25px 0 30px;color:var(--muted);font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.stats b{color:var(--ink);font-weight:500}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 5px 18px rgba(50,55,35,.06);margin:16px 0;overflow:hidden}.card-head{display:flex;align-items:center;gap:14px;min-height:64px;padding:14px 20px;border-bottom:1px solid var(--line)}.chips{display:flex;gap:8px;flex-wrap:wrap}.chip,.choice{border:1px solid var(--line);border-radius:99px;background:#fff;color:#596057;padding:8px 13px;font:14px Georgia,serif;cursor:pointer}.choice.active{border-color:transparent;background:#20231f;color:#fff}.chip{color:#fff;border:0}.chip.gold{background:var(--gold)}.chip.blue{background:var(--blue)}.chip.pink{background:var(--pink)}.overview-wrap{padding:14px 20px 10px}canvas{display:block;width:100%}#overview{height:150px;cursor:crosshair}.hint,.footnote{color:var(--muted);font-size:.9rem;padding:8px 20px 16px}.controls{padding:14px 20px 19px}.control-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 16px}.control-row .label{margin-right:2px}.check-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:10px 22px}.check{display:flex;gap:9px;align-items:flex-start;color:#596057;cursor:pointer}.check input{accent-color:var(--gold);margin-top:4px}.swatch{width:9px;height:9px;border-radius:50%;display:inline-block;margin:5px 5px 0 0}.timeline{padding:0 0 12px}#timeline{height:530px;cursor:grab}#timeline.dragging{cursor:grabbing}@media(max-width:720px){main{padding:22px 12px 50px}.check-grid{grid-template-columns:repeat(2,minmax(130px,1fr))}#timeline{height:480px}.stats{gap:14px}}
+.timeline-wrap{position:relative}#cursor-line{display:none;position:absolute;z-index:4;top:0;bottom:30px;width:2px;background:#111;box-shadow:0 0 0 1px rgba(255,255,255,.85);pointer-events:none}#cursor-readout{display:none;position:absolute;z-index:5;top:8px;max-width:300px;padding:9px 11px;border:1px solid #bbb;border-radius:6px;background:rgba(255,255,255,.97);box-shadow:0 4px 14px rgba(20,30,20,.18);font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;pointer-events:none;white-space:nowrap}
+</style>
+</head>
+<body><main>
+<div class="eyebrow">Model explorer · Florianópolis (-27.60, -48.50)</div>
+<h1>A year, hour by hour</h1>
+<p class="intro">The lettuce and PV model across the available 2026 field period. Explore crop light, PV output, tracker angle, and living biomass at every hour. Crop growth uses the original seasonal Florianópolis canopy-temperature curve and resets at each harvest.</p>
+<div class="stats"><span><b id="hours">0</b> hours</span><span><b id="cycles">0</b> crop cycles</span><span><b>8</b> comparison series</span><span>harvest by <b>thermal GDD</b></span><span>source <b>Period Components</b></span></div>
+<section class="card"><div class="card-head"><span class="label">The whole period</span><div class="chips"><button class="chip gold">0A-0E open</button><button class="chip blue">2B between trackers</button><button class="chip pink">2A/2C under trackers</button></div></div><div class="overview-wrap"><canvas id="overview"></canvas></div><div class="hint">Orange is the open reference, blue is the space between tracker rows, and pink is under the trackers. Each crop starts at zero fresh biomass and is harvested when its thermal GDD clock is ready.</div></section>
+<section class="card"><div class="controls"><div class="control-row"><span class="label">Window</span><button class="choice" data-span="24">1 day</button><button class="choice" data-span="72">3 days</button><button class="choice active" data-span="336">2 weeks</button><button class="choice" data-span="1460">2 months</button><button class="choice" data-span="all">year</button><span class="label" style="margin-left:12px">go to</span><button class="choice" data-month="0">Jan</button><button class="choice" data-month="3">Apr</button><button class="choice" data-month="6">Jul</button><button class="choice" data-month="9">Oct</button></div><div class="check-grid" id="series-controls"></div></div></section>
+<section class="card timeline"><div class="card-head"><span class="label">Detailed model state</span><span id="range-label" style="color:var(--muted)"></span></div><div class="timeline-wrap"><canvas id="timeline"></canvas><div id="cursor-line"></div><div id="cursor-readout"></div></div><div class="footnote">Move the mouse over any graph to see all values at that exact time. Grey bands are night. Scroll over the graph to zoom; drag horizontally to move through time.</div></section>
+</main>
+<script>
+const model=__DATA__;const dates=model.timestamps.map(value=>new Date(value));const order=['light_open','light_between','light_under','pv','fresh_open','fresh_between','fresh_under','tracker'];const selected=new Set(order.filter(key=>key!=='tracker'));let span=dates.length;let center=Math.floor(dates.length/2);let dragStart=null;const controls=document.getElementById('series-controls');document.getElementById('hours').textContent=dates.length.toLocaleString('en-US');document.getElementById('cycles').textContent=model.cycle_count;
+order.forEach(key=>{const item=model.series[key];const label=document.createElement('label');label.className='check';label.innerHTML=`<input type="checkbox" ${selected.has(key)?'checked':''}><span><i class="swatch" style="background:${item.color}"></i>${item.label} <small>(${item.unit})</small></span>`;label.querySelector('input').addEventListener('change',event=>{event.target.checked?selected.add(key):selected.delete(key);draw()});controls.appendChild(label)});
+function bounds(){if(span==='all')return[0,dates.length-1];const half=Math.floor(span/2);return[Math.max(0,center-half),Math.min(dates.length-1,center+half)]}function dateText(date){return date.toLocaleDateString('en-US',{month:'short',day:'numeric'})}function canvasSetup(canvas){const ratio=devicePixelRatio||1;const box=canvas.getBoundingClientRect();canvas.width=box.width*ratio;canvas.height=box.height*ratio;const ctx=canvas.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);return[ctx,box.width,box.height]}
+function drawOverview(){const[ctx,w,h]=canvasSetup(document.getElementById('overview'));const keys=['fresh_open','fresh_between','fresh_under'];const max=Math.max(...keys.flatMap(key=>model.series[key].values.filter(Boolean)),1);ctx.clearRect(0,0,w,h);keys.forEach(key=>{const values=model.series[key].values;ctx.strokeStyle=model.series[key].color;ctx.beginPath();values.forEach((value,i)=>{if(value===null)return;const x=i/(values.length-1)*w,y=h-24-value/max*(h-34);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()});model.harvest_indices.forEach(index=>{const x=index/(dates.length-1)*w;ctx.strokeStyle='#d7d8d0';ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h-22);ctx.stroke()});const[a,b]=bounds();ctx.fillStyle='rgba(201,120,0,.13)';ctx.fillRect(a/(dates.length-1)*w,0,(b-a)/(dates.length-1)*w,h-22);ctx.strokeStyle='#c97800';ctx.strokeRect(a/(dates.length-1)*w,1,(b-a)/(dates.length-1)*w,h-24);ctx.fillStyle='#7d8175';ctx.font='12px ui-monospace';ctx.fillText(dateText(dates[0]),4,h-5);ctx.fillText(dateText(dates[dates.length-1]),w-74,h-5)}
+    // Removed the drawComparison call
+function drawComparison(){const[ctx,w,h]=canvasSetup(document.getElementById('comparison'));const[left,right]=bounds();const keys=['fresh_open','fresh_between','fresh_under'];const values=keys.flatMap(key=>model.series[key].values.slice(left,right+1).filter(v=>v!==null));const max=Math.max(...values,1);ctx.clearRect(0,0,w,h);keys.forEach(key=>{const series=model.series[key].values.slice(left,right+1);ctx.strokeStyle=model.series[key].color;ctx.lineWidth=2;ctx.beginPath();series.forEach((value,i)=>{if(value===null)return;const x=48+i/Math.max(1,right-left)*(w-68),y=h-36-value/max*(h-62);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()});ctx.strokeStyle='#d7d8d0';ctx.lineWidth=1;for(let i=left;i<=right;i++){if(dates[i].getDate()===1){const x=48+(i-left)/Math.max(1,right-left)*(w-68);ctx.beginPath();ctx.moveTo(x,10);ctx.lineTo(x,h-32);ctx.stroke()}}ctx.fillStyle='#7d8175';ctx.font='11px ui-monospace';ctx.fillText('0 g/m2',8,h-30);ctx.fillText(Math.round(max)+' g/m2',8,20);ctx.textAlign='center';const spanHours=Math.max(1,right-left);const step=spanHours<=48?6:spanHours<=120?12:spanHours<=480?24:spanHours<=1500?168:720;for(let i=left;i<=right;i+=step){const x=48+(i-left)/Math.max(1,right-left)*(w-68);ctx.fillText(axisText(dates[i],spanHours),x,h-10)}ctx.textAlign='start'}
+function axisText(date, spanHours){if(!date)return '';const day=date.toLocaleDateString('en-US',{month:'short',day:'numeric'});return spanHours<=72?`${day} ${date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false})}`:day}
+function valueText(value,key){if(key==='pv')return value.toFixed(1)+' kW';if(key.startsWith('light_'))return value.toFixed(0)+' W/m2';if(key==='tracker')return value.toFixed(1)+' deg';return value.toFixed(0)+' g/m2'}
+function draw(){drawOverview();const canvas=document.getElementById('timeline');const[ctx,w,h]=canvasSetup(canvas);ctx.clearRect(0,0,w,h);const[left,right]=bounds();const active=order.filter(key=>selected.has(key));const plotHeight=h-30;const bandH=Math.max(58,plotHeight/Math.max(active.length,1));const plotWidth=Math.max(120,w-360);const spanHours=Math.max(1,right-left);document.getElementById('range-label').textContent=`${dateText(dates[left])} – ${dateText(dates[right])}`;active.forEach((key,row)=>{const top=row*bandH,item=model.series[key];ctx.fillStyle='#f4f4ef';ctx.fillRect(0,top,w,bandH-1);ctx.fillStyle='#252720';ctx.font='14px Georgia';ctx.fillText(item.label,16,top+22);ctx.fillStyle=item.color;ctx.font='12px ui-monospace';ctx.fillText(item.unit,16,top+41);const values=item.values.slice(left,right+1),nums=values.filter(v=>v!==null),max=Math.max(...nums,1),min=Math.min(...nums,0);ctx.strokeStyle=item.color;ctx.beginPath();values.forEach((value,i)=>{if(value===null)return;const x=180+i/Math.max(1,right-left)*plotWidth,y=top+bandH-12-(value-min)/Math.max(1,max-min)*(bandH-28);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();const current=nums[nums.length-1]??0;ctx.fillStyle=item.color;ctx.font='11px ui-monospace';ctx.fillText('now '+valueText(current,key),w-170,top+20);ctx.fillStyle='#7d8175';ctx.font='10px ui-monospace';ctx.fillText('min '+valueText(Math.min(...nums),key),w-170,top+36);ctx.fillText('max '+valueText(Math.max(...nums),key),w-170,top+50)});const tickStep=spanHours<=48?6:spanHours<=120?12:spanHours<=480?24:spanHours<=1500?168:720;ctx.font='11px ui-monospace';ctx.textAlign='center';for(let i=left;i<=right;i+=tickStep){const x=180+(i-left)/Math.max(1,right-left)*plotWidth;ctx.strokeStyle=dates[i].getDate()===1?'#c9cbc2':'#e3e4de';ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,plotHeight);ctx.stroke();ctx.fillStyle='#7d8175';ctx.fillText(axisText(dates[i],spanHours),x,h-9)}ctx.textAlign='start';}
+document.querySelectorAll('[data-span]').forEach(button=>button.addEventListener('click',()=>{span=button.dataset.span==='all'?'all':Number(button.dataset.span);document.querySelectorAll('[data-span]').forEach(item=>item.classList.toggle('active',item===button));draw()}));document.querySelectorAll('[data-month]').forEach(button=>button.addEventListener('click',()=>{const found=dates.findIndex(date=>date.getMonth()===Number(button.dataset.month));if(found>=0){center=found;draw()}}));document.getElementById('overview').addEventListener('click',event=>{const rect=event.currentTarget.getBoundingClientRect();center=Math.round((event.clientX-rect.left)/rect.width*(dates.length-1));draw()});const timeline=document.getElementById('timeline');timeline.addEventListener('pointerdown',event=>{dragStart={x:event.clientX,center};timeline.classList.add('dragging');timeline.setPointerCapture(event.pointerId)});timeline.addEventListener('pointermove',event=>{if(!dragStart||span==='all')return;const width=timeline.getBoundingClientRect().width;center=Math.max(0,Math.min(dates.length-1,dragStart.center-Math.round((event.clientX-dragStart.x)/width*span)));draw()});timeline.addEventListener('pointerup',()=>{dragStart=null;timeline.classList.remove('dragging')});timeline.addEventListener('wheel',event=>{event.preventDefault();span=Math.max(24,Math.min(dates.length,Math.round(span*(event.deltaY>0?1.25:.8))));document.querySelectorAll('[data-span]').forEach(item=>item.classList.remove('active'));draw()},{passive:false});addEventListener('resize',draw);draw();
+function drawGrouped(){drawOverview();const canvas=document.getElementById('timeline');const[ctx,w,h]=canvasSetup(canvas);ctx.clearRect(0,0,w,h);const[left,right]=bounds();const groups=[{label:'crop light comparison',unit:'W/m2',keys:['light_open','light_between','light_under']},{label:'PV power',unit:'kW',keys:['pv']},{label:'fresh biomass comparison',unit:'g/m2',keys:['fresh_open','fresh_between','fresh_under']},{label:'observed tracker angle',unit:'degrees',keys:['tracker']}];const active=groups.filter(group=>group.keys.some(key=>selected.has(key)));const plotHeight=h-30;const bandH=Math.max(72,plotHeight/Math.max(active.length,1));const plotWidth=Math.max(120,w-360);const spanHours=Math.max(1,right-left);document.getElementById('range-label').textContent=`${dateText(dates[left])} – ${dateText(dates[right])}`;active.forEach((group,row)=>{const top=row*bandH;const keys=group.keys.filter(key=>selected.has(key));ctx.fillStyle='#f4f4ef';ctx.fillRect(0,top,w,bandH-1);ctx.fillStyle='#252720';ctx.font='14px Georgia';ctx.fillText(group.label,16,top+22);ctx.fillStyle='#7d8175';ctx.font='12px ui-monospace';ctx.fillText(group.unit,16,top+41);const allValues=keys.flatMap(key=>model.series[key].values.slice(left,right+1).filter(v=>v!==null));const max=Math.max(...allValues,1);const min=Math.min(...allValues,0);keys.forEach((key,line)=>{const values=model.series[key].values.slice(left,right+1);ctx.strokeStyle=model.series[key].color;ctx.lineWidth=1.7;ctx.beginPath();values.forEach((value,i)=>{if(value===null)return;const x=180+i/Math.max(1,right-left)*plotWidth,y=top+bandH-12-(value-min)/Math.max(1,max-min)*(bandH-28);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();const nums=values.filter(v=>v!==null);ctx.fillStyle=model.series[key].color;ctx.font='10px ui-monospace';ctx.fillText(model.series[key].label.replace(' light','').replace('fresh biomass, ',''),w-170,top+16+line*13);ctx.fillText(valueText(nums[nums.length-1]??0,key),w-170,top+29+line*13)});});const tickStep=spanHours<=48?6:spanHours<=120?12:spanHours<=480?24:spanHours<=1500?168:720;ctx.font='11px ui-monospace';ctx.textAlign='center';for(let i=left;i<=right;i+=tickStep){const x=180+(i-left)/Math.max(1,right-left)*plotWidth;ctx.strokeStyle=dates[i].getDate()===1?'#c9cbc2':'#e3e4de';ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,plotHeight);ctx.stroke();ctx.fillStyle='#7d8175';ctx.fillText(axisText(dates[i],spanHours),x,h-9)}ctx.textAlign='start'}
+function cursorValue(key,index){const value=model.series[key].values[index];return value===null||value===undefined?'–':valueText(value,key)}
+function showCursor(event){const canvas=document.getElementById('timeline');const wrapper=document.querySelector('.timeline-wrap');const line=document.getElementById('cursor-line');const readout=document.getElementById('cursor-readout');const rect=canvas.getBoundingClientRect();const[left,right]=bounds();const plotLeft=180;const plotWidth=Math.max(120,rect.width-360);const localX=Math.max(plotLeft,Math.min(rect.width-180,event.clientX-rect.left));const index=Math.max(left,Math.min(right,left+Math.round((localX-plotLeft)/plotWidth*(right-left))));const x=plotLeft+(index-left)/Math.max(1,right-left)*plotWidth;line.style.display='block';line.style.left=x+'px';readout.style.display='block';readout.style.left=(x>rect.width-300?Math.max(6,x-285):x+10)+'px';readout.innerHTML='<strong>'+dates[index].toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+dates[index].toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false})+'</strong><br><span style="color:#d48300">Open light: '+cursorValue('light_open',index)+' · biomass: '+cursorValue('fresh_open',index)+'</span><br><span style="color:#2f82b9">Between light: '+cursorValue('light_between',index)+' · biomass: '+cursorValue('fresh_between',index)+'</span><br><span style="color:#a33c70">Under light: '+cursorValue('light_under',index)+' · biomass: '+cursorValue('fresh_under',index)+'</span><br><span style="color:#2f82b9">PV power: '+cursorValue('pv',index)+'</span>'}
+function hideCursor(){document.getElementById('cursor-line').style.display='none';document.getElementById('cursor-readout').style.display='none'}
+document.getElementById('timeline').addEventListener('pointermove',showCursor);document.getElementById('timeline').addEventListener('pointerleave',hideCursor);
+function draw(){return drawGrouped()}
+</script></body></html>'''
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    args = parser.parse_args()
+    build_report(args.input, args.output)
+
+
+if __name__ == "__main__":
+    main()

@@ -6,3 +6,4 @@ __pycache__/
 public-site/
 field-data.local.js
 project/data/raw/Period_Results.xlsx
+/Period_Components.csv

@@ -53,22 +53,23 @@ def load_period_results_export(
     sheet_name: str = "in",
     timezone: str = "America/Sao_Paulo",
 ) -> pd.DataFrame:
-    """Load the Period_Results workbook without mixing it with synthetic inputs.
+    """Load a Period_Results CSV or workbook without mixing synthetic inputs.
 
-    The field export is stored as CSV text in one Excel column. Its first row is
-    the CSV header (``date,datetime,GHI,...``), followed by one CSV record per
-    timestamp. This loader restores those columns and returns a time-indexed,
-    timezone-aware frame of measured/model-exported field values.
+    The field export may be a normal CSV, or CSV text stored in one Excel column.
+    In both cases the returned frame is time-indexed and timezone-aware.
     """
-    workbook_column = pd.read_excel(source, sheet_name=sheet_name, header=None).iloc[:, 0]
-    lines = workbook_column.dropna().astype(str)
-    header_at = next(
-        (index for index, line in enumerate(lines) if line.startswith("date,datetime,GHI,DNI,DHI,")),
-        None,
-    )
-    if header_at is None:
-        raise ValueError("Period_Results export header not found")
-    frame = pd.read_csv(StringIO("\n".join(lines.iloc[header_at:].tolist())))
+    if Path(source).suffix.lower() == ".csv":
+        frame = pd.read_csv(source)
+    else:
+        workbook_column = pd.read_excel(source, sheet_name=sheet_name, header=None).iloc[:, 0]
+        lines = workbook_column.dropna().astype(str)
+        header_at = next(
+            (index for index, line in enumerate(lines) if line.startswith("date,datetime,GHI,DNI,DHI,")),
+            None,
+        )
+        if header_at is None:
+            raise ValueError("Period_Results export header not found")
+        frame = pd.read_csv(StringIO("\n".join(lines.iloc[header_at:].tolist())))
     return load_timeseries(frame, time_column="datetime", timezone=timezone)
 
 

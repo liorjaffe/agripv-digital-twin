@@ -139,3 +139,16 @@ Python pipeline, not an independent illustration. The bifacial PV yield number
 is still a simplified isotropic-transposition stand-in for the full
 `pvlib.bifacial.infinite_sheds` model used in Python, and is labeled as such in
 the interface.
+
+## Standard simulation input
+
+The standard simulation input is `project/data/raw/Period_Components.csv`.
+It contains the year-long measured `GHI`, `DNI`, `DHI`, and observed tracker
+angle used by the model. Generate the separate English comparison report with:
+
+```bash
+PYTHONPATH=. .venv/bin/python3 project/scenarios/generate_model_explorer.py
+```
+
+The report is written to `standalone/lettuce-pv-model-report.html` and does not
+connect to the dashboard.
