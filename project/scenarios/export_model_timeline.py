@@ -7,78 +7,21 @@ import math
 from pathlib import Path
 
 import pandas as pd
-import pvlib
 
+from project.config import make_site_location
 from project.io.ingestion import load_period_results_export
 from project.io.service import process_period_results_export
-from project.models.lettuce import simulate_growth_timeseries
-from project.models.lettuce_development import LettuceThermalDevelopment
+from project.scenarios.crop_cycles import seasonal_canopy_temperature, simulate_repeated_crops
 
 ROOT = Path(__file__).resolve().parents[2]
 INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
 OUT_DIR = ROOT / "standalone"
 JSON_PATH = OUT_DIR / "our_simulations_timeline.json"
 HTML_PATH = OUT_DIR / "our_simulations_timeline.html"
-SOURCE_HTML = Path("/Users/liorjaffe/Desktop/modelo-vanhenten-pacote/visualizador_timeline.html")
 
 
 def finite_values(values: pd.Series) -> list[float | None]:
     return [float(v) if pd.notna(v) and math.isfinite(float(v)) else None for v in values]
-
-
-def seasonal_mean_temp_c(day_of_year: int) -> float:
-    return 20.5 + 5.0 * math.cos(2.0 * math.pi * (day_of_year - 34.0) / 365.25)
-
-
-def seasonal_canopy_temperature(times: pd.DatetimeIndex, planting_temp_c: float = 24.0) -> pd.Series:
-    planting_day = int(times[0].dayofyear)
-    planting_offset = planting_temp_c - seasonal_mean_temp_c(planting_day)
-    return pd.Series(
-        [seasonal_mean_temp_c(int(timestamp.dayofyear)) + planting_offset for timestamp in times],
-        index=times,
-    )
-
-
-def simulate_repeated_crops(results: pd.DataFrame, light_column: str, max_cycle_days: int = 120) -> pd.DataFrame:
-    records: list[pd.DataFrame] = []
-    start = 0
-    cycle_number = 1
-    while start < len(results):
-        candidate = results.iloc[start:start + max_cycle_days * 24]
-        if candidate.empty:
-            break
-        temperatures = seasonal_canopy_temperature(candidate.index)
-        thermal = LettuceThermalDevelopment()
-        harvest_position = len(candidate) - 1
-        for date, day_temperature in temperatures.groupby(temperatures.index.normalize()).mean().items():
-            state = thermal.update(float(day_temperature))
-            if state["harvest_ready"]:
-                positions = [
-                    position for position, timestamp in enumerate(candidate.index)
-                    if timestamp.normalize() == date
-                ]
-                if positions:
-                    harvest_position = positions[-1]
-                break
-        crop = candidate.iloc[:harvest_position + 1]
-        growth = simulate_growth_timeseries(
-            crop.index,
-            crop[light_column] * 0.45,
-            seasonal_canopy_temperature(crop.index),
-            x_sdw0=8.0,
-            x_nsdw0=3.0,
-        )
-        initial_dry_mass = 11.0
-        cycle = pd.DataFrame(index=crop.index)
-        cycle["cycle_id"] = cycle_number
-        cycle["cycle_dry_biomass_g_m2"] = growth["total_dry_biomass"]
-        cycle["cycle_fresh_biomass_g_m2"] = ((growth["total_dry_biomass"] - initial_dry_mass).clip(lower=0.0) / 0.05)
-        cycle["harvest"] = False
-        cycle.iloc[-1, cycle.columns.get_loc("harvest")] = True
-        records.append(cycle)
-        start += len(crop)
-        cycle_number += 1
-    return pd.concat(records, ignore_index=False)
 
 
 def build_cycle_markers(cycle_frames: dict[str, pd.DataFrame], hourly: pd.DataFrame) -> list[dict]:
@@ -113,10 +56,8 @@ def build_cycle_markers(cycle_frames: dict[str, pd.DataFrame], hourly: pd.DataFr
 
 
 def build_timeline_payload() -> dict:
-    location = pvlib.location.Location(
-        latitude=-27.5949, longitude=-48.5480, tz="America/Sao_Paulo", altitude=20.0
-    )
-    results, *_ = process_period_results_export(INPUT, location, dli_target_mol_m2_day=14.0)
+    location = make_site_location()
+    results, *_ = process_period_results_export(INPUT, location)
     hourly = results.resample("1h").mean(numeric_only=True)
     period = load_period_results_export(INPUT).resample("1h").mean(numeric_only=True)
 
@@ -127,9 +68,15 @@ def build_timeline_payload() -> dict:
     hourly = hourly.join(period[["light_open_w_m2", "light_between_w_m2", "light_under_w_m2"]])
 
     cycle_frames = {
-        "open": simulate_repeated_crops(hourly, "light_open_w_m2"),
-        "between": simulate_repeated_crops(hourly, "light_between_w_m2"),
-        "under": simulate_repeated_crops(hourly, "light_under_w_m2"),
+        "open": simulate_repeated_crops(
+            hourly, "light_open_w_m2", mark_cycle_window_end_as_harvest=True
+        ),
+        "between": simulate_repeated_crops(
+            hourly, "light_between_w_m2", mark_cycle_window_end_as_harvest=True
+        ),
+        "under": simulate_repeated_crops(
+            hourly, "light_under_w_m2", mark_cycle_window_end_as_harvest=True
+        ),
     }
     for setup, cycle in cycle_frames.items():
         hourly[f"fresh_{setup}_g_m2"] = cycle["cycle_fresh_biomass_g_m2"]
@@ -193,19 +140,16 @@ def build_timeline_payload() -> dict:
     return payload
 
 
-def write_json_payload() -> None:
+def write_json_payload(payload: dict) -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    payload = build_timeline_payload()
     JSON_PATH.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Wrote {JSON_PATH}")
 
 
-def write_embedded_html() -> None:
-    source_html_path = SOURCE_HTML if SOURCE_HTML.exists() else HTML_PATH
-    if not source_html_path.exists():
-        raise FileNotFoundError(f"Source viewer not found at {source_html_path}")
-    source_text = source_html_path.read_text(encoding="utf-8")
-    payload = build_timeline_payload()
+def write_embedded_html(payload: dict) -> None:
+    if not HTML_PATH.exists():
+        raise FileNotFoundError(f"Timeline viewer not found at {HTML_PATH}")
+    source_text = HTML_PATH.read_text(encoding="utf-8")
     payload_js = json.dumps(payload, ensure_ascii=False)
     
     # If the file already has an injected window.__TL__ assignment, replace it;
@@ -230,8 +174,9 @@ def write_embedded_html() -> None:
 
 
 def main() -> None:
-    write_json_payload()
-    write_embedded_html()
+    payload = build_timeline_payload()
+    write_json_payload(payload)
+    write_embedded_html(payload)
 
 
 if __name__ == "__main__":

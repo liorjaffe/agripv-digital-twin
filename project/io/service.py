@@ -31,8 +31,9 @@ def send_manual_tracker_override(
     """Emit one absolute tracker-angle override to the configured command sink.
 
     Use ``tilt_deg=0.0`` and ``reason="manual_flat"`` for the flat-position
-    experiment. The command is validated before it reaches any adapter; this
-    function never talks to hardware itself.
+    experiment. Absolute angles are limited to the installed tracker range of
+    -55 to +55 degrees. The command is validated before it reaches any adapter;
+    this function never talks to hardware itself.
     """
     command_sink.send(manual_tracker_command(
         timestamp=timestamp,
@@ -125,4 +126,3 @@ def process_period_results_export(
     results = results.join(observed_tracker).assign(data_source="observed_field_data")
     daily = daily.assign(data_source="observed_field_data")
     return results, daily, telemetry_frame(results, subzone_id="period-results"), inventory
-

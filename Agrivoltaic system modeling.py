@@ -473,7 +473,7 @@ pitch = 12  # [m] row spacing
 row_width = 2 * 2.384  # [m] two modules in portrait, each 2 m long
 gcr = row_width / pitch  # ground coverage ratio [unitless]
 axis_azimuth = 0  # [degrees] north-south tracking axis
-max_angle = 90  # [degrees] full single-axis tracking range in this baseline model
+max_angle = 55  # [degrees] mechanical single-axis tracking limit in either direction
 
 # %%
 # Before running the infinite sheds model, we need to know the orientation

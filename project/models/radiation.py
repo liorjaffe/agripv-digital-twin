@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pvlib
 
+from project.config import MAX_TRACKER_TILT_DEG
 from .conversions import ghi_to_par, hpa_to_pa, par_to_ppfd
 
 
@@ -86,8 +87,16 @@ def estimate_ghi_dni_dhi_from_ppfd(
     )
 
 
-def tracker_orientation(solar_position: pd.DataFrame, axis_azimuth_deg: float, gcr: float, max_tilt_deg: float = 90.0, backtrack: bool = True) -> pd.DataFrame:
+def tracker_orientation(
+    solar_position: pd.DataFrame,
+    axis_azimuth_deg: float,
+    gcr: float,
+    max_tilt_deg: float = MAX_TRACKER_TILT_DEG,
+    backtrack: bool = True,
+) -> pd.DataFrame:
     """Calculate pvlib single-axis tracker orientation."""
+    if not 0.0 < max_tilt_deg <= MAX_TRACKER_TILT_DEG:
+        raise ValueError(f"max_tilt_deg must be in (0, {MAX_TRACKER_TILT_DEG:g}] for this tracker")
     return pvlib.tracking.singleaxis(
         apparent_zenith=solar_position["apparent_zenith"],
         apparent_azimuth=solar_position["azimuth"],
@@ -96,6 +105,29 @@ def tracker_orientation(solar_position: pd.DataFrame, axis_azimuth_deg: float, g
         backtrack=backtrack,
         gcr=gcr,
     )
+
+
+def offset_tracker_orientation(
+    baseline: pd.DataFrame,
+    offset_deg: float,
+    axis_azimuth_deg: float,
+    max_tilt_deg: float = MAX_TRACKER_TILT_DEG,
+) -> pd.DataFrame:
+    """Apply an offset to tracker rotation, respecting the installed angle stops."""
+    if not 0.0 < max_tilt_deg <= MAX_TRACKER_TILT_DEG:
+        raise ValueError(f"max_tilt_deg must be in (0, {MAX_TRACKER_TILT_DEG:g}] for this tracker")
+    tracker_theta = (baseline["tracker_theta"] + offset_deg).clip(
+        lower=-max_tilt_deg,
+        upper=max_tilt_deg,
+    )
+    orientation = baseline.copy()
+    orientation["tracker_theta"] = tracker_theta
+    surface_orientation = pvlib.tracking.calc_surface_orientation(
+        tracker_theta,
+        axis_azimuth=axis_azimuth_deg,
+    )
+    orientation[["surface_tilt", "surface_azimuth"]] = surface_orientation
+    return orientation
 
 
 def crop_and_pv_irradiance(

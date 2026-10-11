@@ -17,7 +17,12 @@ from project.io.field_data import classify_column, classify_columns, raw_probe_q
 from project.io.ingestion import load_field_export, load_period_results_export
 from project.io.commands import DryRunCommandSink
 from project.io.service import process_field_export, send_manual_tracker_override
-from project.models.radiation import estimate_ghi_dni_dhi_from_ppfd
+from project.config import load_runtime_config
+from project.models.radiation import (
+    estimate_ghi_dni_dhi_from_ppfd,
+    offset_tracker_orientation,
+    tracker_orientation,
+)
 from project.qc.cleaning import (
     AIR_TEMP_C,
     MODULE_TEMP_C,
@@ -186,6 +191,37 @@ def test_estimate_ghi_dni_dhi_from_ppfd_handles_cloudy_and_night_conditions():
     assert weather["clear_sky_index"].max() <= 1.2
 
 
+def test_tracker_orientation_stays_within_installed_rotation_limits():
+    times = _daily_index(days=1)
+    solar_position = SITE.get_solarposition(times)
+
+    orientation = tracker_orientation(
+        solar_position,
+        axis_azimuth_deg=0.0,
+        gcr=0.3973,
+        max_tilt_deg=55.0,
+    )
+
+    assert orientation["tracker_theta"].dropna().between(-55.0, 55.0).all()
+    with pytest.raises(ValueError, match="max_tilt_deg"):
+        tracker_orientation(solar_position, axis_azimuth_deg=0.0, gcr=0.3973, max_tilt_deg=90.0)
+
+
+def test_tracker_offset_changes_physical_angle_without_crossing_angle_stops():
+    times = _daily_index(days=1)
+    solar_position = SITE.get_solarposition(times)
+    baseline = tracker_orientation(solar_position, axis_azimuth_deg=0.0, gcr=0.3973)
+
+    orientation = offset_tracker_orientation(
+        baseline,
+        offset_deg=55.0,
+        axis_azimuth_deg=0.0,
+    )
+
+    assert orientation["tracker_theta"].dropna().between(-55.0, 55.0).all()
+    assert orientation["surface_tilt"].dropna().between(-1e-9, 55.0 + 1e-9).all()
+
+
 def _synthetic_station_csv(times: pd.DatetimeIndex) -> pd.DataFrame:
     solar_position = SITE.get_solarposition(times)
     clearsky_ghi = SITE.get_clearsky(times, model="ineichen")["ghi"]
@@ -207,13 +243,15 @@ def _synthetic_station_csv(times: pd.DatetimeIndex) -> pd.DataFrame:
 def test_process_field_export_runs_end_to_end_with_synthetic_station_export():
     times = _daily_index(days=2)
     raw = _synthetic_station_csv(times)
-    outputs = process_field_export(raw, SITE, dli_target_mol_m2_day=14.0)
+    outputs = process_field_export(raw, SITE)
     assert "CR1Kx" in outputs
     results, daily, telemetry = outputs["CR1Kx"]
+    default_config = load_runtime_config()
     assert np.isfinite(results["pv_power_w"]).all()
     assert np.isfinite(results["crop_ppfd_umol_m2_s"]).all()
     assert (results["pv_power_w"] >= 0.0).all()
-    assert results["pv_power_w"].max() <= 8000.0
+    assert results["pv_power_w"].max() <= default_config.pdc0_w
+    assert results["tilt_offset_deg"].between(-55.0, 55.0).all()
     assert not telemetry.empty
     assert "input_data_complete_fraction" in daily.columns
 
@@ -296,5 +334,18 @@ def test_manual_tracker_override_rejects_out_of_range_absolute_angle():
         send_manual_tracker_override(
             sink,
             timestamp="2026-08-26T12:00:00-03:00",
-            tilt_deg=91.0,
+            tilt_deg=55.1,
         )
+
+
+@pytest.mark.parametrize("tilt_deg", [-55.0, 55.0])
+def test_manual_tracker_override_accepts_mechanical_angle_limits(tilt_deg):
+    sink = DryRunCommandSink()
+
+    send_manual_tracker_override(
+        sink,
+        timestamp="2026-08-26T12:00:00-03:00",
+        tilt_deg=tilt_deg,
+    )
+
+    assert sink.commands[0].tilt_deg == tilt_deg

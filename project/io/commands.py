@@ -8,6 +8,8 @@ import math
 from pathlib import Path
 from typing import Protocol
 
+from project.config import MAX_TRACKER_TILT_DEG
+
 
 @dataclass(frozen=True)
 class TrackerCommand:
@@ -20,10 +22,19 @@ class TrackerCommand:
     tilt_deg: float | None = None
 
     def __post_init__(self) -> None:
-        if not math.isfinite(self.tilt_offset_deg):
-            raise ValueError("tilt_offset_deg must be finite")
-        if self.tilt_deg is not None and (not math.isfinite(self.tilt_deg) or not -90.0 <= self.tilt_deg <= 90.0):
-            raise ValueError("tilt_deg must be finite and between -90 and 90 degrees")
+        if not math.isfinite(self.tilt_offset_deg) or abs(self.tilt_offset_deg) > MAX_TRACKER_TILT_DEG:
+            raise ValueError(
+                f"tilt_offset_deg must be finite and between "
+                f"-{MAX_TRACKER_TILT_DEG:g} and {MAX_TRACKER_TILT_DEG:g} degrees"
+            )
+        if self.tilt_deg is not None and (
+            not math.isfinite(self.tilt_deg)
+            or not -MAX_TRACKER_TILT_DEG <= self.tilt_deg <= MAX_TRACKER_TILT_DEG
+        ):
+            raise ValueError(
+                f"tilt_deg must be finite and between "
+                f"-{MAX_TRACKER_TILT_DEG:g} and {MAX_TRACKER_TILT_DEG:g} degrees"
+            )
 
 
 def manual_tracker_command(

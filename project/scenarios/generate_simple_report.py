@@ -13,14 +13,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
-import pvlib
 
+from project.config import make_site_location
 from project.io.service import process_period_results_export
 
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
-DEFAULT_OUTPUT = ROOT / "standalone" / "lettuce-pv-model-report.html"
+DEFAULT_OUTPUT = ROOT / "standalone" / "lettuce-pv-summary-report.html"
 
 
 def chart_image(values: pd.Series, title: str, ylabel: str, color: str, kind: str = "line") -> str:
@@ -127,26 +127,11 @@ def subzone_section(subzone_id: str, results: pd.DataFrame, daily: pd.DataFrame)
 
 
 def build_report(input_path: Path, output_path: Path) -> None:
-    location = pvlib.location.Location(
-        latitude=-27.5949,
-        longitude=-48.5480,
-        tz="America/Sao_Paulo",
-        altitude=20.0,
-    )
-    results, daily, _telemetry, _inventory = process_period_results_export(
-        input_path,
-        location,
-        dli_target_mol_m2_day=14.0,
-    )
-    outputs = {"Period Components": (results, daily, _telemetry)}
-
-    first_results = results
-    start = first_results.index.min().strftime("%Y-%m-%d")
-    end = first_results.index.max().strftime("%Y-%m-%d")
-    sections = "".join(
-        subzone_section(subzone_id, results, daily)
-        for subzone_id, (results, daily, _telemetry) in sorted(outputs.items())
-    )
+    location = make_site_location()
+    results, daily, *_ = process_period_results_export(input_path, location)
+    start = results.index.min().strftime("%Y-%m-%d")
+    end = results.index.max().strftime("%Y-%m-%d")
+    sections = subzone_section("Period Components", results, daily)
     report = f"""<!doctype html>
 <html lang="en">
 <head>

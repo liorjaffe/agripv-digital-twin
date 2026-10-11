@@ -16,8 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pvlib
-
+from project.config import make_site_location
 from project.io.commands import DryRunCommandSink
 from project.io.field_data import classify_columns, raw_probe_quality_report, to_canonical_frames
 from project.io.ingestion import load_timeseries
@@ -28,9 +27,7 @@ SAMPLE_EXPORT = Path(__file__).resolve().parents[1] / "data" / "raw" / "station_
 
 
 def main() -> None:
-    location = pvlib.location.Location(
-        latitude=-27.5949, longitude=-48.5480, tz="America/Sao_Paulo", altitude=20.0
-    )
+    location = make_site_location()
 
     print(f"Loading {SAMPLE_EXPORT.name} ...")
     raw = load_timeseries(SAMPLE_EXPORT, time_column="TIMESTAMP")
@@ -50,9 +47,9 @@ def main() -> None:
         print()
 
     sink = DryRunCommandSink()
-    outputs = process_field_export(SAMPLE_EXPORT, location, command_sink=sink, dli_target_mol_m2_day=14.0)
+    outputs = process_field_export(SAMPLE_EXPORT, location, command_sink=sink)
 
-    for subzone_id, (results, daily, _telemetry) in outputs.items():
+    for subzone_id, (results, daily, *_) in outputs.items():
         print(f"=== {subzone_id}: {len(results)} timesteps, {len(daily)} day(s) ===")
         print(daily.round(2).to_string())
         print()

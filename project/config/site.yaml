@@ -14,9 +14,9 @@ pv:
   height_m: 2.6
   pitch_m: 12.0
   row_width_m: 4.768
-  gcr: 0.3973333333
+  gcr: 0.3973
   axis_azimuth_deg: 0.0
-  max_tilt_deg: 90.0
+  max_tilt_deg: 55.0
   bifaciality: 0.7
   albedo: 0.18
 
@@ -30,8 +30,15 @@ crop:
   temp_low_c: 10.0
   temp_high_c: 28.0
 
+cultivation:
+  # Site reference SITE-001; geometric bed footprint and planting grid.
+  bed_length_m: 7.5
+  bed_width_m: 1.5
+  rows_per_bed: 24
+  plants_per_row: 4
+
 tracker:
   control_mode: "historical"
   move_limit_deg_per_hour: 15.0
   wind_stow_speed_ms: 15.0
-  fallback_tilt_deg: 15.0
+  fallback_tilt_offset_deg: 0.0

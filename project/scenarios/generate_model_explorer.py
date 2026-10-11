@@ -8,12 +8,11 @@ import math
 from pathlib import Path
 
 import pandas as pd
-import pvlib
 
+from project.config import make_site_location
 from project.io.service import process_period_results_export
 from project.io.ingestion import load_period_results_export
-from project.models.lettuce import simulate_growth_timeseries
-from project.models.lettuce_development import LettuceThermalDevelopment
+from project.scenarios.crop_cycles import simulate_repeated_crops
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
@@ -24,69 +23,9 @@ def finite_values(values: pd.Series) -> list[float | None]:
     return [float(value) if math.isfinite(float(value)) else None for value in values]
 
 
-def seasonal_mean_temp_c(day_of_year: int) -> float:
-    """Match the original dashboard's Florianopolis seasonal canopy curve."""
-    return 20.5 + 5.0 * math.cos(2.0 * math.pi * (day_of_year - 34.0) / 365.25)
-
-
-def seasonal_canopy_temperature(times: pd.DatetimeIndex, planting_temp_c: float = 24.0) -> pd.Series:
-    planting_day = int(times[0].dayofyear)
-    planting_offset = planting_temp_c - seasonal_mean_temp_c(planting_day)
-    return pd.Series(
-        [seasonal_mean_temp_c(int(timestamp.dayofyear)) + planting_offset for timestamp in times],
-        index=times,
-    )
-
-
-def simulate_repeated_crops(results: pd.DataFrame, light_column: str, max_cycle_days: int = 120) -> pd.DataFrame:
-    """Run Van Henten repeatedly, with each harvest determined by daily GDD."""
-    records = []
-    start = 0
-    cycle_number = 1
-    while start < len(results):
-        candidate = results.iloc[start:start + max_cycle_days * 24]
-        temperatures = seasonal_canopy_temperature(candidate.index)
-        thermal = LettuceThermalDevelopment()
-        harvest_position = len(candidate) - 1
-        matured = False
-        for date, day_temperature in temperatures.groupby(temperatures.index.normalize()).mean().items():
-            state = thermal.update(float(day_temperature))
-            if state["harvest_ready"]:
-                day_positions = [position for position, timestamp in enumerate(candidate.index) if timestamp.normalize() == date]
-                harvest_position = day_positions[-1]
-                matured = True
-                break
-        crop = candidate.iloc[:harvest_position + 1]
-        growth = simulate_growth_timeseries(
-            crop.index,
-            crop[light_column] * 0.45,
-            seasonal_canopy_temperature(crop.index),
-            x_sdw0=8.0,
-            x_nsdw0=3.0,
-        )
-        initial_dry_mass = 11.0
-        cycle = pd.DataFrame(index=crop.index)
-        cycle["cycle_id"] = cycle_number
-        cycle["cycle_dry_biomass_g_m2"] = growth["total_dry_biomass"]
-        cycle["cycle_fresh_biomass_g_m2"] = (
-            (growth["total_dry_biomass"] - initial_dry_mass).clip(lower=0.0) / 0.05
-        )
-        cycle["harvest"] = False
-        if matured:
-            cycle.iloc[-1, cycle.columns.get_loc("harvest")] = True
-        records.append(cycle)
-        start += len(crop)
-        cycle_number += 1
-    return pd.concat(records)
-
-
 def build_report(input_path: Path, output_path: Path) -> None:
-    location = pvlib.location.Location(
-        latitude=-27.5949, longitude=-48.5480, tz="America/Sao_Paulo", altitude=20.0
-    )
-    results, _daily, _telemetry, _inventory = process_period_results_export(
-        input_path, location, dli_target_mol_m2_day=14.0
-    )
+    location = make_site_location()
+    results, *_ = process_period_results_export(input_path, location)
     hourly = results.resample("1h").mean(numeric_only=True)
     period = load_period_results_export(input_path).resample("1h").mean(numeric_only=True)
     open_columns = [f"0{letter}_AVG" for letter in "ABCDE"]
