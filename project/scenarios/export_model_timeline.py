@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 from pathlib import Path
+import re
 
 import pandas as pd
 
 from project.config import make_site_location
 from project.io.ingestion import load_period_results_export
 from project.io.service import process_period_results_export
+from project.scenarios.artifact_metadata import build_artifact_metadata
 from project.scenarios.crop_cycles import seasonal_canopy_temperature, simulate_repeated_crops
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,10 +21,72 @@ INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
 OUT_DIR = ROOT / "standalone"
 JSON_PATH = OUT_DIR / "our_simulations_timeline.json"
 HTML_PATH = OUT_DIR / "our_simulations_timeline.html"
+HTML_TEMPLATE_PATH = OUT_DIR / "timeline_viewer.html"
+
+SYNTHETIC_INPUTS_NOTICE = (
+    "SYNTHETIC INPUTS USED HERE — The raw channel units and physical locations "
+    "are undocumented. Light groups and their open/between/under labels are "
+    "unverified scenario assumptions; PAR uses an assumed 0.45 fraction. Canopy "
+    "temperature is a seasonal sinusoid, not a measured field-temperature "
+    "series. Crop-cycle and harvest markers are generated from those "
+    "assumptions; wind and humidity are not measured or modeled in this viewer. "
+    "Biomass is model output, not observed yield. Do not interpret this "
+    "visualization as independent validation or field evidence."
+)
+
+TIMELINE_VARIABLES = {
+    "par_wm2": {"rot": "scenario PAR (assumed)", "un": "W/m²", "dec": 1},
+    "t_folha": {
+        "rot": "synthetic seasonal canopy temperature",
+        "un": "°C",
+        "dec": 2,
+    },
+    "fm": {"rot": "modeled fresh biomass (not measured)", "un": "g/m²", "dec": 1},
+}
 
 
 def finite_values(values: pd.Series) -> list[float | None]:
     return [float(v) if pd.notna(v) and math.isfinite(float(v)) else None for v in values]
+
+
+def build_scenario_series(
+    hourly: pd.DataFrame, light_column: str, fresh_column: str
+) -> dict[str, list[float | None]]:
+    par_wm2 = (hourly[light_column].astype(float) * 0.45).clip(lower=0.0)
+    return {
+        "par_wm2": finite_values(par_wm2),
+        "t_folha": finite_values(hourly["t_folha_c"].astype(float)),
+        "fm": finite_values(hourly[fresh_column].astype(float)),
+    }
+
+
+def build_timeline_metadata(hourly: pd.DataFrame) -> dict:
+    artifact_metadata = build_artifact_metadata()
+    return {
+        "titulo": "Illustrative AgriPV scenario timeline",
+        "subtitulo": (
+            "Exploratory model output from the Period Components export. This is "
+            "not field validation or a record of observed crop cycles."
+        ),
+        "local": "Florianópolis (-27.60, -48.55)",
+        "manejo": "Unverified channel-group scenarios",
+        "synthetic_inputs_notice": (
+            f"{SYNTHETIC_INPUTS_NOTICE} Generated from commit "
+            f"{artifact_metadata['source_commit']}; working tree dirty: "
+            f"{str(artifact_metadata['working_tree_dirty']).lower()}."
+        ),
+        **artifact_metadata,
+        "n": len(hourly),
+        "t0": hourly.index[0].strftime("%Y-%m-%d %H:%M"),
+        "series_ordem": ["open", "between", "under"],
+        "canteiros": {
+            "open": "0A–0E (unverified group)",
+            "between": "2B (unverified group)",
+            "under": "2A/2C (unverified group)",
+        },
+        "padrao": ["par_wm2", "t_folha", "fm"],
+        "vars": TIMELINE_VARIABLES,
+    }
 
 
 def build_cycle_markers(cycle_frames: dict[str, pd.DataFrame], hourly: pd.DataFrame) -> list[dict]:
@@ -85,57 +150,16 @@ def build_timeline_payload() -> dict:
     leaf_temp = seasonal_canopy_temperature(hourly.index, planting_temp_c=24.0)
     hourly["t_folha_c"] = leaf_temp
 
-    def make_series(light_col: str, fresh_col: str) -> dict[str, list[float | None]]:
-        light_ghi = hourly[light_col].astype(float)
-        par_wm2 = (light_ghi * 0.45).clip(lower=0.0)
-        crop_temp = hourly["t_folha_c"].astype(float)
-        fresh = hourly[fresh_col].astype(float)
-        photo = (par_wm2 * 0.18).clip(lower=0.0)
-        constant_optimal = pd.Series(1.0, index=hourly.index)
-        return {
-            "par_wm2": finite_values(par_wm2),
-            "t_folha": finite_values(crop_temp),
-            "fm": finite_values(fresh),
-            "phi_phot": finite_values(photo),
-            "ks": finite_values(constant_optimal),
-            "i_n": finite_values(constant_optimal),
-        }
-
     series = {
-        "open": make_series("light_open_w_m2", "fresh_open_g_m2"),
-        "between": make_series("light_between_w_m2", "fresh_between_g_m2"),
-        "under": make_series("light_under_w_m2", "fresh_under_g_m2"),
+        "open": build_scenario_series(hourly, "light_open_w_m2", "fresh_open_g_m2"),
+        "between": build_scenario_series(hourly, "light_between_w_m2", "fresh_between_g_m2"),
+        "under": build_scenario_series(hourly, "light_under_w_m2", "fresh_under_g_m2"),
     }
 
     payload = {
-        "meta": {
-            "titulo": "Agrivoltaic lettuce model timeline",
-            "subtitulo": "Hourly model output from the Period Components simulation, aligned to the reference visualizador_timeline.html format.",
-            "local": "Florianópolis (-27.60, -48.55)",
-            "manejo": "Open / between / under tracker comparison",
-            "n": len(hourly),
-            "t0": hourly.index[0].strftime("%Y-%m-%d %H:%M"),
-            "series_ordem": ["open", "between", "under"],
-            "canteiros": {
-                "open": "0A–0E open",
-                "between": "2B between rows",
-                "under": "2A/2C under trackers",
-            },
-            "padrao": ["par_wm2", "t_folha", "fm", "phi_phot", "ks", "i_n"],
-            "vars": {
-                "par_wm2": {"rot": "luz que chega ao canteiro", "un": "W/m² de PAR", "dec": 1},
-                "t_folha": {"rot": "temperatura da folha", "un": "°C", "dec": 2},
-                "fm": {"rot": "massa fresca acumulada", "un": "g/m²", "dec": 1},
-                "phi_phot": {"rot": "fotossíntese bruta do dossel", "un": "µg CH₂O/m²/s", "dec": 1},
-                "ks": {"rot": "abertura do estômato pela água", "un": "0 a 1", "dec": 3},
-                "i_n": {"rot": "freio do nitrogênio", "un": "0 a 1", "dec": 3},
-            },
-        },
+        "meta": build_timeline_metadata(hourly),
         "ciclos": build_cycle_markers(cycle_frames, hourly),
         "series": series,
-        "temp_ar": finite_values(leaf_temp),
-        "vento": [1.2 for _ in range(len(hourly))],
-        "ur": [60.0 for _ in range(len(hourly))],
     }
     return payload
 
@@ -143,18 +167,15 @@ def build_timeline_payload() -> dict:
 def write_json_payload(payload: dict) -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     JSON_PATH.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(f"Wrote {JSON_PATH}")
+    logging.info("Wrote %s", JSON_PATH)
 
 
 def write_embedded_html(payload: dict) -> None:
-    if not HTML_PATH.exists():
-        raise FileNotFoundError(f"Timeline viewer not found at {HTML_PATH}")
-    source_text = HTML_PATH.read_text(encoding="utf-8")
+    if not HTML_TEMPLATE_PATH.exists():
+        raise FileNotFoundError(f"Timeline viewer template not found at {HTML_TEMPLATE_PATH}")
+    source_text = HTML_TEMPLATE_PATH.read_text(encoding="utf-8")
     payload_js = json.dumps(payload, ensure_ascii=False)
-    
-    # If the file already has an injected window.__TL__ assignment, replace it;
-    # otherwise inject before the marker if (window.__TL__) {
-    import re
+
     if re.search(r"window\.__TL__\s*=\s*\{.*?\};\s*\n\s*if\s*\(window\.__TL__\)", source_text, flags=re.DOTALL):
         injected = re.sub(
             r"window\.__TL__\s*=\s*\{.*?\};\s*\n\s*if\s*\(window\.__TL__\)",
@@ -168,12 +189,14 @@ def write_embedded_html(payload: dict) -> None:
         if marker not in source_text:
             raise ValueError("Could not find embedded trigger in source HTML")
         injected = source_text.replace(marker, f"window.__TL__ = {payload_js};\n{marker}", 1)
-    
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     HTML_PATH.write_text(injected, encoding="utf-8")
-    print(f"Wrote {HTML_PATH}")
+    logging.info("Wrote %s", HTML_PATH)
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     payload = build_timeline_payload()
     write_json_payload(payload)
     write_embedded_html(payload)

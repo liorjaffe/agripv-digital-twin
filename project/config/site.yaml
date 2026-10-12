@@ -4,15 +4,24 @@ site:
   longitude: -48.5480
   timezone: "America/Sao_Paulo"
   altitude_m: 20.0
+  # Explicit scenario fallback only when the input has no air-temperature channel.
+  fallback_air_temp_c: 26.0
 
 pv:
+  # These inventory and bed-assignment labels are descriptive only; they are
+  # not used to scale the PV model or establish physical channel placement.
   system_count: 1
   pdc0_w: 8000.0
+  gamma_pdc_per_c: -0.004
+  # Generic PVWatts V5 default loss-factor composition, not a site measurement.
+  system_losses_percent: 14.075660688264469
+  inverter_efficiency: 0.96
   modeled_subsystem: "2A-2B-2C"
   pv_over_beds: ["2A", "2C"]
   open_beds: ["2B"]
   height_m: 2.6
   pitch_m: 12.0
+  # Retained as site geometry metadata; the model uses pitch and GCR directly.
   row_width_m: 4.768
   gcr: 0.3973
   axis_azimuth_deg: 0.0
@@ -21,6 +30,8 @@ pv:
   albedo: 0.18
 
 crop:
+  # crop_type and temperature thresholds are descriptive metadata; the current
+  # Van Henten implementation uses its own fixed literature parameters.
   crop_type: "lettuce"
   dli_target_mol_m2_day: 14.0
   dli_min_mol_m2_day: 10.0
@@ -41,7 +52,9 @@ cultivation:
   plants_per_row: 4
 
 tracker:
+  # Descriptive label only; the pipeline currently always runs the optimizer.
   control_mode: "historical"
   move_limit_deg_per_hour: 15.0
   wind_stow_speed_ms: 15.0
-  fallback_tilt_offset_deg: 0.0
+  # Absolute tracker rotation, not an offset; confirm the park angle with the manufacturer.
+  wind_stow_tracker_theta_deg: 0.0

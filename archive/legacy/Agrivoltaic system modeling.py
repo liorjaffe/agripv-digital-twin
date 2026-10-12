@@ -1,3 +1,7 @@
+# ARCHIVED: superseded legacy pvlib gallery adaptation; not part of the
+# canonical AgriPV pipeline. Its PAR conversion, crop moisture ratio, and
+# night-growth behavior are not project assumptions. Do not regenerate
+# project figures from this script.
 """
 Agrivoltaic system modeling
 ===========================

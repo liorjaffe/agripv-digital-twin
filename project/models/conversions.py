@@ -16,7 +16,9 @@ from typing import Union
 import numpy as np
 import pandas as pd
 
+# Scenario approximation; site-specific spectral conversion is not available.
 PAR_FRACTION = 0.45
+# See LIGHT-001; the handbook edition/page has not been verified.
 PPFD_PER_PAR_WM2 = 4.57
 PA_PER_HPA = 100.0
 SECONDS_PER_HOUR = 3600.0
@@ -96,15 +98,47 @@ def dli_from_ghi(
 def dli_from_timeseries(ppfd_umol_m2_s: pd.Series) -> pd.Series:
     """Integrate a timezone-aware PPFD series into daily DLI values.
 
-    Integration uses the actual elapsed seconds between samples, so irregular
-    timestamps and later 15-minute field data are handled without assuming a
-    fixed daylight length.
+    Adjacent finite samples are integrated trapezoidally over their actual
+    elapsed time. Intervals containing missing data and intervals crossing
+    local midnight are excluded rather than treated as zero-light periods.
     """
-    if not isinstance(ppfd_umol_m2_s.index, pd.DatetimeIndex):
-        raise TypeError("PPFD series must use a DatetimeIndex")
-    if ppfd_umol_m2_s.index.tz is None:
-        raise ValueError("PPFD timestamps must be timezone-aware")
-    ordered = ppfd_umol_m2_s.sort_index().astype(float).clip(lower=0.0).fillna(0.0)
-    seconds = ordered.index.to_series().diff().dt.total_seconds().fillna(0.0)
-    contribution = ordered * seconds / 1_000_000.0
-    return contribution.groupby(ordered.index.normalize()).sum().rename("dli_mol_m2_day")
+    return _daily_trapezoid_integral(ppfd_umol_m2_s, scale=1_000_000.0).rename(
+        "dli_mol_m2_day"
+    )
+
+
+def energy_from_power_timeseries_kwh(power_w: pd.Series) -> pd.Series:
+    """Integrate finite adjacent power samples into daily AC/DC energy in kWh."""
+    return _daily_trapezoid_integral(power_w, scale=3_600_000.0).rename(
+        "pv_energy_kwh"
+    )
+
+
+def _daily_trapezoid_integral(values: pd.Series, *, scale: float) -> pd.Series:
+    if not isinstance(values.index, pd.DatetimeIndex):
+        raise TypeError("Time-series values must use a DatetimeIndex")
+    if values.index.tz is None:
+        raise ValueError("Time-series timestamps must be timezone-aware")
+
+    ordered = (
+        values.sort_index()
+        .astype(float)
+        .replace([np.inf, -np.inf], np.nan)
+        .clip(lower=0.0)
+    )
+    elapsed_seconds = ordered.index.to_series().diff().dt.total_seconds()
+    previous_values = ordered.shift(1)
+    same_local_day = pd.Series(
+        ordered.index.normalize(), index=ordered.index
+    ).eq(pd.Series(ordered.index.normalize(), index=ordered.index).shift(1))
+    valid_intervals = (
+        ordered.notna()
+        & previous_values.notna()
+        & same_local_day
+        & elapsed_seconds.gt(0.0)
+    )
+    contributions = (
+        (ordered + previous_values) / 2.0 * elapsed_seconds / scale
+    ).where(valid_intervals)
+    daily = contributions.groupby(ordered.index.normalize()).sum(min_count=1)
+    return daily

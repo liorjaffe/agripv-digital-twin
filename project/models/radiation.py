@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import inspect
+import math
+
 import numpy as np
 import pandas as pd
 import pvlib
@@ -97,14 +100,20 @@ def tracker_orientation(
     """Calculate pvlib single-axis tracker orientation."""
     if not 0.0 < max_tilt_deg <= MAX_TRACKER_TILT_DEG:
         raise ValueError(f"max_tilt_deg must be in (0, {MAX_TRACKER_TILT_DEG:g}] for this tracker")
-    return pvlib.tracking.singleaxis(
-        apparent_zenith=solar_position["apparent_zenith"],
-        apparent_azimuth=solar_position["azimuth"],
-        axis_azimuth=axis_azimuth_deg,
-        max_angle=max_tilt_deg,
-        backtrack=backtrack,
-        gcr=gcr,
+    azimuth_parameter = (
+        "solar_azimuth"
+        if "solar_azimuth" in inspect.signature(pvlib.tracking.singleaxis).parameters
+        else "apparent_azimuth"
     )
+    tracking_inputs = {
+        "apparent_zenith": solar_position["apparent_zenith"],
+        azimuth_parameter: solar_position["azimuth"],
+        "axis_azimuth": axis_azimuth_deg,
+        "max_angle": max_tilt_deg,
+        "backtrack": backtrack,
+        "gcr": gcr,
+    }
+    return pvlib.tracking.singleaxis(**tracking_inputs)
 
 
 def offset_tracker_orientation(
@@ -182,7 +191,7 @@ def crop_and_pv_irradiance(
     )
     cosine = np.maximum(np.cos(np.radians(solar_position["apparent_zenith"])), 0.0)
     crop_ghi = unshaded * weather["dni"] * cosine + view_factor * weather["dhi"]
-    crop_ghi = crop_ghi.where(solar_position["apparent_zenith"] < 90.0, 0.0).fillna(0.0).clip(lower=0.0)
+    crop_ghi = crop_ghi.where(solar_position["apparent_zenith"] < 90.0, 0.0).clip(lower=0.0)
     crop_ppfd = par_to_ppfd(ghi_to_par(crop_ghi))
 
     # pvlib's tracker model leaves tilt/azimuth (and thus poa_global) undefined
@@ -190,7 +199,7 @@ def crop_and_pv_irradiance(
     # position. Physically the module receives zero irradiance then, so this
     # is forced to 0 here rather than left as NaN, matching crop_ghi above and
     # keeping downstream PV power well-defined (0 W) instead of NaN at night.
-    poa_global = sheds["poa_global"].where(solar_position["apparent_zenith"] < 90.0, 0.0).fillna(0.0).clip(lower=0.0)
+    poa_global = sheds["poa_global"].where(solar_position["apparent_zenith"] < 90.0, 0.0).clip(lower=0.0)
 
     return pd.DataFrame(
         {
@@ -208,10 +217,12 @@ def pvwatts_power(
     pdc0_w: float,
     gamma_pdc: float = -0.004,
     *,
+    system_losses_percent: float = 14.075660688264469,
+    inverter_efficiency: float = 0.96,
     wind_speed_ms: pd.Series | float = 1.0,
     module_temp_c: pd.Series | float | None = None,
 ) -> pd.Series:
-    """Estimate DC power from POA using pvlib PVWatts.
+    """Estimate net AC power from POA using PVWatts DC, losses, and inverter.
 
     Cell temperature comes from a measured ``module_temp_c`` sensor when one is
     given (the most physically direct option, since it skips modeling error
@@ -224,7 +235,23 @@ def pvwatts_power(
         temp_cell = module_temp_c
     else:
         temp_cell = pvlib.temperature.faiman(poa_global=irradiance, temp_air=temp_air_c, wind_speed=wind_speed_ms)
-    power = pvlib.pvsystem.pvwatts_dc(
+    if not math.isfinite(pdc0_w) or pdc0_w <= 0.0:
+        raise ValueError("pdc0_w must be finite and greater than zero")
+    if not math.isfinite(gamma_pdc) or not -0.01 <= gamma_pdc <= 0.0:
+        raise ValueError("gamma_pdc must be finite and between -0.01 and 0")
+    if not math.isfinite(system_losses_percent) or not 0.0 <= system_losses_percent < 100.0:
+        raise ValueError("system_losses_percent must be finite and in [0, 100)")
+    if not math.isfinite(inverter_efficiency) or not 0.0 < inverter_efficiency <= 1.0:
+        raise ValueError("inverter_efficiency must be finite and in (0, 1]")
+    dc_power = pvlib.pvsystem.pvwatts_dc(
         effective_irradiance=irradiance, temp_cell=temp_cell, pdc0=pdc0_w, gamma_pdc=gamma_pdc
     )
-    return power.clip(lower=0.0, upper=pdc0_w)
+    net_dc_power = dc_power.clip(lower=0.0, upper=pdc0_w) * (
+        1.0 - system_losses_percent / 100.0
+    )
+    ac_power = pvlib.inverter.pvwatts(
+        pdc=net_dc_power,
+        pdc0=pdc0_w,
+        eta_inv_nom=inverter_efficiency,
+    )
+    return ac_power.clip(lower=0.0, upper=pdc0_w * inverter_efficiency)

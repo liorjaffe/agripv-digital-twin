@@ -6,10 +6,17 @@ import math
 
 import pandas as pd
 
-from project.models.lettuce import simulate_growth_timeseries
+from project.models.lettuce import (
+    DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
+    DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
+    simulate_growth_timeseries,
+)
 from project.models.lettuce_development import LettuceThermalDevelopment
 
-INITIAL_DRY_BIOMASS_G_M2 = 11.0
+INITIAL_DRY_BIOMASS_G_M2 = (
+    DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2
+    + DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2
+)
 DRY_MATTER_FRACTION_OF_FRESH_MASS = 0.05
 
 
@@ -91,8 +98,8 @@ def simulate_repeated_crops(
             crop.index,
             crop[light_column] * 0.45,
             seasonal_canopy_temperature(crop.index),
-            x_sdw0=8.0,
-            x_nsdw0=3.0,
+            x_sdw0=DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
+            x_nsdw0=DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
         )
         cycle = pd.DataFrame(index=crop.index)
         cycle["cycle_id"] = cycle_number

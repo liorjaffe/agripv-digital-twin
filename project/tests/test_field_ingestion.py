@@ -207,6 +207,31 @@ def test_tracker_orientation_stays_within_installed_rotation_limits():
         tracker_orientation(solar_position, axis_azimuth_deg=0.0, gcr=0.3973, max_tilt_deg=90.0)
 
 
+def test_tracker_orientation_uses_renamed_solar_azimuth_argument(monkeypatch):
+    times = _daily_index(days=1)
+    solar_position = SITE.get_solarposition(times)
+    captured = {}
+
+    def singleaxis(
+        apparent_zenith,
+        solar_azimuth,
+        axis_azimuth,
+        max_angle,
+        backtrack,
+        gcr,
+    ):
+        captured["solar_azimuth"] = solar_azimuth
+        return pd.DataFrame(index=apparent_zenith.index)
+
+    monkeypatch.setattr(pvlib.tracking, "singleaxis", singleaxis)
+
+    tracker_orientation(solar_position, axis_azimuth_deg=0.0, gcr=0.3973)
+
+    pd.testing.assert_series_equal(
+        captured["solar_azimuth"], solar_position["azimuth"]
+    )
+
+
 def test_tracker_offset_changes_physical_angle_without_crossing_angle_stops():
     times = _daily_index(days=1)
     solar_position = SITE.get_solarposition(times)

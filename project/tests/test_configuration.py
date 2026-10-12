@@ -15,9 +15,14 @@ def test_runtime_configuration_matches_current_model_defaults():
     assert config.longitude == -48.5480
     assert config.timezone == "America/Sao_Paulo"
     assert config.altitude_m == 20.0
+    assert config.fallback_air_temp_c == 26.0
     assert config.gcr == 0.3973
     assert config.dli_target_mol_m2_day == 14.0
-    assert config.fallback_tilt_offset_deg == 0.0
+    assert config.dli_min_mol_m2_day == 10.0
+    assert config.dli_max_mol_m2_day == 18.0
+    assert config.gamma_pdc_per_c == -0.004
+    assert config.pv_inverter_efficiency == 0.96
+    assert config.wind_stow_tracker_theta_deg == 0.0
     assert config.max_tilt_deg == 55.0
     assert config.bed_area_m2 == 11.25
     assert config.net_planted_area_m2 == pytest.approx(11.25)
@@ -83,7 +88,7 @@ cultivation:
 tracker:
   move_limit_deg_per_hour: 15
   wind_stow_speed_ms: 15
-  fallback_tilt_offset_deg: 0
+  wind_stow_tracker_theta_deg: 0
 """,
         encoding="utf-8",
     )
@@ -122,7 +127,7 @@ cultivation:
 tracker:
   move_limit_deg_per_hour: 15
   wind_stow_speed_ms: 15
-  fallback_tilt_offset_deg: 0
+  wind_stow_tracker_theta_deg: 0
 """,
         encoding="utf-8",
     )
@@ -161,7 +166,7 @@ cultivation:
 tracker:
   move_limit_deg_per_hour: 15
   wind_stow_speed_ms: 15
-  fallback_tilt_offset_deg: 0
+  wind_stow_tracker_theta_deg: 0
 """,
         encoding="utf-8",
     )
@@ -212,7 +217,7 @@ cultivation:
 tracker:
   move_limit_deg_per_hour: 15
   wind_stow_speed_ms: 15
-  fallback_tilt_offset_deg: 0
+  wind_stow_tracker_theta_deg: 0
 """,
         encoding="utf-8",
     )

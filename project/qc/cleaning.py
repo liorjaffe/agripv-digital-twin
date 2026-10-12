@@ -6,7 +6,6 @@ This is structured to support a historical data workflow and a future live strea
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
 
 import pandas as pd
 
@@ -21,42 +20,6 @@ RELATIVE_HUMIDITY_PCT = "relative_humidity_pct"
 PRECIPITATION_MM = "precipitation_mm"
 WIND_SPEED_MS = "wind_speed_ms"
 PRESSURE_HPA = "pressure_hpa"
-
-
-def enforce_timezone(df: pd.DataFrame, time_col: str, tz: str = "America/Sao_Paulo") -> pd.DataFrame:
-    out = df.copy()
-    out[time_col] = pd.to_datetime(out[time_col], utc=False)
-    if out[time_col].dt.tz is None:
-        out[time_col] = out[time_col].dt.tz_localize(tz, nonexistent="shift_forward", ambiguous="NaT")
-    else:
-        out[time_col] = out[time_col].dt.tz_convert(tz)
-    return out.set_index(time_col).sort_index()
-
-
-def qc_sensor_frame(df: pd.DataFrame, time_col: str = "time") -> pd.DataFrame:
-    """Apply basic physical plausibility checks and night wash-out rules."""
-    out = df.copy()
-    if time_col in out.columns:
-        out = enforce_timezone(out, time_col)
-
-    numeric_cols = out.select_dtypes(include="number").columns
-    for col in numeric_cols:
-        out[col] = pd.to_numeric(out[col], errors="coerce")
-
-    if "par" in out.columns:
-        out["par"] = out["par"].clip(lower=0.0)
-    if "ghi" in out.columns:
-        out["ghi"] = out["ghi"].clip(lower=0.0)
-    if "temperature" in out.columns:
-        out["temperature"] = out["temperature"].clip(lower=-20.0, upper=60.0)
-
-    out = out.resample("15min").mean().interpolate(limit_direction="both")
-    return out
-
-
-def clean_and_resample(raw_df: pd.DataFrame, time_col: str = "time") -> pd.DataFrame:
-    """High-level entry point for cleaning raw sensor exports."""
-    return qc_sensor_frame(raw_df, time_col=time_col)
 
 
 @dataclass(frozen=True)

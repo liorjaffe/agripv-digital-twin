@@ -6,7 +6,12 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import least_squares
 
-from project.models.lettuce import LettuceParams, simulate_growth_timeseries
+from project.models.lettuce import (
+    DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
+    DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
+    LettuceParams,
+    simulate_growth_timeseries,
+)
 
 
 REQUIRED_COLUMNS = {"time", "par_wm2", "temp_air_c", "observed_total_dry_biomass"}
@@ -15,8 +20,8 @@ REQUIRED_COLUMNS = {"time", "par_wm2", "temp_air_c", "observed_total_dry_biomass
 def calibrate_lettuce(
     observations: pd.DataFrame | None = None,
     *,
-    x_sdw0: float = 8.0,
-    x_nsdw0: float = 3.0,
+    x_sdw0: float = DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
+    x_nsdw0: float = DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
     co2_ppm: float = 420.0,
 ) -> dict:
     """Fit ``c_gr_max`` and ``c_epsilon`` against observed dry biomass.

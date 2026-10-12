@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 set -eu
 
+PYTHON=${PYTHON:-.venv/bin/python}
+PYTHONPATH=. "$PYTHON" scripts/export-period-results-public.py
+
 rm -rf public-site
 mkdir -p public-site/icons public-site/data
 cp agripv_dashboard.html public-site/index.html

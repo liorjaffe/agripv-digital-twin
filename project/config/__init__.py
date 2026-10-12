@@ -22,7 +22,11 @@ class RuntimeConfig:
     longitude: float
     timezone: str
     altitude_m: float
+    fallback_air_temp_c: float
     pdc0_w: float
+    gamma_pdc_per_c: float
+    pv_system_losses_percent: float
+    pv_inverter_efficiency: float
     height_m: float
     pitch_m: float
     gcr: float
@@ -36,10 +40,12 @@ class RuntimeConfig:
     plants_per_row: int
     net_planted_area_fraction: float
     dli_target_mol_m2_day: float
+    dli_min_mol_m2_day: float
+    dli_max_mol_m2_day: float
     co2_ppm: float
     move_limit_deg_per_hour: float
     wind_stow_speed_ms: float
-    fallback_tilt_offset_deg: float
+    wind_stow_tracker_theta_deg: float
 
     @property
     def bed_area_m2(self) -> float:
@@ -108,6 +114,7 @@ def load_runtime_config(path: str | Path = DEFAULT_CONFIG_PATH) -> RuntimeConfig
 
     rows_per_bed = _number(cultivation, "rows_per_bed", config_path)
     plants_per_row = _number(cultivation, "plants_per_row", config_path)
+    dli_max_default = crop.get("dli_target_mol_m2_day")
     net_planted_area_fraction = cultivation.get("net_planted_area_fraction", 1.0)
     if isinstance(net_planted_area_fraction, bool) or not isinstance(net_planted_area_fraction, (int, float)) or not math.isfinite(float(net_planted_area_fraction)):
         raise ValueError(f"Configuration value 'cultivation.net_planted_area_fraction' in {config_path} must be a finite number")
@@ -121,7 +128,24 @@ def load_runtime_config(path: str | Path = DEFAULT_CONFIG_PATH) -> RuntimeConfig
         longitude=_number(site, "longitude", config_path),
         timezone=timezone,
         altitude_m=_number(site, "altitude_m", config_path),
+        fallback_air_temp_c=(
+            _number(site, "fallback_air_temp_c", config_path)
+            if "fallback_air_temp_c" in site
+            else 26.0
+        ),
         pdc0_w=_number(pv, "pdc0_w", config_path),
+        gamma_pdc_per_c=(
+            _number(pv, "gamma_pdc_per_c", config_path)
+            if "gamma_pdc_per_c" in pv else -0.004
+        ),
+        pv_system_losses_percent=(
+            _number(pv, "system_losses_percent", config_path)
+            if "system_losses_percent" in pv else 14.075660688264469
+        ),
+        pv_inverter_efficiency=(
+            _number(pv, "inverter_efficiency", config_path)
+            if "inverter_efficiency" in pv else 0.96
+        ),
         height_m=_number(pv, "height_m", config_path),
         pitch_m=_number(pv, "pitch_m", config_path),
         gcr=_number(pv, "gcr", config_path),
@@ -135,10 +159,20 @@ def load_runtime_config(path: str | Path = DEFAULT_CONFIG_PATH) -> RuntimeConfig
         plants_per_row=int(plants_per_row),
         net_planted_area_fraction=net_planted_area_fraction,
         dli_target_mol_m2_day=_number(crop, "dli_target_mol_m2_day", config_path),
+        dli_min_mol_m2_day=(
+            _number(crop, "dli_min_mol_m2_day", config_path)
+            if "dli_min_mol_m2_day" in crop
+            else 0.0
+        ),
+        dli_max_mol_m2_day=(
+            _number(crop, "dli_max_mol_m2_day", config_path)
+            if "dli_max_mol_m2_day" in crop
+            else float(dli_max_default)
+        ),
         co2_ppm=_number(crop, "co2_ppm_target", config_path),
         move_limit_deg_per_hour=_number(tracker, "move_limit_deg_per_hour", config_path),
         wind_stow_speed_ms=_number(tracker, "wind_stow_speed_ms", config_path),
-        fallback_tilt_offset_deg=_number(tracker, "fallback_tilt_offset_deg", config_path),
+        wind_stow_tracker_theta_deg=_number(tracker, "wind_stow_tracker_theta_deg", config_path),
     )
 
     if not -90.0 <= values.latitude <= 90.0:
@@ -147,6 +181,17 @@ def load_runtime_config(path: str | Path = DEFAULT_CONFIG_PATH) -> RuntimeConfig
         raise ValueError(f"Configuration value 'site.longitude' in {config_path} must be between -180 and 180")
     if values.pdc0_w <= 0.0 or values.height_m <= 0.0 or values.pitch_m <= 0.0:
         raise ValueError(f"PV power, height, and pitch in {config_path} must be greater than zero")
+    if not 5.0 <= values.fallback_air_temp_c <= 40.0:
+        raise ValueError(
+            f"Configuration value 'site.fallback_air_temp_c' in {config_path} "
+            "must be between 5 and 40 degrees C"
+        )
+    if not -0.01 <= values.gamma_pdc_per_c <= 0.0:
+        raise ValueError(f"PV temperature coefficient in {config_path} must be between -0.01 and 0")
+    if not 0.0 <= values.pv_system_losses_percent < 100.0:
+        raise ValueError(f"PV system losses in {config_path} must be in [0, 100)")
+    if not 0.0 < values.pv_inverter_efficiency <= 1.0:
+        raise ValueError(f"PV inverter efficiency in {config_path} must be in (0, 1]")
     if not 0.0 < values.gcr <= 1.0:
         raise ValueError(f"Configuration value 'pv.gcr' in {config_path} must be in (0, 1]")
     if not 0.0 <= values.albedo <= 1.0 or not 0.0 <= values.bifaciality <= 1.0:
@@ -162,13 +207,31 @@ def load_runtime_config(path: str | Path = DEFAULT_CONFIG_PATH) -> RuntimeConfig
             f"Configuration value 'pv.max_tilt_deg' in {config_path} must be in "
             f"(0, {MAX_TRACKER_TILT_DEG:g}] for this tracker"
         )
-    if values.dli_target_mol_m2_day <= 0.0 or values.co2_ppm <= 0.0:
+    if (
+        values.dli_target_mol_m2_day <= 0.0
+        or values.co2_ppm <= 0.0
+    ):
         raise ValueError(f"Crop DLI target and CO2 concentration in {config_path} must be greater than zero")
+    if values.dli_min_mol_m2_day < 0.0:
+        raise ValueError(
+            f"Configuration value 'crop.dli_min_mol_m2_day' in {config_path} "
+            "must not be negative"
+        )
+    if values.dli_max_mol_m2_day < values.dli_min_mol_m2_day:
+        raise ValueError(
+            f"Configuration value 'crop.dli_max_mol_m2_day' in {config_path} "
+            "must be greater than or equal to the DLI minimum"
+        )
+    if values.dli_max_mol_m2_day < values.dli_target_mol_m2_day:
+        raise ValueError(
+            f"Configuration value 'crop.dli_max_mol_m2_day' in {config_path} "
+            "must be greater than or equal to the DLI target"
+        )
     if values.move_limit_deg_per_hour < 0.0 or values.wind_stow_speed_ms < 0.0:
         raise ValueError(f"Tracker movement and wind limits in {config_path} must not be negative")
-    if not -MAX_TRACKER_TILT_DEG <= values.fallback_tilt_offset_deg <= MAX_TRACKER_TILT_DEG:
+    if not -MAX_TRACKER_TILT_DEG <= values.wind_stow_tracker_theta_deg <= MAX_TRACKER_TILT_DEG:
         raise ValueError(
-            f"Tracker fallback offset in {config_path} must be between "
+            f"Tracker wind-stow absolute angle in {config_path} must be between "
             f"-{MAX_TRACKER_TILT_DEG:g} and {MAX_TRACKER_TILT_DEG:g} degrees"
         )
     return values

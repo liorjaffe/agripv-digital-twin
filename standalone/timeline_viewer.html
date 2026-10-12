@@ -1,0 +1,1338 @@
+<meta charset="utf-8">
+<title>Linha do tempo hora a hora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>:root{
+  --ground:#FAFAF7; --panel:#FFFFFF; --ink:#191C17; --ink-2:#4A5147; --ink-3:#767E72;
+  --rule:#DFE0D8; --rule-2:#EDEEE7; --lane:#FCFCFA;
+  --s-aberto:#C97B12; --s-entre:#2A7FB8; --s-sob:#9C3D6E;
+  --s-4:#3F7A4E; --s-5:#7A5AA8; --s-6:#B0562A;
+  --accent:#C97B12; --noite:rgba(25,28,23,.045); --sel:rgba(201,123,18,.16);
+  --erro:#A33; --shadow:0 1px 2px rgba(25,28,23,.05), 0 8px 24px -14px rgba(25,28,23,.16);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#14161A; --panel:#1B1E23; --ink:#E6E9E3; --ink-2:#AFB6AC; --ink-3:#7D857C;
+    --rule:#2C3037; --rule-2:#22262B; --lane:#181B20;
+    --s-aberto:#BE8129; --s-entre:#4B9AD0; --s-sob:#C55E8E;
+    --s-4:#5E9E6D; --s-5:#9B80C8; --s-6:#C87A4E;
+    --accent:#D89A44; --noite:rgba(255,255,255,.04); --sel:rgba(216,154,68,.20);
+    --erro:#E88; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -14px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#14161A; --panel:#1B1E23; --ink:#E6E9E3; --ink-2:#AFB6AC; --ink-3:#7D857C;
+  --rule:#2C3037; --rule-2:#22262B; --lane:#181B20;
+  --s-aberto:#BE8129; --s-entre:#4B9AD0; --s-sob:#C55E8E;
+  --s-4:#5E9E6D; --s-5:#9B80C8; --s-6:#C87A4E;
+  --accent:#D89A44; --noite:rgba(255,255,255,.04); --sel:rgba(216,154,68,.20);
+  --erro:#E88; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -14px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+body{margin:0; background:var(--ground); color:var(--ink);
+  font-family:"IBM Plex Sans",-apple-system,"Segoe UI",system-ui,sans-serif;
+  font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px; margin:0 auto; padding:0 20px 64px}
+
+h1{font-family:Newsreader,Georgia,serif; font-weight:500; font-size:clamp(1.9rem,4vw,2.7rem);
+  line-height:1.08; letter-spacing:-.016em; margin:0}
+h2{font-family:Newsreader,Georgia,serif; font-weight:500; font-size:1.3rem; margin:0 0 10px}
+h3{font-family:"IBM Plex Sans",sans-serif; font-size:.95rem; font-weight:600; margin:18px 0 6px}
+p{margin:0}
+.eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.68rem; font-weight:500;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3)}
+header{padding:44px 0 22px}
+.sub{margin-top:14px; color:var(--ink-2); max-width:62ch; font-size:1.02rem}
+.meta{margin-top:18px; display:flex; flex-wrap:wrap; gap:6px 22px;
+  font-family:"IBM Plex Mono",monospace; font-size:.72rem; color:var(--ink-3)}
+.meta b{color:var(--ink-2); font-weight:500}
+
+.painel{background:var(--panel); border:1px solid var(--rule); border-radius:11px;
+  box-shadow:var(--shadow); margin-bottom:14px; overflow:hidden}
+.ph{display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:12px 16px; border-bottom:1px solid var(--rule-2)}
+.ph .tit{font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--ink-3)}
+.pc{padding:12px 16px 14px}
+
+button{font:inherit; font-size:.82rem; padding:5px 12px; border-radius:20px; cursor:pointer;
+  border:1px solid var(--rule); background:var(--panel); color:var(--ink-2)}
+button:hover{border-color:var(--ink-3); color:var(--ink)}
+button[aria-pressed="true"]{background:var(--ink); color:var(--ground); border-color:var(--ink)}
+button.bed[aria-pressed="true"]{background:var(--bc); border-color:var(--bc); color:#fff}
+.grupo{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+.grupo > .rot{font-size:.78rem; color:var(--ink-3); margin-right:2px}
+
+.vars{display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr)); gap:5px 10px}
+.vars label{display:flex; align-items:center; gap:8px; font-size:.83rem; color:var(--ink-2);
+  cursor:pointer; padding:3px 5px; border-radius:6px}
+.vars label:hover{background:var(--rule-2); color:var(--ink)}
+.vars input{accent-color:var(--accent); width:15px; height:15px; cursor:pointer; flex:none}
+
+#geral{display:block; width:100%; height:96px; cursor:crosshair; touch-action:none}
+.faixas{display:flex; flex-direction:column; gap:0}
+.faixa{display:grid; grid-template-columns:190px 1fr; align-items:stretch;
+  border-top:1px solid var(--rule-2)}
+.faixa:first-child{border-top:0}
+.fl{padding:9px 12px 9px 16px; background:var(--lane); border-right:1px solid var(--rule-2);
+  display:flex; flex-direction:column; justify-content:center; gap:2px; min-width:0}
+.fl .n{font-size:.82rem; font-weight:500; color:var(--ink); line-height:1.25}
+.fl .u{font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--ink-3)}
+.fl .v{font-family:"IBM Plex Mono",monospace; font-size:.74rem; font-variant-numeric:tabular-nums;
+  margin-top:3px; display:flex; gap:9px; flex-wrap:wrap}
+.fl .v i{font-style:normal; font-weight:600}
+.fc{position:relative; min-width:0}
+.fc canvas{display:block; width:100%; height:100%; cursor:crosshair; touch-action:none}
+
+.eixo{display:grid; grid-template-columns:190px 1fr; border-top:1px solid var(--rule)}
+.eixo .fl{background:none; border-right:1px solid var(--rule-2); padding:6px 12px 8px 16px}
+#eixoc{display:block; width:100%; height:26px}
+
+.dica{padding:12px 16px 0; font-size:.82rem; color:var(--ink-3); line-height:1.5}
+.dica kbd{font-family:"IBM Plex Mono",monospace; font-size:.9em; border:1px solid var(--rule);
+  border-radius:4px; padding:1px 5px; color:var(--ink-2)}
+.vazio{padding:26px 16px; text-align:center; color:var(--ink-3); font-size:.86rem}
+footer{margin-top:26px; padding-top:18px; border-top:1px solid var(--rule);
+  color:var(--ink-3); font-size:.82rem; line-height:1.6}
+footer code,code{font-family:"IBM Plex Mono",monospace; color:var(--ink-2); font-size:.92em}
+
+/* ---- carregar arquivo ---- */
+#solta{border:2px dashed var(--rule); border-radius:12px; padding:38px 24px; text-align:center;
+  background:var(--panel); transition:border-color .12s, background .12s}
+#solta.sobre{border-color:var(--accent); background:var(--sel)}
+#solta .icone{font-size:2rem; line-height:1; margin-bottom:10px}
+#solta .t{font-size:1.05rem; color:var(--ink); margin-bottom:6px}
+#solta .s{font-size:.86rem; color:var(--ink-3); max-width:52ch; margin:0 auto 16px}
+#erro{color:var(--erro); font-size:.86rem; margin-top:12px; white-space:pre-wrap; text-align:left;
+  font-family:"IBM Plex Mono",monospace}
+.contrato{font-size:.86rem; color:var(--ink-2); line-height:1.6}
+.contrato pre{background:var(--lane); border:1px solid var(--rule-2); border-radius:8px;
+  padding:12px 14px; overflow-x:auto; font-family:"IBM Plex Mono",monospace; font-size:.8rem;
+  line-height:1.55; color:var(--ink-2); margin:8px 0}
+.contrato table{border-collapse:collapse; width:100%; font-size:.84rem; margin:8px 0}
+.contrato th,.contrato td{text-align:left; padding:6px 10px; border-bottom:1px solid var(--rule-2);
+  vertical-align:top}
+.contrato th{color:var(--ink-3); font-weight:500; font-size:.78rem}
+.contrato code{background:var(--lane); padding:1px 5px; border-radius:4px}
+.oculto{display:none!important}
+
+@media (max-width:720px){
+  .faixa,.eixo{grid-template-columns:1fr}
+  .fl{border-right:0; border-bottom:1px solid var(--rule-2)}
+  .wrap{padding:0 12px 48px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+/* ---- painel de colheita ---- */
+.ph .acoes{margin-left:auto; display:flex; gap:8px; align-items:center}
+.tabc{overflow-x:auto}
+table.colh{border-collapse:collapse; width:100%; font-size:.83rem;
+  font-variant-numeric:tabular-nums}
+table.colh th,table.colh td{padding:7px 11px; text-align:right; white-space:nowrap;
+  border-bottom:1px solid var(--rule-2)}
+table.colh thead th{color:var(--ink-3); font-weight:500; font-size:.72rem;
+  letter-spacing:.03em; border-bottom:1px solid var(--rule); vertical-align:bottom}
+table.colh thead th[colspan]{text-align:center; padding-bottom:3px}
+table.colh tbody th{text-align:left; font-weight:500; color:var(--ink)}
+table.colh tbody tr:hover td,table.colh tbody tr:hover th{background:var(--rule-2)}
+table.colh tr.ref th,table.colh tr.ref td{background:var(--lane)}
+table.colh .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+table.colh .dim{color:var(--ink-3)}
+table.colh .up{color:var(--ok,#4C7A34); font-weight:600}
+table.colh .dn{color:var(--s-sob); font-weight:600}
+.cnota{font-size:.8rem; color:var(--ink-3); line-height:1.5; padding:10px 0 0}
+.cnota b{color:var(--ink-2)}
+.kpic{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:1px;
+  background:var(--rule); border:1px solid var(--rule); border-radius:9px;
+  overflow:hidden; margin:2px 0 14px}
+.kpic > div{background:var(--panel); padding:12px 14px}
+.kpic .n{font-family:"IBM Plex Mono",monospace; font-size:1.15rem; font-weight:600;
+  line-height:1.1; font-variant-numeric:tabular-nums; white-space:nowrap}
+.kpic .l{font-size:.75rem; color:var(--ink-3); margin-top:4px; line-height:1.35}
+.aviso-c{border-left:3px solid var(--s-sob); padding:8px 0 8px 14px; margin:12px 0;
+  font-size:.83rem; color:var(--ink-2); line-height:1.5}
+.aviso-c b{color:var(--ink)}
+.synthetic-banner{border:1px solid var(--s-sob); border-left:4px solid var(--s-sob);
+  border-radius:8px; background:var(--panel); padding:12px 15px; margin:0 0 14px;
+  color:var(--ink-2); font-size:.88rem; line-height:1.5}
+.synthetic-banner strong{color:var(--ink)}
+#impzona{border:1.5px dashed var(--rule); border-radius:10px; padding:18px;
+  text-align:center; color:var(--ink-3); font-size:.85rem; cursor:pointer;
+  margin-bottom:12px}
+#impzona.sobre{border-color:var(--accent); background:var(--lane); color:var(--ink-2)}
+#impzona input{display:none}
+#impzona .t{color:var(--ink-2); font-weight:500; margin-bottom:3px}
+#imperro{color:var(--s-sob); font-size:.82rem; margin-top:8px; white-space:pre-wrap}
+details.contrato{margin-top:10px; font-size:.82rem; color:var(--ink-3)}
+details.contrato summary{cursor:pointer; color:var(--ink-2)}
+details.contrato table{border-collapse:collapse; margin-top:8px; font-size:.78rem}
+details.contrato td{padding:3px 12px 3px 0; vertical-align:top}
+details.contrato code{font-family:"IBM Plex Mono",monospace; color:var(--ink)}
+.oculto{display:none}</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">Visualizador &middot; abra o seu pr&oacute;prio arquivo</p>
+  <h1>Linha do tempo hora a hora</h1>
+  <p class="sub">Solte um CSV ou JSON com uma s&eacute;rie horária e explore-a: v&aacute;rias vari&aacute;veis empilhadas, v&aacute;rios grupos sobrepostos, zoom do ano &agrave; hora e leitura sob o cursor. Tudo roda no seu navegador &mdash; o arquivo n&atilde;o sai da sua m&aacute;quina.</p>
+  <div class="meta" id="meta"></div>
+</header>
+
+<div id="synthetic-inputs-banner" class="synthetic-banner oculto" role="note"></div>
+
+<div id="carregar">
+  <div id="solta" role="button" tabindex="0" aria-label="Solte aqui o arquivo CSV ou JSON">
+    <div class="icone">&#128202;</div>
+    <p class="t">Solte aqui o seu CSV ou JSON</p>
+    <p class="s">Ou clique para escolher. O arquivo &eacute; lido no pr&oacute;prio navegador:
+    nada &eacute; enviado para lugar nenhum.</p>
+    <input type="file" id="arq" accept=".csv,.tsv,.txt,.json">
+    <p id="erro" role="alert"></p>
+  </div>
+  
+<div class="painel">
+  <div class="ph"><span class="tit">o formato do arquivo</span></div>
+  <div class="pc contrato">
+    <h2>CSV &mdash; o caminho curto</h2>
+    <p>Uma linha por <em>instante</em> &times; <em>s&eacute;rie</em>. As duas primeiras colunas t&ecirc;m
+    nome fixo; todas as outras viram vari&aacute;veis, uma faixa cada.</p>
+<pre>timestamp,serie,luz (W/m2),temperatura da folha (C),massa fresca (g/m2)
+2026-01-01 00:00,ceu aberto,0,11.8,0.50
+2026-01-01 00:00,sob painel,0,11.6,0.50
+2026-01-01 01:00,ceu aberto,0,11.5,0.50
+2026-01-01 01:00,sob painel,0,11.4,0.50</pre>
+    <table>
+      <tr><th style="width:150px">coluna</th><th>o que precisa ser</th></tr>
+      <tr><td><code>timestamp</code></td><td>Passo <strong>horário</strong>, como
+        <code>2026-01-01 13:00</code> ou ISO. Aceita tamb&eacute;m os nomes
+        <code>datetime</code>, <code>data</code> ou <code>hora</code>. Buracos podem
+        existir &mdash; viram interrup&ccedil;&atilde;o na linha, n&atilde;o erro.</td></tr>
+      <tr><td><code>serie</code></td><td>O que distingue as curvas: canteiro, tratamento,
+        cen&aacute;rio. Aceita <code>grupo</code>, <code>canteiro</code>,
+        <code>tratamento</code> ou <code>cenario</code>. At&eacute; 6 s&eacute;ries ganham cor
+        pr&oacute;pria.</td></tr>
+      <tr><td>as demais</td><td>Num&eacute;ricas. O que estiver entre par&ecirc;nteses no
+        cabe&ccedil;alho vira a unidade mostrada na faixa: <code>massa fresca (g/m2)</code>
+        aparece como <em>massa fresca</em> com <em>g/m2</em> embaixo.</td></tr>
+    </table>
+    <p>Separador v&iacute;rgula ou ponto-e-v&iacute;rgula (detectado sozinho), decimal com ponto ou
+    v&iacute;rgula. Vazio ou n&atilde;o-num&eacute;rico vira buraco.</p>
+
+    <h2 style="margin-top:26px">JSON &mdash; o caminho com controle</h2>
+    <p>Serve para fixar r&oacute;tulos, casas decimais, quais faixas abrem marcadas, e para
+    marcar ciclos no eixo.</p>
+<pre>{
+  "meta": {
+    "titulo": "Meu experimento",
+    "subtitulo": "uma frase abaixo do t&iacute;tulo",
+    "n": 8760,
+    "t0": "2026-01-01 00:00",
+    "series_ordem": ["ceu aberto", "sob painel"],
+    "canteiros": {"ceu aberto": "0A &middot; c&eacute;u aberto"},
+    "padrao": ["luz", "fm"],
+    "vars": {
+      "luz": {"rot": "luz que chega", "un": "W/m&sup2;", "dec": 1},
+      "fm":  {"rot": "massa fresca",  "un": "g/m&sup2;", "dec": 1}
+    }
+  },
+  "ciclos": [{"ciclo": 1, "i0": 0, "i1": 863, "plantio": "01/01",
+              "colheita": "05/02", "dias": 36}],
+  "temp_ar": [11.8, 11.5, ...],
+  "series": {
+    "ceu aberto": {"luz": [0, 0, ...], "fm": [0.5, 0.5, ...]},
+    "sob painel": {"luz": [0, 0, ...], "fm": [0.5, 0.5, ...]}
+  }
+}</pre>
+    <table>
+      <tr><th style="width:150px">campo</th><th>papel</th></tr>
+      <tr><td><code>meta.t0</code></td><td>Primeira hora. Tudo depois &eacute; contado de hora
+        em hora a partir dela.</td></tr>
+      <tr><td><code>meta.n</code></td><td>Quantas horas. Toda lista em <code>series</code>
+        precisa ter esse comprimento; <code>null</code> onde n&atilde;o houver dado.</td></tr>
+      <tr><td><code>meta.padrao</code></td><td>Quais vari&aacute;veis j&aacute; abrem marcadas.
+        Opcional &mdash; sem ela, as seis primeiras.</td></tr>
+      <tr><td><code>ciclos</code></td><td>Opcional. <code>i0</code>/<code>i1</code> s&atilde;o
+        &iacute;ndices de hora e desenham as divis&otilde;es e os bot&otilde;es de salto.</td></tr>
+      <tr><td><code>temp_ar</code>, <code>vento</code>, <code>ur</code></td>
+        <td>Opcionais. Se existirem, entram na leitura sob o cursor.</td></tr>
+    </table>
+    <p style="margin-top:14px">Em Python, <code>exportar_timeline.py</code> escreve esse
+    JSON a partir de um DataFrame &mdash; uma chamada, sem montar o dicion&aacute;rio &agrave; m&atilde;o.</p>
+
+    <h3>Roda um modelo van Henten?</h3>
+    <p>Ent&atilde;o use <code>contrato_vh.py</code> em vez de montar r&oacute;tulos e unidades &agrave;
+    m&atilde;o. Ele fixa as <strong>15 vari&aacute;veis</strong> do modelo &mdash; nome, unidade e
+    casas decimais &mdash; para que o seu gr&aacute;fico e o nosso fiquem lado a lado no mesmo
+    eixo, e reconhece os apelidos mais comuns (<code>tleaf</code>, <code>cover</code>,
+    <code>nsdw</code>&hellip;) sem voc&ecirc; renomear nada:</p>
+<pre>from contrato_vh import conferir, exportar_vh
+print(conferir(df))                     # confere ANTES de exportar
+exportar_vh(df, "meu_timeline.json", titulo="Alface em ...")</pre>
+    <p><code>conferir()</code> existe por um motivo espec&iacute;fico: o erro que passa
+    despercebido n&atilde;o &eacute; o nome da vari&aacute;vel, &eacute; a <strong>escala</strong>. Fotoss&iacute;ntese em
+    g/m&sup2;/s em vez de &micro;g, cobertura em % em vez de fra&ccedil;&atilde;o, onda curta total em vez de
+    PAR &mdash; os tr&ecirc;s produzem um gr&aacute;fico com a mesma forma, o mesmo r&oacute;tulo e a mesma
+    cara, e um fator de um milh&atilde;o de diferen&ccedil;a. Ele compara a ordem de grandeza dos
+    seus dados com a faixa esperada e reclama antes disso virar figura.</p>
+  </div>
+</div>
+
+</div>
+
+<div id="app" class="oculto">
+<div class="painel">
+  <div class="ph">
+    <span class="tit">visão geral</span>
+    <div class="grupo" id="beds"></div>
+  </div>
+  <div class="pc">
+    <canvas id="geral" aria-label="Visão geral da série inteira, com a janela selecionada"></canvas>
+    <p class="dica"><kbd>Arraste</kbd> aqui para escolher a janela, ou <kbd>clique</kbd>
+    para centralizar.</p>
+  </div>
+</div>
+
+<div class="painel">
+  <div class="ph">
+    <span class="tit">janela</span>
+    <div class="grupo">
+      <button data-zoom="24">1 dia</button>
+      <button data-zoom="72">3 dias</button>
+      <button data-zoom="336" aria-pressed="true">2 semanas</button>
+      <button data-zoom="1440">2 meses</button>
+      <button data-zoom="999999">tudo</button>
+    </div>
+    <div class="grupo" id="ciclos"></div>
+  </div>
+  <div class="pc" style="padding-bottom:10px"><div class="vars" id="vars"></div></div>
+</div>
+
+<div class="painel">
+  <div class="ph"><span class="tit">sob o cursor</span><span id="quando">passe o mouse sobre as faixas</span></div>
+  <div class="faixas" id="faixas"></div>
+  <div class="eixo"><div class="fl"></div><div class="fc"><canvas id="eixoc"></canvas></div></div>
+  <p class="dica" style="padding-bottom:12px">Faixa cinza = noite. Linha vertical fina = troca de
+  ciclo. Os n&uacute;meros &agrave; direita de cada faixa s&atilde;o o topo e o piso da escala, que se
+  reajusta &agrave; janela. <kbd>Roda do mouse</kbd> sobre as faixas d&aacute; zoom.</p>
+</div>
+</div>
+
+
+<div class="painel" id="colheita">
+  <div class="ph">
+    <span class="tit">colheita medida</span>
+    <span id="cfonte" class="dim" style="font-size:.78rem;color:var(--ink-3)"></span>
+    <div class="acoes">
+      <label for="cselect" style="font-size:.78rem;color:var(--ink-3)">detalhar</label>
+      <select id="cselect" style="font:inherit;font-size:.82rem;padding:4px 8px;
+        border-radius:7px;border:1px solid var(--rule);background:var(--panel);
+        color:var(--ink)"></select>
+      <button id="cimportar" aria-pressed="false">importar dados</button>
+    </div>
+  </div>
+  <div class="pc">
+    <div id="impzona" class="oculto" role="button" tabindex="0"
+         aria-label="Solte aqui a planilha de colheita">
+      <p class="t">Solte aqui o seu CSV, TSV ou XLSX de colheita</p>
+      <p>Ou clique para escolher. O arquivo &eacute; lido no pr&oacute;prio navegador &mdash;
+      nada sai da sua m&aacute;quina.</p>
+      <input type="file" id="cimparq" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls">
+      <p id="imperro" role="alert"></p>
+      <details class="contrato">
+        <summary>Que colunas o arquivo precisa ter</summary>
+        <table>
+          <tr><td><code>ciclo</code></td><td><b>obrigat&oacute;ria</b></td>
+            <td>r&oacute;tulo do ciclo &mdash; &ldquo;C1 setembro&rdquo;, &ldquo;2025-09&rdquo;&hellip;</td></tr>
+          <tr><td><code>canteiro</code></td><td><b>obrigat&oacute;ria</b></td>
+            <td>identificador do canteiro &mdash; &ldquo;0A&rdquo;, &ldquo;2B&rdquo;&hellip;</td></tr>
+          <tr><td><code>peso_g</code></td><td><b>obrigat&oacute;ria</b></td>
+            <td>massa fresca de <em>uma planta</em>, em gramas &mdash; uma linha por planta</td></tr>
+          <tr><td><code>subsistema</code></td><td>opcional</td>
+            <td>bloco ou tratamento; se faltar, usa o 1&ordm; caractere de <code>canteiro</code></td></tr>
+          <tr><td><code>luz_kwh</code></td><td>opcional</td>
+            <td>luz recebida por este canteiro neste ciclo. Sem ela n&atilde;o h&aacute;
+            dose-resposta, refer&ecirc;ncia nem piso de ru&iacute;do</td></tr>
+          <tr><td><code>modelo_g</code></td><td>opcional</td>
+            <td>massa por cabe&ccedil;a prevista pelo modelo. Sem ela n&atilde;o h&aacute; vi&eacute;s
+            nem correla&ccedil;&atilde;o modelo&nbsp;&times;&nbsp;campo</td></tr>
+        </table>
+        <p style="margin-top:8px">Nomes s&atilde;o lidos sem acento e sem caixa, ent&atilde;o
+        <code>Ciclo</code>, <code>CANTEIRO</code> e <code>Peso_planta</code> funcionam.
+        Colunas a mais s&atilde;o ignoradas. Se voc&ecirc; s&oacute; tem a m&eacute;dia por canteiro,
+        escreva uma linha por canteiro &mdash; a an&aacute;lise vale, s&oacute; perde o desvio
+        <em>dentro</em> do canteiro. Gere o arquivo com
+        <code>colheita_ciclos.py</code>.</p>
+      </details>
+    </div>
+    <div id="cgeral"></div>
+    <p class="cnota"><b>Refer&ecirc;ncia</b> = o subsistema que recebe mais luz.
+    <b>Ru&iacute;do entre r&eacute;plicas</b> = espalhamento entre subsistemas que recebem a
+    <em>mesma</em> luz (&plusmn;5&nbsp;%); &eacute; o piso abaixo do qual nenhuma diferen&ccedil;a
+    de tratamento significa nada. <b>Vi&eacute;s</b> = previsto &divide; medido.</p>
+    <div id="cdet" style="margin-top:20px"></div>
+  </div>
+</div>
+
+<footer><p>Visualizador gen&eacute;rico gerado por <code>build_timeline.py --vazio</code>. Um arquivo HTML &uacute;nico, sem depend&ecirc;ncia externa a n&atilde;o ser as fontes; funciona offline e sem servidor. Para gerar o JSON a partir de um DataFrame do pandas, use <code>exportar_timeline.py</code>.</p></footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>(function () {
+  var PALETA = ["--s-aberto", "--s-entre", "--s-sob", "--s-4", "--s-5", "--s-6"];
+  var MES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  var D, BEDS, VARS, N, T0, estado;
+
+  function tinta(v) {
+    return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  }
+  function cor(b) { return tinta(PALETA[BEDS.indexOf(b) % PALETA.length]); }
+  function varCor(b) { return "var(" + PALETA[BEDS.indexOf(b) % PALETA.length] + ")"; }
+  function dataDe(i) { return new Date(T0.getTime() + i * 3600000); }
+  function num(v, dec) {
+    if (v === null || v === undefined || !isFinite(v)) { return "—"; }
+    return v.toFixed(dec).replace(".", ",");
+  }
+
+  // =========================================================================
+  // LEITURA DE ARQUIVO — JSON no nosso formato, ou CSV longo
+  // =========================================================================
+  function lerCSV(txt) {
+    var linhas = txt.replace(/\r/g, "").split("\n").filter(function (l) { return l.trim(); });
+    if (linhas.length < 2) { throw new Error("CSV com menos de duas linhas."); }
+    var sep = (linhas[0].match(/;/g) || []).length > (linhas[0].match(/,/g) || []).length ? ";" : ",";
+    var cab = linhas[0].split(sep).map(function (s) { return s.trim().replace(/^"|"$/g, ""); });
+    var iT = cab.findIndex(function (c) { return /^(timestamp|datetime|data|hora)$/i.test(c); });
+    var iS = cab.findIndex(function (c) { return /^(serie|série|grupo|canteiro|tratamento|cenario|cenário)$/i.test(c); });
+    if (iT < 0) { throw new Error("Falta a coluna 'timestamp'.\nColunas achadas: " + cab.join(", ")); }
+    if (iS < 0) { throw new Error("Falta a coluna 'serie'.\nColunas achadas: " + cab.join(", ")); }
+    var cols = cab.map(function (c, j) { return {nome: c, j: j}; })
+                  .filter(function (c) { return c.j !== iT && c.j !== iS; });
+    if (!cols.length) { throw new Error("Nenhuma coluna de variável além de timestamp e serie."); }
+
+    var tempos = [], mapaT = {}, series = [], bruto = {};
+    for (var L = 1; L < linhas.length; L++) {
+      var p = linhas[L].split(sep);
+      if (p.length < cab.length) { continue; }
+      var t = p[iT].trim().replace(/^"|"$/g, "").replace(" ", "T");
+      var ms = Date.parse(t.length <= 13 ? t + ":00" : t);
+      if (!isFinite(ms)) { throw new Error("Data ilegível na linha " + (L + 1) + ": " + p[iT]); }
+      if (!(ms in mapaT)) { mapaT[ms] = true; tempos.push(ms); }
+      var s = p[iS].trim().replace(/^"|"$/g, "") || "série";
+      if (series.indexOf(s) < 0) { series.push(s); bruto[s] = {}; }
+      bruto[s][ms] = p;
+    }
+    tempos.sort(function (a, b) { return a - b; });
+    if (tempos.length < 2) { throw new Error("Menos de dois instantes distintos."); }
+
+    // grade horaria regular entre o primeiro e o ultimo instante
+    var passo = 3600000, n = Math.round((tempos[tempos.length - 1] - tempos[0]) / passo) + 1;
+    if (n > 200000) { throw new Error("Série longa demais (" + n + " horas)."); }
+    var t0 = tempos[0];
+    var vars_ = {}, ser = {};
+    cols.forEach(function (c) {
+      var m = c.nome.match(/^(.*?)\s*[\(\[]([^\)\]]+)[\)\]]\s*$/);   // "rótulo (unidade)"
+      vars_[c.nome] = {rot: m ? m[1].trim() : c.nome, un: m ? m[2].trim() : "", dec: 3};
+    });
+    series.forEach(function (s) {
+      ser[s] = {};
+      cols.forEach(function (c) { ser[s][c.nome] = new Array(n).fill(null); });
+      Object.keys(bruto[s]).forEach(function (ms) {
+        var i = Math.round((+ms - t0) / passo);
+        if (i < 0 || i >= n) { return; }
+        cols.forEach(function (c) {
+          var v = parseFloat(String(bruto[s][ms][c.j]).replace(",", "."));
+          ser[s][c.nome][i] = isFinite(v) ? v : null;
+        });
+      });
+    });
+    // casas decimais pela ordem de grandeza de cada variavel
+    cols.forEach(function (c) {
+      var hi = 0;
+      series.forEach(function (s) {
+        ser[s][c.nome].forEach(function (v) { if (v !== null && Math.abs(v) > hi) { hi = Math.abs(v); } });
+      });
+      vars_[c.nome].dec = hi >= 100 ? 1 : hi >= 1 ? 2 : 4;
+    });
+    var d0 = new Date(t0);
+    return {
+      meta: {n: n, t0: d0.getFullYear() + "-" + String(d0.getMonth() + 1).padStart(2, "0") + "-" +
+                  String(d0.getDate()).padStart(2, "0") + " " +
+                  String(d0.getHours()).padStart(2, "0") + ":00",
+             vars: vars_, series_ordem: series},
+      ciclos: [], series: ser
+    };
+  }
+
+  function normaliza(d) {
+    if (!d || !d.meta || !d.series) { throw new Error("JSON sem 'meta' ou 'series'."); }
+    if (!d.meta.vars) { throw new Error("JSON sem 'meta.vars'."); }
+    d.ciclos = d.ciclos || [];
+    var nomes = d.meta.series_ordem || Object.keys(d.series);
+    var n = d.meta.n || (d.series[nomes[0]][Object.keys(d.meta.vars)[0]] || []).length;
+    d.meta.n = n;
+    nomes.forEach(function (s) {
+      Object.keys(d.meta.vars).forEach(function (k) {
+        if (!d.series[s][k]) { d.series[s][k] = new Array(n).fill(null); }
+      });
+    });
+    d.meta.series_ordem = nomes;
+    return d;
+  }
+
+  // =========================================================================
+  // MONTAGEM DA INTERFACE
+  // =========================================================================
+  function cabecalho() {
+    var m = D.meta;
+    var el = document.getElementById("meta");
+    var syntheticNotice = document.getElementById("synthetic-inputs-banner");
+    var bits = [["horas", m.n], ["séries", BEDS.length], ["variáveis", Object.keys(VARS).length]];
+    if (m.ciclos_n) { bits.splice(1, 0, ["ciclos", m.ciclos_n]); }
+    if (m.local) { bits.push(["local", m.local]); }
+    if (m.manejo) { bits.push(["manejo", m.manejo]); }
+    el.innerHTML = bits.map(function (b) {
+      return "<span><b>" + b[0] + "</b> " + b[1] + "</span>"; }).join("");
+    if (m.synthetic_inputs_notice) {
+      syntheticNotice.textContent = m.synthetic_inputs_notice;
+      syntheticNotice.classList.remove("oculto");
+    }
+    if (m.titulo) { document.querySelector("h1").textContent = m.titulo; }
+    if (m.subtitulo) { document.querySelector(".sub").innerHTML = m.subtitulo; }
+    if (m.eyebrow) { document.querySelector(".eyebrow").textContent = m.eyebrow; }
+  }
+
+  function controles() {
+    document.getElementById("beds").innerHTML =
+      '<span class="rot">séries</span>' + BEDS.map(function (b) {
+        var rot = (D.meta.canteiros && D.meta.canteiros[b]) || b;
+        return '<button class="bed" data-bed="' + b + '" aria-pressed="true" style="--bc:' +
+               varCor(b) + '">' + rot + "</button>"; }).join("");
+    document.getElementById("vars").innerHTML = Object.keys(VARS).map(function (k) {
+      var v = VARS[k];
+      return '<label><input type="checkbox" value="' + k + '"' +
+        (estado.vars.indexOf(k) >= 0 ? " checked" : "") + "> " + v.rot +
+        (v.un ? ' <span style="color:var(--ink-3);font-size:.9em">(' + v.un + ")</span>" : "") +
+        "</label>"; }).join("");
+    var bc = document.getElementById("ciclos");
+    if (D.ciclos.length) {
+      bc.innerHTML = '<span class="rot">ir ao ciclo</span>' + D.ciclos.map(function (c, i) {
+        return '<button data-ciclo="' + i + '" title="' + (c.plantio || "") + " a " +
+               (c.colheita || "") + '">c' + (c.ciclo || i + 1) + "</button>"; }).join("");
+    } else { bc.classList.add("oculto"); }
+  }
+
+  function faixaDe(k) {
+    var lo = Infinity, hi = -Infinity;
+    BEDS.forEach(function (b) {
+      if (!estado.beds[b]) { return; }
+      var y = D.series[b][k];
+      for (var i = estado.i0; i <= estado.i1 && i < N; i++) {
+        var v = y[i]; if (v === null || v === undefined || !isFinite(v)) { continue; }
+        if (v < lo) { lo = v; } if (v > hi) { hi = v; }
+      }
+    });
+    if (lo === Infinity) { return {lo: 0, hi: 1, dlo: 0, dhi: 1, const_: null}; }
+    if (hi === lo) {
+      var e = Math.abs(lo) > 1e-9 ? Math.abs(lo) * 0.5 : 0.5;
+      return {lo: lo, hi: lo, dlo: lo - e, dhi: lo + e, const_: lo};
+    }
+    var pad = (hi - lo) * 0.10;
+    return {lo: lo, hi: hi, dlo: lo >= 0 ? Math.max(0, lo - pad) : lo - pad,
+            dhi: hi + pad, const_: null};
+  }
+
+  // ---------- visao geral ----------
+  var geral;
+  function pintaGeral() {
+    var r = geral.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+    if (!r.width) { return; }
+    geral.width = r.width * dpr; geral.height = r.height * dpr;
+    var g = geral.getContext("2d"); g.scale(dpr, dpr);
+    var W = r.width, H = r.height, px = function (i) { return i / (N - 1) * W; };
+    g.clearRect(0, 0, W, H);
+    g.font = '10px "IBM Plex Mono", monospace'; g.textBaseline = "top";
+    D.ciclos.forEach(function (c, j) {
+      if (j % 2) { g.fillStyle = tinta("--rule-2"); g.fillRect(px(c.i0), 0, px(c.i1) - px(c.i0), H); }
+      g.fillStyle = tinta("--ink-3"); g.fillText("c" + (c.ciclo || j + 1), px(c.i0) + 3, 3);
+      g.strokeStyle = tinta("--rule"); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(px(c.i0) + .5, 0); g.lineTo(px(c.i0) + .5, H); g.stroke();
+    });
+    var k = estado.resumo, hi = 0, lo = Infinity;
+    BEDS.forEach(function (b) {
+      D.series[b][k].forEach(function (v) {
+        if (v === null || !isFinite(v)) { return; }
+        if (v > hi) { hi = v; } if (v < lo) { lo = v; } });
+    });
+    if (lo === Infinity) { lo = 0; } if (hi === lo) { hi = lo + 1; }
+    BEDS.forEach(function (b) {
+      if (!estado.beds[b]) { return; }
+      g.strokeStyle = cor(b); g.lineWidth = 1.5; g.beginPath();
+      var abriu = false;
+      for (var i = 0; i < N; i++) {
+        var v = D.series[b][k][i];
+        if (v === null || !isFinite(v)) { abriu = false; continue; }
+        var x = px(i), y = H - 12 - (v - lo) / (hi - lo) * (H - 26);
+        if (!abriu) { g.moveTo(x, y); abriu = true; } else { g.lineTo(x, y); }
+      }
+      g.stroke();
+    });
+    g.fillStyle = tinta("--sel");
+    g.fillRect(px(estado.i0), 0, Math.max(px(estado.i1) - px(estado.i0), 2), H);
+    g.strokeStyle = tinta("--accent"); g.lineWidth = 1.5;
+    g.strokeRect(px(estado.i0) + .5, .5, Math.max(px(estado.i1) - px(estado.i0), 2), H - 1);
+    g.fillStyle = tinta("--ink-3"); g.textBaseline = "bottom";
+    var meses = Math.round(N / 730);
+    for (var m = 0; m < 60 && meses >= 2; m++) {
+      var d = new Date(T0.getFullYear(), T0.getMonth() + m, 1);
+      var i = Math.round((d - T0) / 3600000);
+      if (i < 0) { continue; } if (i >= N) { break; }
+      g.fillText(MES[d.getMonth()], px(i) + 3, H - 2);
+    }
+  }
+
+  // ---------- faixas ----------
+  var faixas;
+  function montaFaixas() {
+    faixas.innerHTML = "";
+    if (!estado.vars.length) {
+      faixas.innerHTML = '<p class="vazio">Nenhuma variável marcada — escolha ao menos uma acima.</p>';
+      return;
+    }
+    estado.vars.forEach(function (k) {
+      var v = VARS[k], d = document.createElement("div");
+      d.className = "faixa"; d.dataset.k = k;
+      d.innerHTML = '<div class="fl"><span class="n">' + v.rot + '</span><span class="u">' +
+        (v.un || "") + '</span><span class="v"></span></div><div class="fc"><canvas></canvas></div>';
+      faixas.appendChild(d);
+    });
+    pintaFaixas();
+  }
+
+  function pintaFaixas() {
+    document.querySelectorAll(".faixa").forEach(function (d) {
+      var k = d.dataset.k, cv = d.querySelector("canvas");
+      var r = cv.parentElement.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+      if (!r.width) { return; }
+      var H = 76;
+      cv.style.height = H + "px"; cv.width = r.width * dpr; cv.height = H * dpr;
+      var g = cv.getContext("2d"); g.scale(dpr, dpr);
+      var W = r.width, n = estado.i1 - estado.i0;
+      var px = function (i) { return (i - estado.i0) / n * W; };
+      var fx = faixaDe(k);
+      var py = function (v) { return H - 8 - (v - fx.dlo) / (fx.dhi - fx.dlo) * (H - 16); };
+      g.clearRect(0, 0, W, H);
+      if (n <= 24 * 40) {
+        g.fillStyle = tinta("--noite");
+        for (var i = estado.i0; i <= estado.i1; i++) {
+          var h = dataDe(i).getHours();
+          if (h < 6 || h >= 19) { g.fillRect(px(i), 0, Math.max(W / n, 1), H); }
+        }
+      }
+      g.strokeStyle = tinta("--rule"); g.lineWidth = 1;
+      D.ciclos.forEach(function (c) {
+        if (c.i0 < estado.i0 || c.i0 > estado.i1) { return; }
+        g.beginPath(); g.moveTo(px(c.i0) + .5, 0); g.lineTo(px(c.i0) + .5, H); g.stroke();
+      });
+      if (fx.dlo < 0 && fx.dhi > 0) {
+        g.strokeStyle = tinta("--rule"); g.setLineDash([3, 3]);
+        g.beginPath(); g.moveTo(0, py(0)); g.lineTo(W, py(0)); g.stroke(); g.setLineDash([]);
+      }
+      BEDS.forEach(function (b) {
+        if (!estado.beds[b]) { return; }
+        var y = D.series[b][k];
+        g.strokeStyle = cor(b); g.lineWidth = 1.6; g.beginPath();
+        var abriu = false;
+        for (var i = estado.i0; i <= estado.i1 && i < N; i++) {
+          var v = y[i];
+          if (v === null || v === undefined || !isFinite(v)) { abriu = false; continue; }
+          var X = px(i), Y = py(v);
+          if (!abriu) { g.moveTo(X, Y); abriu = true; } else { g.lineTo(X, Y); }
+        }
+        g.stroke();
+      });
+      g.font = '9.5px "IBM Plex Mono", monospace'; g.fillStyle = tinta("--ink-3");
+      g.textAlign = "right"; g.textBaseline = "top";
+      if (fx.const_ !== null) {
+        g.textBaseline = "middle";
+        g.fillText("constante em " + num(fx.const_, VARS[k].dec), W - 4, H / 2 - 11);
+      } else {
+        g.fillText(num(fx.hi, VARS[k].dec), W - 4, 2);
+        g.textBaseline = "bottom";
+        g.fillText(num(fx.lo, VARS[k].dec), W - 4, H - 2);
+      }
+      g.textAlign = "left";
+      if (estado.cursor !== null && estado.cursor >= estado.i0 && estado.cursor <= estado.i1) {
+        g.strokeStyle = tinta("--ink-3"); g.lineWidth = 1;
+        g.beginPath(); g.moveTo(px(estado.cursor) + .5, 0);
+        g.lineTo(px(estado.cursor) + .5, H); g.stroke();
+        BEDS.forEach(function (b) {
+          if (!estado.beds[b]) { return; }
+          var v = D.series[b][k][estado.cursor];
+          if (v === null || !isFinite(v)) { return; }
+          g.fillStyle = cor(b); g.beginPath();
+          g.arc(px(estado.cursor), py(v), 3.2, 0, 6.284); g.fill();
+        });
+      }
+    });
+    leitura(); pintaEixo();
+  }
+
+  function pintaEixo() {
+    var cv = document.getElementById("eixoc");
+    var r = cv.parentElement.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+    if (!r.width) { return; }
+    cv.width = r.width * dpr; cv.height = 26 * dpr;
+    var g = cv.getContext("2d"); g.scale(dpr, dpr);
+    var W = r.width, n = estado.i1 - estado.i0;
+    g.clearRect(0, 0, W, 26);
+    g.font = '10px "IBM Plex Mono", monospace'; g.fillStyle = tinta("--ink-3");
+    g.textBaseline = "top"; g.textAlign = "center";
+    var passo = n <= 72 ? 6 : n <= 240 ? 24 : n <= 1080 ? 120 : 720;
+    for (var i = Math.ceil(estado.i0 / passo) * passo; i <= estado.i1; i += passo) {
+      var x = (i - estado.i0) / n * W, d = dataDe(i);
+      var t = d.getDate() + "/" + MES[d.getMonth()] +
+              (n <= 72 ? " " + String(d.getHours()).padStart(2, "0") + "h" : "");
+      g.strokeStyle = tinta("--rule"); g.beginPath();
+      g.moveTo(x + .5, 0); g.lineTo(x + .5, 4); g.stroke();
+      g.fillText(t, x, 6);
+    }
+    g.textAlign = "left";
+  }
+
+  function leitura() {
+    var i = estado.cursor;
+    document.querySelectorAll(".faixa").forEach(function (d) {
+      var k = d.dataset.k, alvo = d.querySelector(".v");
+      if (i === null) { alvo.innerHTML = ""; return; }
+      alvo.innerHTML = BEDS.filter(function (b) { return estado.beds[b]; }).map(function (b) {
+        return '<i style="color:' + cor(b) + '">' + num(D.series[b][k][i], VARS[k].dec) + "</i>";
+      }).join("");
+    });
+    var q = document.getElementById("quando");
+    if (i === null) { q.textContent = "passe o mouse sobre as faixas"; return; }
+    var d = dataDe(i);
+    var txt = "<b>" + d.getDate() + "/" + MES[d.getMonth()] + " " +
+              String(d.getHours()).padStart(2, "0") + "h</b>";
+    ["temp_ar", "vento", "ur"].forEach(function (k, j) {
+      if (!D[k]) { return; }
+      var u = [" °C", " m/s", " %"][j], nm = ["ar", "vento", "UR"][j];
+      txt += " · " + nm + " " + num(D[k][i], j === 2 ? 0 : 1) + u;
+    });
+    var c = D.ciclos.filter(function (c) { return i >= c.i0 && i <= c.i1; })[0];
+    if (c) {
+      txt += " · ciclo " + (c.ciclo || "?") + ", dia " + (Math.floor((i - c.i0) / 24) + 1) +
+             (c.dias ? " de " + c.dias : "");
+    }
+    q.innerHTML = txt;
+  }
+
+  // ---------- interacao ----------
+  function janela(i0, i1) {
+    var n = Math.max(4, Math.min(Math.round(i1 - i0), N - 1));
+    estado.i0 = Math.max(0, Math.min(Math.round(i0), N - 1 - n));
+    estado.i1 = estado.i0 + n;
+    pintaGeral(); pintaFaixas();
+  }
+
+  function ligar() {
+    var arrastando = false;
+    function idxGeral(ev) {
+      var r = geral.getBoundingClientRect();
+      return Math.round((ev.clientX - r.left) / r.width * (N - 1));
+    }
+    geral.addEventListener("pointerdown", function (ev) {
+      arrastando = true; geral.setPointerCapture(ev.pointerId);
+      geral.dataset.a = idxGeral(ev);
+    });
+    geral.addEventListener("pointermove", function (ev) {
+      if (!arrastando) { return; }
+      var a = +geral.dataset.a, b = idxGeral(ev);
+      if (Math.abs(a - b) > 3) { janela(Math.min(a, b), Math.max(a, b)); }
+    });
+    geral.addEventListener("pointerup", function (ev) {
+      if (arrastando && Math.abs(idxGeral(ev) - (+geral.dataset.a)) < 4) {
+        var w = estado.i1 - estado.i0, c = idxGeral(ev);
+        janela(c - w / 2, c + w / 2);
+      }
+      arrastando = false;
+    });
+    faixas.addEventListener("pointermove", function (ev) {
+      var cv = ev.target.closest ? ev.target.closest("canvas") : null;
+      if (!cv) { return; }
+      var r = cv.getBoundingClientRect();
+      estado.cursor = Math.round(estado.i0 + (ev.clientX - r.left) / r.width * (estado.i1 - estado.i0));
+      pintaFaixas();
+    });
+    faixas.addEventListener("pointerleave", function () { estado.cursor = null; pintaFaixas(); });
+    faixas.addEventListener("wheel", function (ev) {
+      ev.preventDefault();
+      var c = estado.cursor === null ? (estado.i0 + estado.i1) / 2 : estado.cursor;
+      var n = estado.i1 - estado.i0;
+      var nn = Math.max(4, Math.min(Math.round(n * (ev.deltaY > 0 ? 1.35 : 1 / 1.35)), N - 1));
+      var f = (c - estado.i0) / n;
+      janela(c - f * nn, c - f * nn + nn);
+    }, {passive: false});
+
+    document.querySelectorAll("[data-zoom]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var h = Math.min(+b.dataset.zoom, N - 1);
+        var c = estado.cursor === null ? (estado.i0 + estado.i1) / 2 : estado.cursor;
+        janela(c - h / 2, c + h / 2);
+        document.querySelectorAll("[data-zoom]").forEach(function (o) {
+          o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+      });
+    });
+    document.getElementById("ciclos").addEventListener("click", function (ev) {
+      var b = ev.target.closest("[data-ciclo]"); if (!b) { return; }
+      var c = D.ciclos[+b.dataset.ciclo]; janela(c.i0, c.i1);
+    });
+    document.getElementById("beds").addEventListener("click", function (ev) {
+      var b = ev.target.closest("button.bed"); if (!b) { return; }
+      var k = b.dataset.bed;
+      if (estado.beds[k] && BEDS.filter(function (x) { return estado.beds[x]; }).length === 1) { return; }
+      estado.beds[k] = !estado.beds[k];
+      b.setAttribute("aria-pressed", estado.beds[k] ? "true" : "false");
+      pintaGeral(); pintaFaixas();
+    });
+    document.getElementById("vars").addEventListener("change", function () {
+      estado.vars = [].filter.call(document.querySelectorAll("#vars input"),
+        function (o) { return o.checked; }).map(function (o) { return o.value; });
+      montaFaixas();
+    });
+    addEventListener("resize", function () { pintaGeral(); pintaFaixas(); });
+    var mm = matchMedia("(prefers-color-scheme: dark)");
+    if (mm.addEventListener) {
+      mm.addEventListener("change", function () { pintaGeral(); pintaFaixas(); });
+    }
+  }
+
+  // =========================================================================
+  // ARRANQUE
+  // =========================================================================
+  function iniciar(dados) {
+    D = normaliza(dados);
+    BEDS = D.meta.series_ordem;
+    VARS = D.meta.vars; N = D.meta.n;
+    T0 = new Date(D.meta.t0.replace(" ", "T"));
+    if (!isFinite(T0.getTime())) { throw new Error("meta.t0 ilegível: " + D.meta.t0); }
+    var chaves = Object.keys(VARS);
+    var padrao = D.meta.padrao && D.meta.padrao.length ? D.meta.padrao : chaves.slice(0, 6);
+    estado = {
+      beds: {}, vars: padrao.filter(function (k) { return chaves.indexOf(k) >= 0; }),
+      resumo: chaves.indexOf("fm") >= 0 ? "fm" : chaves[0],
+      i0: 0, i1: Math.min(24 * 14, N - 1), cursor: null
+    };
+    BEDS.forEach(function (b) { estado.beds[b] = true; });
+    if (D.meta.ciclos_n === undefined) { D.meta.ciclos_n = D.ciclos.length || undefined; }
+
+    // as duas so existem no visualizador vazio; na pagina com dados nao ha zona
+    var zona = document.getElementById("carregar");
+    if (zona) { zona.classList.add("oculto"); }
+    document.getElementById("app").classList.remove("oculto");
+    geral = document.getElementById("geral");
+    faixas = document.getElementById("faixas");
+    cabecalho(); controles(); ligar(); montaFaixas(); pintaGeral();
+  }
+
+  function falha(e) {
+    var msg = "Não deu para ler esse arquivo.\n\n" + (e && e.message ? e.message : e);
+    var el = document.getElementById("erro");
+    if (el) { el.textContent = msg; return; }
+    // pagina com dados embutidos: nao ha area de erro, avisa no lugar do app
+    var app = document.getElementById("app");
+    if (app) {
+      app.classList.remove("oculto");
+      app.innerHTML = '<div class="painel"><div class="pc"><p id="erro" role="alert">' +
+        msg.replace(/</g, "&lt;") + "</p></div></div>";
+    }
+    if (window.console) { console.error(e); }
+  }
+
+  function carregarTexto(txt, nome) {
+    try {
+      document.getElementById("erro").textContent = "";
+      var d = /\.csv$|\.tsv$|\.txt$/i.test(nome || "") || txt.trim()[0] !== "{"
+              ? lerCSV(txt) : JSON.parse(txt);
+      iniciar(d);
+    } catch (e) { falha(e); }
+  }
+
+  function ligarZona() {
+    var z = document.getElementById("solta"), inp = document.getElementById("arq");
+    if (!z) { return; }
+    z.addEventListener("click", function (ev) { if (ev.target !== inp) { inp.click(); } });
+    inp.addEventListener("change", function () {
+      var f = inp.files[0]; if (!f) { return; }
+      f.text().then(function (t) { carregarTexto(t, f.name); }).catch(falha);
+    });
+    ["dragenter", "dragover"].forEach(function (e) {
+      z.addEventListener(e, function (ev) { ev.preventDefault(); z.classList.add("sobre"); });
+    });
+    ["dragleave", "drop"].forEach(function (e) {
+      z.addEventListener(e, function (ev) { ev.preventDefault(); z.classList.remove("sobre"); });
+    });
+    z.addEventListener("drop", function (ev) {
+      var f = ev.dataTransfer.files[0]; if (!f) { return; }
+      f.text().then(function (t) { carregarTexto(t, f.name); }).catch(falha);
+    });
+  }
+
+if (window.__TL__) {
+    try { iniciar(window.__TL__); } catch (e) { falha(e); }
+  } else {
+    ligarZona();
+  }
+})();</script>
+<script>(function () {
+  // =========================================================================
+  // FORMATO DE TROCA — as mesmas colunas de `colheita_ciclos.py`
+  // =========================================================================
+  var ALIAS = {
+    ciclo:      ["ciclo", "cycle"],
+    canteiro:   ["canteiro", "parcelacanteiro", "bed", "plot"],
+    subsistema: ["subsistema", "tratamentosubsistema", "sub", "bloco", "treatment"],
+    peso_g:     ["pesog", "pesoplanta", "peso", "massa", "massag", "massafresca",
+                 "massamediag", "fw", "freshweight"],
+    luz_kwh:    ["luzkwh", "luz", "kwh", "kwhciclo", "light"],
+    modelo_g:   ["modelog", "modelo", "previsto", "predicted"]
+  };
+  function chave(s) {
+    return String(s).normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+  function mapear(cab) {
+    var m = {};
+    cab.forEach(function (c, j) {
+      var k = chave(c);
+      Object.keys(ALIAS).forEach(function (d) {
+        if (m[d] === undefined && ALIAS[d].indexOf(k) >= 0) { m[d] = j; }
+      });
+    });
+    return m;
+  }
+  function exigir(m, cab, temCicloPadrao) {
+    var obrig = temCicloPadrao ? ["canteiro", "peso_g"] : ["ciclo", "canteiro", "peso_g"];
+    var falta = obrig.filter(function (c) { return m[c] === undefined; });
+    if (falta.length) {
+      throw new Error("Faltam colunas obrigatórias: " + falta.join(", ") +
+        ".\nO arquivo tem: " + cab.join(", ") +
+        "\n\nVeja o contrato de colunas logo abaixo da área de importação.");
+    }
+  }
+  function linhasDe(cab, corpo, cicloPadrao) {
+    var m = mapear(cab);
+    exigir(m, cab, !!cicloPadrao);
+    var out = [];
+    corpo.forEach(function (p) {
+      var peso = parseFloat(String(p[m.peso_g]).replace(",", "."));
+      if (!isFinite(peso)) { return; }
+      var cant = String(p[m.canteiro]).trim();
+      var sub = m.subsistema !== undefined ? String(p[m.subsistema]).trim() : cant.charAt(0);
+      var luz = m.luz_kwh !== undefined ? parseFloat(String(p[m.luz_kwh]).replace(",", ".")) : NaN;
+      var mod = m.modelo_g !== undefined ? parseFloat(String(p[m.modelo_g]).replace(",", ".")) : NaN;
+      var ci = m.ciclo !== undefined ? String(p[m.ciclo]).trim() : "";
+      out.push([ci || cicloPadrao || "", cant, sub, peso,
+                isFinite(luz) ? luz : null, isFinite(mod) ? mod : null]);
+    });
+    if (!out.length) { throw new Error("Nenhuma linha com peso numérico."); }
+    return out;
+  }
+  function lerCSVc(txt) {
+    var ls = txt.replace(/\r/g, "").split("\n").filter(function (l) { return l.trim(); });
+    if (ls.length < 2) { throw new Error("Arquivo com menos de duas linhas."); }
+    var v = (ls[0].match(/;/g) || []).length, c = (ls[0].match(/,/g) || []).length;
+    var t = (ls[0].match(/\t/g) || []).length;
+    var sep = t > v && t > c ? "\t" : (v > c ? ";" : ",");
+    var lim = function (s) { return s.trim().replace(/^"|"$/g, ""); };
+    var cab = ls[0].split(sep).map(lim);
+    return linhasDe(cab, ls.slice(1).map(function (l) { return l.split(sep).map(lim); }));
+  }
+  function lerXLSX(buf) {
+    if (typeof XLSX === "undefined") {
+      throw new Error("A biblioteca de leitura de XLSX não carregou (offline?).\n" +
+        "Salve a planilha como CSV e solte o CSV aqui.");
+    }
+    var wb = XLSX.read(buf, {type: "array"});
+    var todas = [], erro = null;
+    wb.SheetNames.forEach(function (nome) {
+      var aoa = XLSX.utils.sheet_to_json(wb.Sheets[nome], {header: 1, blankrows: false});
+      if (!aoa.length) { return; }
+      // Duas tolerancias que planilha de campo sempre exige:
+      //  - o cabecalho nem sempre e a 1a linha (costuma haver titulo em cima);
+      //  - o layout mais comum e UMA ABA POR CICLO, e se o ciclo nao e coluna
+      //    nenhuma: e o nome da aba. Usamos o nome como rotulo do ciclo.
+      for (var h = 0; h < Math.min(aoa.length, 8); h++) {
+        try {
+          var L = linhasDe(aoa[h].map(String), aoa.slice(h + 1), nome);
+          todas = todas.concat(L);
+          return;
+        } catch (e) { erro = e; }
+      }
+    });
+    if (!todas.length) { throw erro || new Error("Nenhuma aba com as colunas do formato."); }
+    return todas;
+  }
+
+  // Armadilha silenciosa: em planilha de campo o "canteiro" costuma ser so a
+  // letra da parcela (A..H), com o bloco numa coluna separada. Ai a letra "A"
+  // do subsistema 0 e a do 2 viram o MESMO canteiro, e a analise por canteiro
+  // sai errada sem reclamar de nada. Se o mesmo rotulo aparece em mais de um
+  // subsistema, ele nao identifica canteiro nenhum — compomos bloco+parcela.
+  var nota = "";
+  function compor(linhas) {
+    var vistos = {};
+    linhas.forEach(function (L) {
+      (vistos[L[1]] = vistos[L[1]] || {})[L[2]] = 1;
+    });
+    var ambiguo = Object.keys(vistos).some(function (k) {
+      return Object.keys(vistos[k]).length > 1;
+    });
+    nota = "";
+    if (ambiguo) {
+      linhas.forEach(function (L) { L[1] = L[2] + L[1]; });
+      nota = "O identificador de canteiro se repetia entre subsistemas, então " +
+             "ele foi composto como subsistema+canteiro (ex.: “2” + “A” = “2A”).";
+    }
+    return linhas;
+  }
+
+  // =========================================================================
+  // ESTATISTICA
+  // =========================================================================
+  function media(a) { return a.reduce(function (s, x) { return s + x; }, 0) / a.length; }
+  function dp(a) {
+    if (a.length < 2) { return NaN; }
+    var m = media(a);
+    return Math.sqrt(a.reduce(function (s, x) { return s + (x - m) * (x - m); }, 0) / (a.length - 1));
+  }
+  function mediana(a) {
+    var b = a.slice().sort(function (x, y) { return x - y; }), n = b.length;
+    return n % 2 ? b[(n - 1) / 2] : (b[n / 2 - 1] + b[n / 2]) / 2;
+  }
+  function pearson(x, y) {
+    var n = x.length;
+    if (n < 3) { return {r: NaN, p: NaN, n: n}; }
+    var mx = media(x), my = media(y), sxy = 0, sxx = 0, syy = 0;
+    for (var i = 0; i < n; i++) {
+      var a = x[i] - mx, b = y[i] - my;
+      sxy += a * b; sxx += a * a; syy += b * b;
+    }
+    if (sxx <= 0 || syy <= 0) { return {r: NaN, p: NaN, n: n}; }
+    var r = sxy / Math.sqrt(sxx * syy);
+    r = Math.max(-0.9999999, Math.min(0.9999999, r));
+    var df = n - 2, t = r * Math.sqrt(df / (1 - r * r));
+    return {r: r, p: 2 * (1 - tcdf(Math.abs(t), df)), n: n};
+  }
+  // CDF da t de Student pela beta incompleta (Numerical Recipes, betacf)
+  function gammaln(z) {
+    var g = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+             -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    var x = z, y = z, tmp = x + 5.5, ser = 1.000000000190015;
+    tmp -= (x + 0.5) * Math.log(tmp);
+    for (var j = 0; j < 6; j++) { ser += g[j] / ++y; }
+    return -tmp + Math.log(2.5066282746310005 * ser / x);
+  }
+  function betacf(a, b, x) {
+    var FP = 1e-30, qab = a + b, qap = a + 1, qam = a - 1;
+    var c = 1, d = 1 - qab * x / qap;
+    if (Math.abs(d) < FP) { d = FP; }
+    d = 1 / d;
+    var h = d;
+    for (var m = 1; m <= 200; m++) {
+      var m2 = 2 * m, aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FP) { d = FP; }
+      c = 1 + aa / c; if (Math.abs(c) < FP) { c = FP; }
+      d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FP) { d = FP; }
+      c = 1 + aa / c; if (Math.abs(c) < FP) { c = FP; }
+      d = 1 / d;
+      var del = d * c; h *= del;
+      if (Math.abs(del - 1) < 3e-7) { break; }
+    }
+    return h;
+  }
+  function betai(a, b, x) {
+    if (x <= 0) { return 0; }
+    if (x >= 1) { return 1; }
+    var bt = Math.exp(gammaln(a + b) - gammaln(a) - gammaln(b) +
+                      a * Math.log(x) + b * Math.log(1 - x));
+    return x < (a + 1) / (a + b + 2) ? bt * betacf(a, b, x) / a
+                                     : 1 - bt * betacf(b, a, 1 - x) / b;
+  }
+  function tcdf(t, df) { return 1 - 0.5 * betai(df / 2, 0.5, df / (df + t * t)); }
+
+  // =========================================================================
+  // ANALISE — o unico caminho, para o dado embutido e para o importado
+  // =========================================================================
+  function analisar(linhas) {
+    var ordem = [], porCiclo = {};
+    linhas.forEach(function (L) {
+      var ci = L[0];
+      if (!porCiclo[ci]) { porCiclo[ci] = []; ordem.push(ci); }
+      porCiclo[ci].push({cant: L[1], sub: L[2], peso: L[3], luz: L[4], mod: L[5]});
+    });
+
+    return ordem.map(function (ci) {
+      var g = porCiclo[ci];
+      var pesos = g.map(function (r) { return r.peso; });
+
+      // agrega por canteiro (a unidade experimental) e por subsistema
+      var pc = {}, ps = {};
+      g.forEach(function (r) {
+        (pc[r.cant] = pc[r.cant] || {sub: r.sub, p: [], luz: r.luz, mod: r.mod}).p.push(r.peso);
+        (ps[r.sub] = ps[r.sub] || {p: [], luz: [], mod: [], cant: {}}).p.push(r.peso);
+        ps[r.sub].cant[r.cant] = 1;
+        if (r.luz !== null) { ps[r.sub].luz.push(r.luz); }
+        if (r.mod !== null) { ps[r.sub].mod.push(r.mod); }
+      });
+      var cants = Object.keys(pc).map(function (k) {
+        return {cant: k, sub: pc[k].sub, campo: media(pc[k].p), n: pc[k].p.length,
+                luz: pc[k].luz, mod: pc[k].mod};
+      });
+      var subs = Object.keys(ps).sort().map(function (k) {
+        return {sub: k, n: Object.keys(ps[k].cant).length, nPl: ps[k].p.length,
+                campo: media(ps[k].p), dp: dp(ps[k].p),
+                luz: ps[k].luz.length ? media(ps[k].luz) : null,
+                mod: ps[k].mod.length ? media(ps[k].mod) : null};
+      });
+
+      // referencia = o subsistema de MAIS luz (sem luz, o primeiro rotulo)
+      var comLuz = subs.filter(function (s) { return s.luz !== null; });
+      var ref = comLuz.length
+        ? comLuz.reduce(function (a, b) { return b.luz > a.luz ? b : a; })
+        : subs[0];
+      subs.forEach(function (s) {
+        s.rel = ref.campo > 0 ? s.campo / ref.campo : NaN;
+        s.relMod = (s.mod !== null && ref.mod) ? s.mod / ref.mod : NaN;
+        s.ehRef = s.sub === ref.sub;
+      });
+
+      // piso de ruido: subsistemas que recebem a MESMA luz (+-5 %) sao replicas,
+      // entao o espalhamento entre eles e ruido do experimento, nao tratamento
+      var ruido = null;
+      if (comLuz.length > 2) {
+        var lmin = Math.min.apply(null, comLuz.map(function (s) { return s.luz; }));
+        var iguais = comLuz.filter(function (s) { return s.luz <= lmin * 1.05; });
+        if (iguais.length > 2) {
+          var mm = iguais.map(function (s) { return s.campo; });
+          ruido = {n: iguais.length, cv: dp(mm) / media(mm),
+                   amp: Math.max.apply(null, mm) / Math.min.apply(null, mm),
+                   subs: iguais.map(function (s) { return s.sub; })};
+        }
+      }
+
+      var cl = cants.filter(function (c) { return c.luz !== null; });
+      var cm = cants.filter(function (c) { return c.mod !== null; });
+      var todosMod = g.filter(function (r) { return r.mod !== null; });
+      return {
+        ciclo: ci, nPlantas: g.length, nCanteiros: cants.length,
+        media: media(pesos), mediana: mediana(pesos),
+        cv: dp(pesos) / media(pesos),
+        dentro: Math.sqrt(media(cants.filter(function (c) { return c.n > 1; })
+          .map(function (c) { var d = dp(pc[c.cant].p); return d * d; }).concat([0]))),
+        entre: dp(cants.map(function (c) { return c.campo; })),
+        subs: subs, ref: ref.sub, ruido: ruido,
+        rLuz: cl.length ? pearson(cl.map(function (c) { return c.luz; }),
+                                  cl.map(function (c) { return c.campo; })) : null,
+        rMod: cm.length ? pearson(cm.map(function (c) { return c.mod; }),
+                                  cm.map(function (c) { return c.campo; })) : null,
+        vies: todosMod.length ? media(todosMod.map(function (r) { return r.mod; })) /
+                                media(pesos) : null
+      };
+    });
+  }
+
+  // =========================================================================
+  // RENDER
+  // =========================================================================
+  var A = null, fonte = "";
+  function n1(v, d) {
+    if (v === null || v === undefined || !isFinite(v)) { return "—"; }
+    return v.toFixed(d === undefined ? 1 : d).replace(".", ",");
+  }
+  function pct(v, d) {
+    if (v === null || !isFinite(v)) { return "—"; }
+    return (100 * v).toFixed(d === undefined ? 0 : d).replace(".", ",") + "%";
+  }
+  function rTxt(o) {
+    if (!o || !isFinite(o.r)) { return "—"; }
+    var s = (o.r >= 0 ? "+" : "") + o.r.toFixed(3).replace(".", ",");
+    var cl = o.p < 0.05 ? (o.r > 0 ? "up" : "dn") : "dim";
+    var p = o.p < 0.001 ? "p&lt;0,001" : "p=" + o.p.toFixed(3).replace(".", ",");
+    return '<span class="' + cl + '">' + s + '</span> <span class="dim">(' + p +
+           ", n=" + o.n + ")</span>";
+  }
+
+  function tabelaGeral() {
+    var temMod = A.some(function (c) { return c.vies !== null; });
+    var h = '<div class="tabc"><table class="colh"><thead><tr>' +
+      "<th>ciclo</th><th>plantas</th><th>canteiros</th>" +
+      '<th>massa média<br><span class="dim">g/cabeça</span></th>' +
+      '<th>mediana<br><span class="dim">g</span></th>' +
+      '<th>CV entre<br>plantas</th>' +
+      '<th>ruído entre<br>réplicas</th>' +
+      '<th>massa × luz<br><span class="dim">correlação</span></th>';
+    if (temMod) {
+      h += '<th>modelo<br><span class="dim">g/cabeça</span></th>' +
+           "<th>viés<br>modelo/campo</th>" +
+           '<th>modelo × campo<br><span class="dim">correlação</span></th>';
+    }
+    h += "</tr></thead><tbody>";
+    A.forEach(function (c) {
+      h += "<tr><th>" + c.ciclo + "</th>" +
+        '<td class="mono">' + c.nPlantas + "</td>" +
+        '<td class="mono">' + c.nCanteiros + "</td>" +
+        '<td class="mono">' + n1(c.media) + "</td>" +
+        '<td class="mono dim">' + n1(c.mediana) + "</td>" +
+        '<td class="mono">' + pct(c.cv) + "</td>" +
+        '<td class="mono">' + (c.ruido ? pct(c.ruido.cv) : "—") + "</td>" +
+        '<td class="mono">' + rTxt(c.rLuz) + "</td>";
+      if (temMod) {
+        h += '<td class="mono dim">' + (c.vies ? n1(c.media * c.vies) : "—") + "</td>" +
+          '<td class="mono">' + (c.vies ? n1(c.vies, 1).replace(",", ",") + "×" : "—") + "</td>" +
+          '<td class="mono">' + rTxt(c.rMod) + "</td>";
+      }
+      h += "</tr>";
+    });
+    return h + "</tbody></table></div>";
+  }
+
+  function tabelaDetalhe(c) {
+    var temMod = c.subs.some(function (s) { return s.mod !== null; });
+    var h = '<div class="kpic">' +
+      '<div><div class="n">' + n1(c.media) + " g</div><div class=\"l\">massa média<br>" +
+        c.nPlantas + " plantas</div></div>" +
+      '<div><div class="n">' + pct(c.cv) + '</div><div class="l">CV entre plantas<br>' +
+        "dentro " + n1(c.dentro) + " g · entre " + n1(c.entre) + " g</div></div>" +
+      '<div><div class="n">' + (c.ruido ? pct(c.ruido.cv) : "—") +
+        '</div><div class="l">ruído entre réplicas<br>' +
+        (c.ruido ? "subs " + c.ruido.subs.join(", ") + " · " + n1(c.ruido.amp, 2) + "×"
+                 : "sem réplicas de luz igual") + "</div></div>" +
+      '<div><div class="n">' + rTxt(c.rLuz) + '</div><div class="l">massa × luz<br>' +
+        "por canteiro</div></div>";
+    if (c.vies !== null) {
+      h += '<div><div class="n">' + n1(c.vies, 1) + "×</div><div class=\"l\">viés do modelo<br>" +
+        "previsto ÷ medido</div></div>";
+    }
+    h += "</div>";
+
+    h += '<div class="tabc"><table class="colh"><thead><tr>' +
+      "<th>subsistema</th><th>canteiros</th>" +
+      '<th>luz<br><span class="dim">kWh/m² no ciclo</span></th>' +
+      '<th>massa medida<br><span class="dim">g/cabeça</span></th>' +
+      "<th>desvio</th><th>% da referência</th>";
+    if (temMod) { h += "<th>modelo<br><span class=\"dim\">g/cabeça</span></th>" +
+                       "<th>% da referência<br><span class=\"dim\">no modelo</span></th>" +
+                       "<th>erro</th>"; }
+    h += "</tr></thead><tbody>";
+    c.subs.forEach(function (s) {
+      var err = (isFinite(s.rel) && isFinite(s.relMod)) ? 100 * (s.relMod - s.rel) : NaN;
+      h += '<tr' + (s.ehRef ? ' class="ref"' : "") + "><th>" + s.sub +
+        (s.ehRef ? ' <span class="dim">(referência)</span>' : "") + "</th>" +
+        '<td class="mono dim">' + s.n + "</td>" +
+        '<td class="mono">' + n1(s.luz) + "</td>" +
+        '<td class="mono">' + n1(s.campo) + "</td>" +
+        '<td class="mono dim">± ' + n1(s.dp) + "</td>" +
+        '<td class="mono">' + pct(s.rel) + "</td>";
+      if (temMod) {
+        h += '<td class="mono dim">' + n1(s.mod) + "</td>" +
+          '<td class="mono">' + pct(s.relMod) + "</td>" +
+          '<td class="mono ' + (isFinite(err) && Math.abs(err) > 15 ? "dn" : "dim") + '">' +
+          (isFinite(err) ? (err >= 0 ? "+" : "") + err.toFixed(0) + " pp" : "—") + "</td>";
+      }
+      h += "</tr>";
+    });
+    h += "</tbody></table></div>";
+
+    var av = [];
+    if (c.ruido && c.ruido.cv > 0.12) {
+      av.push("<b>Cuidado com diferenças pequenas.</b> Os subsistemas " +
+        c.ruido.subs.join(", ") + " recebem a mesma luz e mesmo assim diferem em " +
+        n1(c.ruido.amp, 2) + "× (CV " + pct(c.ruido.cv) + "). Abaixo disso, " +
+        "tratamento e ruído não se distinguem.");
+    }
+    if (c.vies !== null && (c.vies > 1.5 || c.vies < 0.67)) {
+      av.push("<b>O nível absoluto não fecha.</b> O modelo prevê " + n1(c.vies, 1) +
+        "× o medido. Leia as razões e a ordenação, não a magnitude.");
+    }
+    if (c.rLuz && isFinite(c.rLuz.r) && c.rLuz.r < -0.2 && c.rLuz.p < 0.05) {
+      av.push("<b>Mais luz deu menos massa</b>, com significância (" +
+        rTxt(c.rLuz).replace(/<[^>]+>/g, "") + "). É a inversão que a sombra provoca " +
+        "quando calor e saturação passam a mandar.");
+    }
+    av.forEach(function (t) { h += '<div class="aviso-c">' + t + "</div>"; });
+    return h;
+  }
+
+  function pinta() {
+    var sel = document.getElementById("cselect");
+    var alvo = sel ? sel.value : (A[0] || {}).ciclo;
+    var c = A.filter(function (x) { return x.ciclo === alvo; })[0] || A[0];
+    document.getElementById("cgeral").innerHTML =
+      (nota ? '<div class="aviso-c">' + nota + "</div>" : "") + tabelaGeral();
+    document.getElementById("cdet").innerHTML = c ? tabelaDetalhe(c) : "";
+    document.getElementById("cfonte").textContent = fonte;
+  }
+
+  function usar(linhas, nome) {
+    A = analisar(compor(linhas));
+    if (!A.length) { throw new Error("Nenhum ciclo encontrado."); }
+    fonte = nome + " · " + linhas.length + " plantas · " + A.length + " ciclos";
+    var sel = document.getElementById("cselect");
+    sel.innerHTML = A.map(function (c) {
+      return '<option value="' + c.ciclo.replace(/"/g, "&quot;") + '">' + c.ciclo + "</option>";
+    }).join("");
+    pinta();
+    document.getElementById("imperro").textContent = "";
+  }
+
+  function ligar() {
+    var painel = document.getElementById("colheita");
+    if (!painel) { return; }
+    document.getElementById("cselect").addEventListener("change", pinta);
+    var bt = document.getElementById("cimportar"), zona = document.getElementById("impzona");
+    bt.addEventListener("click", function () {
+      var esc = zona.classList.toggle("oculto");
+      bt.setAttribute("aria-pressed", String(!esc));
+    });
+    var inp = document.getElementById("cimparq");
+    function receber(f) {
+      if (!f) { return; }
+      var xls = /\.(xlsx|xlsm|xls)$/i.test(f.name);
+      var pr = xls ? f.arrayBuffer().then(function (b) { return lerXLSX(new Uint8Array(b)); })
+                   : f.text().then(lerCSVc);
+      pr.then(function (L) { usar(L, f.name); })
+        .catch(function (e) {
+          document.getElementById("imperro").textContent = "Não deu para ler: " + e.message;
+        });
+    }
+    zona.addEventListener("click", function (ev) { if (ev.target !== inp) { inp.click(); } });
+    inp.addEventListener("change", function () { receber(inp.files[0]); });
+    ["dragenter", "dragover"].forEach(function (e) {
+      zona.addEventListener(e, function (ev) { ev.preventDefault(); zona.classList.add("sobre"); });
+    });
+    ["dragleave", "drop"].forEach(function (e) {
+      zona.addEventListener(e, function (ev) { ev.preventDefault(); zona.classList.remove("sobre"); });
+    });
+    zona.addEventListener("drop", function (ev) { receber(ev.dataTransfer.files[0]); });
+
+    if (window.__COLHEITA__ && window.__COLHEITA__.linhas) {
+      try { usar(window.__COLHEITA__.linhas, window.__COLHEITA__.fonte || "dados embutidos"); }
+      catch (e) { document.getElementById("imperro").textContent = String(e.message || e); }
+    } else {
+      painel.querySelector(".pc").insertBefore(
+        Object.assign(document.createElement("p"), {
+          className: "cnota",
+          textContent: "Sem dados embutidos — importe um arquivo para começar."
+        }), painel.querySelector("#cgeral"));
+      zona.classList.remove("oculto");
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", ligar);
+  } else { ligar(); }
+})();</script>

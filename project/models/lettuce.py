@@ -1,18 +1,22 @@
 """Van Henten-style lettuce growth model.
 
 This keeps the implementation compatible with scipy.integrate.solve_ivp.
+Literature context is registered as VAN-001; the default parameters and
+initial state have not been reconciled coefficient-by-coefficient.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import numpy as np
 import pandas as pd
 
 
 MODEL_TEMPERATURE_RANGE_C = (5.0, 40.0)
+DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2 = 8.0
+DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2 = 3.0
 
 
 def _clamp_model_temperature(u_t: float) -> float:
@@ -131,8 +135,8 @@ def simulate_growth_timeseries(
     par_wm2,
     temp_air_c,
     co2_ppm=420.0,
-    x_sdw0=8.0,
-    x_nsdw0=3.0,
+    x_sdw0=DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
+    x_nsdw0=DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
     par_to_ppfd_factor: float = 4.57,
     params: LettuceParams | None = None,
 ):

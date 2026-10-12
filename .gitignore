@@ -7,3 +7,11 @@ public-site/
 field-data.local.js
 project/data/raw/Period_Results.xlsx
 /Period_Components.csv
+/public/data/period-results-2026.js
+/standalone/lettuce-pv-model-report.html
+/standalone/lettuce-pv-summary-report.html
+/standalone/our_simulations_timeline.html
+/standalone/our_simulations_timeline.json
+/agrivoltaic_crop_irradiance.png
+/agrivoltaic_power.png
+/lettuce_growth.png

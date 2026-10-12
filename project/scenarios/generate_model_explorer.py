@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
+import logging
 import math
 from pathlib import Path
 
@@ -12,11 +14,22 @@ import pandas as pd
 from project.config import make_site_location
 from project.io.service import process_period_results_export
 from project.io.ingestion import load_period_results_export
+from project.scenarios.artifact_metadata import build_artifact_metadata
 from project.scenarios.crop_cycles import simulate_repeated_crops
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
 DEFAULT_OUTPUT = ROOT / "standalone" / "lettuce-pv-model-report.html"
+SYNTHETIC_INPUTS_NOTICE = (
+    "SYNTHETIC INPUTS USED HERE — The Period Components export does not provide "
+    "channel units/locations or air temperature. Channel groups below are "
+    "unverified scenario assignments and irradiance is interpreted as W/m². "
+    "Temperature-dependent pipeline outputs use the configured fallback when "
+    "air temperature is absent; crop-cycle dates and fresh-mass equivalents "
+    "use a synthetic seasonal temperature curve and an assumed 5% dry-matter "
+    "fraction. These are scenario outputs, not observed harvests or independent "
+    "field validation."
+)
 
 
 def finite_values(values: pd.Series) -> list[float | None]:
@@ -41,26 +54,42 @@ def build_report(input_path: Path, output_path: Path) -> None:
     for setup, cycle in cycle_frames.items():
         hourly[f"fresh_{setup}_g_m2"] = cycle["cycle_model_fresh_biomass_g_m2"]
         hourly[f"harvest_{setup}"] = cycle["harvest"]
+    temperature_source = str(results["model_air_temp_source"].iloc[0])
+    temperature_value = float(results["model_air_temp_c"].iloc[0])
+    artifact_metadata = build_artifact_metadata()
+    synthetic_notice = (
+        f"{SYNTHETIC_INPUTS_NOTICE} In this run the pipeline temperature "
+        f"input was {temperature_source} ({temperature_value:.1f}°C). "
+        f"Generated from commit {artifact_metadata['source_commit']}; working "
+        f"tree dirty: {str(artifact_metadata['working_tree_dirty']).lower()}."
+    )
     model_data = {
         "timestamps": [timestamp.isoformat() for timestamp in hourly.index],
         "series": {
-            "light_open": {"label": "open reference light (0A-0E)", "unit": "W/m2", "color": "#d48300", "values": finite_values(hourly["light_open_w_m2"])},
-            "light_between": {"label": "between trackers light (2B)", "unit": "W/m2", "color": "#2f82b9", "values": finite_values(hourly["light_between_w_m2"])},
-            "light_under": {"label": "under tracker light (2A/2C)", "unit": "W/m2", "color": "#a33c70", "values": finite_values(hourly["light_under_w_m2"])},
+            "light_open": {"label": "scenario light (0A-0E; unverified group)", "unit": "assumed W/m2", "color": "#d48300", "values": finite_values(hourly["light_open_w_m2"])},
+            "light_between": {"label": "scenario light (2B; unverified group)", "unit": "assumed W/m2", "color": "#2f82b9", "values": finite_values(hourly["light_between_w_m2"])},
+            "light_under": {"label": "scenario light (2A/2C; unverified group)", "unit": "assumed W/m2", "color": "#a33c70", "values": finite_values(hourly["light_under_w_m2"])},
             "pv": {"label": "PV power", "unit": "kW", "color": "#2f82b9", "values": finite_values(hourly["pv_power_w"] / 1000.0)},
-            "fresh_open": {"label": "fresh biomass, open reference (0A-0E)", "unit": "g/m2", "color": "#d48300", "values": finite_values(hourly["fresh_open_g_m2"])},
-            "fresh_between": {"label": "fresh biomass, between trackers (2B)", "unit": "g/m2", "color": "#2f82b9", "values": finite_values(hourly["fresh_between_g_m2"])},
-            "fresh_under": {"label": "fresh biomass, under tracker (2A/2C)", "unit": "g/m2", "color": "#a33c70", "values": finite_values(hourly["fresh_under_g_m2"])},
-            "tracker": {"label": "observed tracker angle", "unit": "degrees", "color": "#4d8b61", "values": finite_values(hourly["observed_tracker_angle_deg"])},
+            "fresh_open": {"label": "modeled fresh-mass equivalent (0A-0E scenario)", "unit": "g/m2", "color": "#d48300", "values": finite_values(hourly["fresh_open_g_m2"])},
+            "fresh_between": {"label": "modeled fresh-mass equivalent (2B scenario)", "unit": "g/m2", "color": "#2f82b9", "values": finite_values(hourly["fresh_between_g_m2"])},
+            "fresh_under": {"label": "modeled fresh-mass equivalent (2A/2C scenario)", "unit": "g/m2", "color": "#a33c70", "values": finite_values(hourly["fresh_under_g_m2"])},
+            "tracker": {"label": "export tracker angle (convention undocumented)", "unit": "degrees", "color": "#4d8b61", "values": finite_values(hourly["observed_tracker_angle_deg"])},
         },
         "cycle_count": int(cycle_frames["open"]["cycle_id"].max()),
         "harvest_mode": "thermal GDD",
         "harvest_indices": [index for index, is_harvest in enumerate(hourly["harvest_open"]) if is_harvest],
+        "synthetic_inputs_notice": synthetic_notice,
+        "air_temperature_source": temperature_source,
+        "air_temperature_value_c": temperature_value,
+        **artifact_metadata,
     }
-    report = TEMPLATE.replace("__DATA__", json.dumps(model_data, separators=(",", ":")))
+    report = (
+        TEMPLATE.replace("__DATA__", json.dumps(model_data, separators=(",", ":")))
+        .replace("__NOTICE__", html.escape(synthetic_notice))
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(report, encoding="utf-8")
-    print(f"Wrote {output_path}")
+    logging.info("Wrote %s", output_path)
 
 
 TEMPLATE = r'''<!doctype html>
@@ -76,9 +105,10 @@ TEMPLATE = r'''<!doctype html>
 <body><main>
 <div class="eyebrow">Model explorer · Florianópolis (-27.60, -48.50)</div>
 <h1>A year, hour by hour</h1>
-<p class="intro">The lettuce and PV model across the available 2026 field period. Explore crop light, PV output, tracker angle, and living biomass at every hour. Crop growth uses the original seasonal Florianópolis canopy-temperature curve and resets at each harvest.</p>
+<p class="intro">Explore illustrative model output from the 2026 irradiance export. Crop groups, temperature inputs, and harvest timing are scenario assumptions, not field observations.</p>
+<aside class="synthetic-notice" role="note" style="border:2px solid #a33c70;border-left-width:8px;border-radius:8px;background:#fff;padding:14px 18px;margin:18px 0;color:#252720;font:14px/1.5 Arial,sans-serif"><strong>Scenario assumptions — not field validation</strong><br>__NOTICE__</aside>
 <div class="stats"><span><b id="hours">0</b> hours</span><span><b id="cycles">0</b> crop cycles</span><span><b>8</b> comparison series</span><span>harvest by <b>thermal GDD</b></span><span>source <b>Period Components</b></span></div>
-<section class="card"><div class="card-head"><span class="label">The whole period</span><div class="chips"><button class="chip gold">0A-0E open</button><button class="chip blue">2B between trackers</button><button class="chip pink">2A/2C under trackers</button></div></div><div class="overview-wrap"><canvas id="overview"></canvas></div><div class="hint">Orange is the open reference, blue is the space between tracker rows, and pink is under the trackers. Each crop starts at zero fresh biomass and is harvested when its thermal GDD clock is ready.</div></section>
+<section class="card"><div class="card-head"><span class="label">The whole period</span><div class="chips"><button class="chip gold">0A-0E assumed open</button><button class="chip blue">2B assumed between</button><button class="chip pink">2A/2C assumed under</button></div></div><div class="overview-wrap"><canvas id="overview"></canvas></div><div class="hint">Colors show scenario groupings only: 0A-0E is assumed open, 2B between tracker rows, and 2A/2C under trackers; channel placements are unverified. Each crop starts at zero fresh biomass and is harvested when its thermal GDD clock is ready.</div></section>
 <section class="card"><div class="controls"><div class="control-row"><span class="label">Window</span><button class="choice" data-span="24">1 day</button><button class="choice" data-span="72">3 days</button><button class="choice active" data-span="336">2 weeks</button><button class="choice" data-span="1460">2 months</button><button class="choice" data-span="all">year</button><span class="label" style="margin-left:12px">go to</span><button class="choice" data-month="0">Jan</button><button class="choice" data-month="3">Apr</button><button class="choice" data-month="6">Jul</button><button class="choice" data-month="9">Oct</button></div><div class="check-grid" id="series-controls"></div></div></section>
 <section class="card timeline"><div class="card-head"><span class="label">Detailed model state</span><span id="range-label" style="color:var(--muted)"></span></div><div class="timeline-wrap"><canvas id="timeline"></canvas><div id="cursor-line"></div><div id="cursor-readout"></div></div><div class="footnote">Move the mouse over any graph to see all values at that exact time. Grey bands are night. Scroll over the graph to zoom; drag horizontally to move through time.</div></section>
 </main>
@@ -103,6 +133,7 @@ function draw(){return drawGrouped()}
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)

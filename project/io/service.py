@@ -118,8 +118,9 @@ def process_period_results_export(
     """Run model recommendations on real Period_Results irradiance only.
 
     Outputs retain measured tracker angles in a separate column and are marked
-    ``observed_field_data``. No unidentified ``0A``--``5F`` channel is treated
-    as crop climate, temperature, or PAR until its installation metadata exists.
+    ``observed_field_data``. Unidentified ``0A``--``5F`` channels are not used
+    as pipeline inputs; the report may show selected channels only as explicitly
+    assumption-based comparisons, not as confirmed PAR measurements.
     """
     weather, observed_tracker, inventory = period_results_weather(source)
     results, daily = run_timeseries_pipeline(weather, location, **pipeline_options)

@@ -3,7 +3,14 @@ import math
 import pandas as pd
 
 from project.control.optimizer import optimize_tilt_schedule
-from project.models.conversions import dli_from_ghi, dli_from_timeseries, ghi_to_par, par_to_ppfd
+from project.models.conversions import (
+    dli_from_ghi,
+    dli_from_timeseries,
+    energy_from_power_timeseries_kwh,
+    ghi_to_par,
+    par_to_ppfd,
+)
+from project.models.radiation import pvwatts_power
 
 
 def test_ghi_to_par_uses_expected_par_fraction():
@@ -29,7 +36,45 @@ def test_dli_from_timeseries_integrates_actual_intervals():
     assert math.isclose(value, 3.6, rel_tol=1e-9)
 
 
-def test_optimize_tilt_schedule_prefers_more_crop_light_when_every_candidate_exceeds_target():
+def test_daily_integrators_skip_intervals_with_missing_samples():
+    times = pd.date_range("2026-01-01", periods=4, freq="1h", tz="America/Sao_Paulo")
+    ppfd = pd.Series([100.0, 100.0, float("nan"), 100.0], index=times)
+    power = pd.Series([1000.0, 1000.0, float("nan"), 1000.0], index=times)
+
+    assert math.isclose(dli_from_timeseries(ppfd).iloc[0], 0.36, rel_tol=1e-9)
+    assert math.isclose(
+        energy_from_power_timeseries_kwh(power).iloc[0], 1.0, rel_tol=1e-9
+    )
+
+
+def test_pvwatts_power_applies_system_losses_and_inverter_efficiency():
+    times = pd.date_range("2026-01-01 12:00", periods=1, tz="UTC")
+    poa = pd.Series([1000.0], index=times)
+    temperature = pd.Series([25.0], index=times)
+
+    ideal = pvwatts_power(
+        poa,
+        temperature,
+        pdc0_w=1000.0,
+        gamma_pdc=0.0,
+        system_losses_percent=0.0,
+        inverter_efficiency=1.0,
+        module_temp_c=temperature,
+    )
+    derated = pvwatts_power(
+        poa,
+        temperature,
+        pdc0_w=1000.0,
+        gamma_pdc=0.0,
+        system_losses_percent=14.075660688264469,
+        inverter_efficiency=0.96,
+        module_temp_c=temperature,
+    )
+
+    assert 0.0 < derated.iloc[0] < ideal.iloc[0]
+
+
+def test_optimize_tilt_schedule_penalizes_crop_light_above_target_band():
     index = pd.date_range("2026-01-01 09:00:00", periods=3, freq="15min", tz="America/Sao_Paulo")
     candidates = {
         0.0: pd.DataFrame({"crop_ppfd_umol_m2_s": [500.0, 500.0, 500.0], "pv_power_w": [100.0, 100.0, 100.0]}, index=index),
@@ -47,7 +92,7 @@ def test_optimize_tilt_schedule_prefers_more_crop_light_when_every_candidate_exc
         movement_weight=0.0,
     )
 
-    assert schedule["tilt_deg"].tolist() == [55.0, 55.0, 55.0]
+    assert schedule["tilt_deg"].tolist() == [0.0, 0.0, 0.0]
 
 
 def test_optimize_tilt_schedule_uses_light_deficit_when_target_is_unreachable():

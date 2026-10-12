@@ -1,15 +1,16 @@
 # AgriPV Digital Twin
 
-An open, physically grounded model of an agrivoltaic lettuce-and-solar system
-at the Fotovoltaica / UFSC pilot in Florianópolis, Brazil. This guide is the
-starting point for researchers, students, and developers who are new to the
-project.
+A research-oriented model of an agrivoltaic lettuce-and-solar system at the
+Fotovoltaica / UFSC pilot in Florianópolis, Brazil. This guide is the starting
+point for researchers, students, and developers who are new to the project.
 
-The current reference plant is the **8 kWp subsystem 2A–2B–2C**: PV modules
-cover beds 2A and 2C, with bed 2B between them. The software combines solar
-and tracker geometry, crop-level light, PV output, and lettuce growth. It can
-also turn weather data into *recommended* tracker positions. It does **not**
-send commands to physical tracker hardware.
+The project describes its reference configuration as an **8 kWp subsystem
+2A–2B–2C**: PV modules cover beds 2A and 2C, with bed 2B between them. The
+model's use of `pdc0_w = 8000` for that whole subsystem versus one tracker row
+is unverified, so PV energy is conditional on that scope. The software
+combines solar and tracker geometry, crop-level light, PV output, and lettuce
+growth. It can also turn weather data into *recommended* tracker positions.
+It does **not** send commands to physical tracker hardware.
 
 The installed tracker modules move between **−55° and +55°**. That mechanical
 limit is applied to modeled tracker positions and absolute manual-command
@@ -35,9 +36,10 @@ The sample command prints sensor-quality reports, daily model results, and the
 number of recommendations collected by a **dry-run** command sink. It does not
 connect to a tracker, network service, or logger.
 
-To explore without running Python, open [`agripv_dashboard.html`](./agripv_dashboard.html)
-in a browser. To understand how the Python components fit together, start with
-the [project map](#project-map), then follow one of the [data paths](#how-data-moves-through-the-model).
+To build and explore the browser dashboard, run `sh scripts/build-pages.sh`
+and open `public-site/index.html` in a browser. To understand how the Python
+components fit together, start with the [project map](#project-map), then
+follow one of the [data paths](#how-data-moves-through-the-model).
 
 ## What the model does
 
@@ -118,6 +120,8 @@ assigned physical sensor roles by the ingestion layer without supporting
 metadata. A specialized timeline-export scenario groups selected channels
 for a comparison; treat those labels and the resulting crop comparisons as
 scenario assumptions, not as universally established sensor mappings.
+See the [raw-data dictionary](./project/data/raw/README.md) for documented
+gaps in instrument identity, units, averaging, and tracker-angle convention.
 
 ## The science, in plain language
 
@@ -125,13 +129,14 @@ scenario assumptions, not as universally established sensor mappings.
 
 [`project/models/radiation.py`](./project/models/radiation.py) wraps `pvlib`
 for solar position, single-axis tracker geometry and backtracking, irradiance
-on the ground and modules, and DC power. The ground-light calculation uses
+on the ground and modules, and AC power after the configured PVWatts losses
+and inverter model. The ground-light calculation uses
 the infinite-sheds geometry; the panel calculation uses a bifacial model.
 Measured module temperature can be used directly for PV power. Otherwise,
 cell temperature is estimated with the Faiman model using air temperature
 and wind speed when available.
 
-### Light units and daily light integral
+### Units and geometry glossary
 
 [`project/models/conversions.py`](./project/models/conversions.py) keeps
 commonly confused light quantities explicit:
@@ -143,15 +148,18 @@ commonly confused light quantities explicit:
 | PPFD | Instantaneous photosynthetic photon flux | µmol photons/m²/s |
 | DLI | PPFD accumulated over a day | mol photons/m²/day |
 
-The conversion uses a PAR fraction of **0.45** and an approximate conversion
-of **4.57 µmol/m²/s per W/m² of PAR**. DLI from a time series integrates the
-actual elapsed time between samples rather than assuming a fixed number of
-samples per day. Missing PPFD samples are treated as zero by that integration;
-this can undercount DLI on days with missing daytime data. The pipeline's
-`input_data_complete_fraction` is the fraction of input GHI samples present
-before resampling and interpolation. It does not measure PPFD completeness or
-the completeness of every weather variable, so use it as a GHI availability
-indicator rather than a general validation score.
+The pipeline assumes a PAR fraction of **0.45** and an approximate conversion
+of **4.57 µmol/m²/s per W/m² of PAR**; these are scenario conversions, not
+site-specific sensor calibration. DLI and PV energy are trapezoidally
+integrated across adjacent finite samples; missing intervals are not filled
+with zero, and daily metrics are withheld below 80% pre-interpolation daylight
+coverage. See the [references and methods register](./references/README.md)
+for the conversion assumptions and a worked biomass-units example.
+
+**Tracker angles:** an *offset* is relative to the sun-following baseline. An
+*absolute tracker angle* is the mechanical rotation. Wind stow uses an absolute
+angle; the configured value is an unverified scenario pending manufacturer
+confirmation.
 
 ### Lettuce growth and development
 
@@ -171,86 +179,53 @@ harvest date is not a measured crop yield. Calibration and field validation
 need appropriate biomass and sensor observations; when those are missing, the
 validation code reports that explicitly instead of fabricating a fit.
 
-### Field bed geometry and biomass units
+### Bed geometry and biomass units
 
-The project’s bed dimensions are **7.5 m × 1.5 m**, as supplied by the
-project user; the retained field-layout diagram shows the **24-row × 4-column**
-planting grid, or **96 plants per bed**. The resulting geometric area is
-**11.25 m² per bed**, and the implied density is **96 / 11.25 = 8.53
-plants/m²**. These values are held in [`project/config/site.yaml`](./project/config/site.yaml)
-under `cultivation`. The configurable net planted-area fraction defaults to
-`1.0`, which assumes the full footprint is planted.
-
-The lettuce model reports **modeled dry biomass per ground area** in g/m².
-For net planted area `A_net = 11.25 × net_planted_area_fraction` m², the
-following conversions are arithmetic scaling only; they do not mean that all
-modeled biomass is edible or harvestable. For a reported value `B`:
-
-| Quantity | Conversion for this field layout |
-| --- | --- |
-| Total modeled dry biomass per bed | `B × A_net` g/bed |
-| Total modeled dry biomass per plant (area-average equivalent) | `B × A_net / 96` g/plant |
-| New dry biomass since the model's 11 g/m² initial state | `max(B − 11, 0)` g/m² |
-| Estimated fresh mass per bed | `max(B − 11, 0) × A_net / f` g/bed |
-| Estimated fresh mass per plant | `max(B − 11, 0) × A_net / (96 × f)` g/plant |
-
-Here `f` is the dry-matter fraction of fresh mass. The dashboard's default
-`f = 0.05` (5%) is an **assumption**, not a measured site value. The
-conversion additionally assumes **all modeled dry-biomass gain is harvestable
-fresh crop**, with no losses or unmarketable fraction. The initial 11 g/m² is
-the model's starting state, not new harvest growth, and is excluded from this
-illustrative conversion. For example, **3,000 g/m²** total dry biomass corresponds to
-**33,750 g/bed** and **351.6 g/plant** as area-average total dry biomass. Its
-net growth above the initial state is **2,989 g/m²**; at the assumed 5% dry
-matter this implies **672.5 kg/bed** fresh-mass equivalent. That large value
-is a mathematical unit conversion, **not a predicted or validated lettuce
-yield**. It illustrates the sensitivity to the 5% dry-matter and 100%
-harvestability assumptions (about **7.0 kg/plant** under the same assumptions).
-The model does not predict individual-plant variation or marketable-head
-fraction and has not been calibrated against these site harvest weights.
-
-The dashboard's net-planted-area control scales bed and system totals and
-derives the reference density as `96 / A_net`; it does not change modeled
-biomass per m² or the 96-plant count. Its plant-density control is a separate
-**what-if conversion** for the per-plant estimate in the growth-cycle readout.
-The economics area control remains a user-selected scenario area, not an
-assertion about the physical reference-bed size.
-
-The Python configuration exposes `cultivation.net_planted_area_fraction` as
-derived net planted area and plant density. The standalone browser dashboard
-does not load the YAML; its net-area control starts at the mirrored default
-`1.0` and can be adjusted independently. If the configured default changes,
-update the dashboard's mirrored cultivation default as well. Neither value is
-a field measurement until net planted area is measured on site.
-The PDF source and the project’s evidence/methods register are in
-[`references/`](./references/README.md).
+The internal layout drawing supports 7.5 m × 1.5 m beds and a 24 × 4 planting
+grid. The resulting 11.25 m² and 96 plants are layout-derived, not net planted
+area or yield measurements. The initial modeled biomass state (11 g/m²), 5%
+fresh-mass dry-matter fraction, and all-harvestable assumption are scenario
+values. Conversion equations and a worked example are in the
+[references and methods register](./references/README.md).
 
 ### Tracker recommendations
 
 [`project/scenarios/run_timeseries.py`](./project/scenarios/run_timeseries.py)
 evaluates a set of offsets from the sun-following tracker position. At each
-time step, it scores candidates using a light-deficit-first objective plus PV
-and movement penalties:
+time step, it uses accumulated daily DLI and remaining daylight to compute a
+target-to-maximum PPFD band, then scores candidates for deficit below that band
+or excess above it, plus PV and movement penalties:
 
 ```text
 light score:
-  below target: target PPFD − crop PPFD
-  at or above target: −crop PPFD / target PPFD
-  at night (zero target): −crop PPFD
+  below the remaining-light target: target PPFD − crop PPFD
+  above the remaining-light ceiling: crop PPFD − ceiling PPFD
+  inside the band: 0
 + PV-power loss penalty (relative to the best candidate at that time)
 + movement penalty
 ```
 
-The instantaneous light target is derived separately for each date by dividing
-the configured DLI target by the daylight duration represented in that date's
-samples, using apparent solar zenith below 90° to identify daylight. It is set
-to zero at night. Below the target, candidates that reduce the deficit score
-better; at or above it, candidates providing more crop PPFD score better. The
-reported daily DLI is integrated from the selected crop PPFD time series; it
-is not the same thing as that instantaneous target. Candidate offsets are
-applied to the signed tracker rotation and limited to the installed ±55°
-travel; module-facing geometry is then recalculated from that rotation. Wind
-stow can replace a selected position with the configured fallback.
+The daily bounds come from the configured DLI target and maximum, updating as
+light accumulates and the day's remaining daylight changes. Candidate offsets
+are evaluated at reachable increments so the per-step movement limit does not
+make every non-zero move impossible. Offsets are applied to signed tracker
+rotation and limited to installed ±55° travel. On wind-stow threshold, the
+controller instead commands the configured **absolute tracker rotation**
+(`wind_stow_tracker_theta_deg`, currently 0°), not an offset from sun-following.
+That park-angle assumption has not been confirmed against a manufacturer
+specification and must be verified before connecting any hardware. The reported
+daily DLI is computed from the selected crop PPFD series; it can exceed the
+maximum where no evaluated tracker position can shade enough light.
+Daily DLI and PV energy use trapezoidal integration over finite adjacent
+samples. The pipeline reports pre-interpolation daylight source coverage and
+suppresses those daily metrics below 80% coverage rather than treating missing
+intervals as zero. `pv_power_w` is now modeled AC output after the generic
+PVWatts V5 loss-factor defaults (14.0757%) and 96% nominal inverter efficiency.
+The `pdc0_w = 8000 W` rating scope (single tracker row versus the full
+2A-2B-2C subsystem) is not documented by the field data, so PV energy remains
+conditional on this unverified system scope. `gamma_pdc = -0.004 °C⁻¹` is a
+generic PVWatts coefficient, not a value from a module datasheet; see
+[`PV-001`](./references/README.md#pv-001--pvwatts-version-5-system-and-inverter-model).
 
 These are model recommendations, not actuator commands. The available
 `DryRunCommandSink` and `JsonlCommandSink` only collect or record messages.
@@ -259,24 +234,24 @@ site-approved interlock in this repository.
 
 ## Project map
 
-| Path | Purpose |
-| --- | --- |
-| `project/models/` | Radiation, unit conversions, and the two lettuce models |
-| `project/control/` | Candidate tracker-angle optimization and safety fallback |
-| `project/io/` | Input parsing, station mapping, orchestration, and telemetry/command outputs |
-| `project/qc/` | Sensor-role definitions, physical limits, rejection, gap handling, and quality reports |
-| `project/validation/` | Radiation validation and lettuce-parameter calibration |
-| `project/scenarios/` | Runnable pipelines and report/export entry points |
-| `project/config/site.yaml` | Site and model settings used by the Python pipeline |
-| `references/` | Field-layout source document, evidence register, and methods/code traceability |
-| `project/data/raw/` | Bundled inputs, including the synthetic station example |
-| `project/data/crop_targets/` | Crop target reference data |
-| `project/tests/` | Regression tests for conversions, ingestion, validation, and GDD development |
-| `agripv_dashboard.html` | Browser-based parameter sandbox |
-| `standalone/` | Generated or self-contained HTML/data visualizations |
-| `public/` | Static-site assets and published data |
-| `scripts/` | Static-site build and public-data export helpers |
-| `Agrivoltaic system modeling.py` | Older, standalone exploration; not the canonical pipeline |
+| Path | Purpose | Representative tests |
+| --- | --- | --- |
+| `project/models/` | Radiation, unit conversions, and the two lettuce models | `test_conversions.py`, `test_validation.py` |
+| `project/control/` | Candidate tracker-angle optimization and safety fallback | `test_optimizer.py` |
+| `project/io/` | Input parsing, station mapping, orchestration, and telemetry/command outputs | `test_field_ingestion.py`, `test_commands.py`, `test_grafana.py` |
+| `project/qc/` | Sensor-role definitions, physical limits, rejection, gap handling, and quality reports | `test_field_ingestion.py` |
+| `project/validation/` | Radiation validation and lettuce-parameter calibration | `test_validation.py`, `test_report_validation.py` |
+| `project/scenarios/` | Runnable pipelines and report/export entry points | `test_benchmark.py`, `test_crop_cycles.py`, `test_timeline_export.py` |
+| `project/config/site.yaml` | Site and model settings used by the Python pipeline | `test_configuration.py` |
+| `references/` | Field-layout source document, evidence register, and methods/code traceability | — |
+| `project/data/raw/` | Bundled inputs, including the synthetic station example | `test_field_ingestion.py`, `test_public_export.py` |
+| `project/data/crop_targets/` | Crop target reference data | `test_lettuce_development.py` |
+| `project/tests/` | Project regression suite | all files under this path |
+| `agripv_dashboard.html` | Browser-based parameter sandbox | manual/browser checks |
+| `standalone/` | Viewer source template; generated reports are release artifacts | `test_timeline_export.py` |
+| `public/` | Static-site source assets; generated data is rebuilt from tracked input | `test_public_export.py` |
+| `scripts/` | Static-site build and public-data export helpers | `test_public_export.py` |
+| `archive/legacy/` | Superseded exploration scripts; not part of the canonical pipeline | — |
 
 The main Python flow is `project.io.service` → `project.scenarios.run_timeseries`
 → `project.models` and `project.control` → daily/telemetry/command outputs.
@@ -322,9 +297,16 @@ PYTHONPATH=. .venv/bin/python project/scenarios/export_model_timeline.py
 ```
 
 This writes `standalone/our_simulations_timeline.json` and
-`standalone/our_simulations_timeline.html`. The timeline is a standalone
-visualization generated from the research export and scenario assumptions;
-it is not the same interface as `agripv_dashboard.html`.
+`standalone/our_simulations_timeline.html` from the tracked
+`standalone/timeline_viewer.html` source template. The generated timeline
+contains an in-report synthetic-inputs warning and is a release artifact, not
+a checked-in source file.
+
+Pushing a version tag matching `v*` runs the
+[`release-artifacts.yml`](./.github/workflows/release-artifacts.yml) workflow.
+It tests the tagged revision, generates the reports and public-data file, and
+attaches them to the GitHub release with the source commit recorded in each
+artifact.
 
 ### Build the static-site copy
 
@@ -332,8 +314,11 @@ it is not the same interface as `agripv_dashboard.html`.
 sh scripts/build-pages.sh
 ```
 
-This copies the dashboard and static assets into the generated `public-site/`
-directory. That directory is build output and is ignored by Git.
+This regenerates public data from the tracked
+`project/data/raw/Period_Components.csv`, then copies the dashboard and static
+assets into `public-site/`. Generated dashboard data and `public-site/` are
+ignored by Git. No ignored workbook is required; see the
+[data dictionary](./project/data/raw/README.md).
 
 ## Configuration
 
@@ -344,9 +329,12 @@ movement/wind-stow settings. The Python pipeline loads those settings through
 into individual scenario scripts.
 
 The same YAML also contains descriptive site/crop fields that are not yet
-inputs to every model (for example, bed labels and some crop thresholds).
-Changing a reference field does not make an unimplemented process part of the
-simulation. Check the call path and tests before treating a setting as active.
+inputs to every model (for example, bed labels, system inventory, and the crop
+temperature thresholds). Comments in the YAML identify declarative-only
+values. The DLI minimum acts as a floor for the controller target; the DLI
+target and ceiling define its light band. Missing air temperature uses the
+explicit, logged `site.fallback_air_temp_c` scenario value, recorded in each
+time-series result with its source.
 
 ## Data quality and limits to keep in mind
 
@@ -356,11 +344,9 @@ simulation. Check the call path and tests before treating a setting as active.
   Rejected values become missing; they are not evidence of what the true value
   was.
 - Interpolation is limited to short internal gaps. Long outages remain missing.
-  Daily output includes `input_data_complete_fraction`, computed from
-  non-missing GHI samples before resampling and interpolation. It does not
-  summarize DHI, DNI, or other weather-variable completeness; remaining missing
-  PPFD contributes zero to integrated DLI and can make incomplete days appear
-  lower.
+  Daily output reports pre-interpolation daylight source coverage; DLI and PV
+  energy are `NaN` below 80% coverage. The measure is based on GHI availability,
+  not every weather variable or a general sensor-quality score.
 - The crop model's dry biomass is modeled state. Any conversion to fresh mass
   or assumptions about crop cycles in a report are additional assumptions and
   should be checked in that report's generator.
@@ -388,3 +374,11 @@ control rule:
 
 For details on the Python contracts and supported input shapes, see
 [`project/README.md`](./project/README.md).
+
+## License and reuse
+
+The project's original software and documentation are released under the
+[MIT License](./LICENSE). Third-party code, data, and other materials retain
+their respective rights and terms; the repository license does not grant
+permission to reuse material the project does not own. In particular, see the
+provenance note for the [archived pvlib gallery adaptation](./archive/README.md).

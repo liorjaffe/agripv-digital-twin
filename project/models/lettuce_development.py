@@ -1,9 +1,9 @@
 """Thermal-time (growing-degree-day) phenology clock for hydroponic curly lettuce.
 
-Source: "Temperatura basal e soma termica da Alface Crespa em sistema
-Hidroponico", Janaina Goncalves da Silva, UFSC, 2022. Default parameters are
-the paper's four-cycle mean basal temperatures and thermal requirements for
-sowing -> final transplant (ST) and final transplant -> harvest (TC).
+Source attribution: `GDD-001` in `references/README.md`. The project notes
+attribute the default parameters to the four-cycle mean basal temperatures
+and thermal requirements in Janaina Goncalves da Silva's 2022 UFSC thesis;
+the original thesis and exact page/table have not been verified.
 
 This module is a development/phenology clock, not a biomass model: it tracks
 which stage the crop is in and how close it is to completing that stage's
