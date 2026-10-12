@@ -1,6 +1,6 @@
 {
-  "name": "AgriPV Control Lab",
-  "short_name": "AgriPV",
+  "name": "AgriV Digital Twin Prototype",
+  "short_name": "AgriV",
   "description": "Interactive agrivoltaic simulation dashboard.",
   "start_url": "./",
   "display": "standalone",
