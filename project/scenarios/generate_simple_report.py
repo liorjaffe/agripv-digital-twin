@@ -16,6 +16,7 @@ import pandas as pd
 
 from project.config import make_site_location
 from project.io.service import process_period_results_export
+from project.validation.validate_radiation import validate_radiation
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -60,16 +61,48 @@ def chart_cards(results: pd.DataFrame, daily: pd.DataFrame) -> str:
 def daily_table(daily: pd.DataFrame) -> str:
     rows = []
     for timestamp, row in daily.iterrows():
+        completion = row.get("input_data_complete_fraction")
+        completion_text = f"{completion * 100:.0f}%" if pd.notna(completion) else "n/a"
         rows.append(
             "<tr>"
             f"<td>{html.escape(timestamp.strftime('%Y-%m-%d'))}</td>"
             f"<td>{row['dli_mol_m2_day']:.2f}</td>"
             f"<td>{row['pv_energy_kwh']:.2f}</td>"
             f"<td>{row['final_dry_biomass']:.2f}</td>"
-            f"<td>{row['input_data_complete_fraction'] * 100:.0f}%</td>"
+            f"<td>{completion_text}</td>"
             "</tr>"
         )
     return "".join(rows)
+
+
+def validation_summary(results: pd.DataFrame) -> str:
+    measured = results.get("measured_ppfd_umol_m2_s")
+    modeled = results.get("crop_ppfd_umol_m2_s")
+    if measured is None or modeled is None:
+        return """
+        <div class="note">Validation is unavailable for this result set because no measured PPFD series is attached to the report.</div>
+        """
+
+    measured_series = pd.to_numeric(measured, errors="coerce").dropna()
+    modeled_series = pd.to_numeric(modeled, errors="coerce").dropna()
+    if measured_series.empty or modeled_series.empty:
+        return """
+        <div class="note">Validation is unavailable because the measured and modeled PPFD series are empty after filtering.</div>
+        """
+
+    validation = validate_radiation(measured_series, modeled_series)
+    if validation["status"] != "ok":
+        return f"""
+        <div class="note">Validation status: {html.escape(validation['status'])} — {html.escape(validation.get('message', 'No details available.'))}</div>
+        """
+
+    return f"""
+    <div class="metrics validation">
+      <div><strong>{validation['mae_ppfd_umol_m2_s']:.2f}</strong><span>MAE PPFD (µmol/m²/s)</span></div>
+      <div><strong>{validation['rmse_ppfd_umol_m2_s']:.2f}</strong><span>RMSE PPFD (µmol/m²/s)</span></div>
+      <div><strong>{validation['daily_dli_error_percent']:.2f}%</strong><span>Mean DLI error</span></div>
+    </div>
+    """
 
 
 def hourly_table(results: pd.DataFrame) -> str:
@@ -110,6 +143,7 @@ def subzone_section(subzone_id: str, results: pd.DataFrame, daily: pd.DataFrame)
         <div><strong>{final_biomass:.2f}</strong><span>Final dry biomass (g/m2)</span></div>
       </div>
     <div class="dashboard-grid">{chart_cards(results, daily)}</div>
+      {validation_summary(results)}
       <h3>Daily results</h3>
       <table>
         <thead><tr><th>Date</th><th>DLI<br>(mol/m2/day)</th><th>PV energy<br>(kWh)</th><th>Dry biomass<br>(g/m2)</th><th>Input complete</th></tr></thead>

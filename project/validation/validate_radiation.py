@@ -19,6 +19,10 @@ def validate_radiation(
     data, the function reports ``no_data`` rather than returning a misleading
     zero error. This keeps the validation entry point usable now and ready for
     the real PAR export when it is provided.
+
+    Indexes are normalized to UTC before comparison so a project using local
+    timezone-aware sensor data can still be validated against model output stored
+    in another timezone-aware representation.
     """
     if measured_ppfd is None or modeled_ppfd is None:
         return {
@@ -32,8 +36,11 @@ def validate_radiation(
     if measured_ppfd.index.tz is None or modeled_ppfd.index.tz is None:
         raise ValueError("measured_ppfd and modeled_ppfd timestamps must be timezone-aware")
 
+    measured = measured_ppfd.copy().sort_index().tz_convert("UTC")
+    modeled = modeled_ppfd.copy().sort_index().tz_convert("UTC")
+
     paired = pd.concat(
-        [measured_ppfd.rename("measured"), modeled_ppfd.rename("modeled")], axis=1, join="inner"
+        [measured.rename("measured"), modeled.rename("modeled")], axis=1, join="inner"
     ).replace([np.inf, -np.inf], np.nan).dropna()
     if paired.empty:
         return {

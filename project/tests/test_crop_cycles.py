@@ -33,6 +33,7 @@ def test_repeated_crop_window_preserves_timeline_harvest_marker_behavior():
     assert timeline_cycles["harvest"].sum() == 1
     assert timeline_cycles["cycle_id"].nunique() == 1
     assert (timeline_cycles["cycle_fresh_biomass_g_m2"] >= 0).all()
+    assert (timeline_cycles["cycle_fresh_biomass_g_m2"] == timeline_cycles["cycle_model_fresh_biomass_g_m2"]).all()
 
 
 def test_repeated_crop_simulation_rejects_invalid_inputs():

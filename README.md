@@ -147,7 +147,11 @@ The conversion uses a PAR fraction of **0.45** and an approximate conversion
 of **4.57 µmol/m²/s per W/m² of PAR**. DLI from a time series integrates the
 actual elapsed time between samples rather than assuming a fixed number of
 samples per day. Missing PPFD samples are treated as zero by that integration;
-check the input-completeness summary before interpreting a daily value.
+this can undercount DLI on days with missing daytime data. The pipeline's
+`input_data_complete_fraction` is the fraction of input GHI samples present
+before resampling and interpolation. It does not measure PPFD completeness or
+the completeness of every weather variable, so use it as a GHI availability
+indicator rather than a general validation score.
 
 ### Lettuce growth and development
 
@@ -174,20 +178,21 @@ project user; the retained field-layout diagram shows the **24-row × 4-column**
 planting grid, or **96 plants per bed**. The resulting geometric area is
 **11.25 m² per bed**, and the implied density is **96 / 11.25 = 8.53
 plants/m²**. These values are held in [`project/config/site.yaml`](./project/config/site.yaml)
-under `cultivation`; the browser dashboard mirrors the same constants.
+under `cultivation`. The configurable net planted-area fraction defaults to
+`1.0`, which assumes the full footprint is planted.
 
 The lettuce model reports **modeled dry biomass per ground area** in g/m².
-The following conversions are arithmetically exact for the stated geometry;
-they do not mean that all modeled biomass is edible or harvestable. For a
-reported value `B`:
+For net planted area `A_net = 11.25 × net_planted_area_fraction` m², the
+following conversions are arithmetic scaling only; they do not mean that all
+modeled biomass is edible or harvestable. For a reported value `B`:
 
 | Quantity | Conversion for this field layout |
 | --- | --- |
-| Total modeled dry biomass per bed | `B × 11.25` g/bed |
-| Total modeled dry biomass per plant (area-average equivalent) | `B × 11.25 / 96` g/plant |
+| Total modeled dry biomass per bed | `B × A_net` g/bed |
+| Total modeled dry biomass per plant (area-average equivalent) | `B × A_net / 96` g/plant |
 | New dry biomass since the model's 11 g/m² initial state | `max(B − 11, 0)` g/m² |
-| Estimated fresh mass per bed | `max(B − 11, 0) × 11.25 / f` g/bed |
-| Estimated fresh mass per plant | `max(B − 11, 0) × 11.25 / (96 × f)` g/plant |
+| Estimated fresh mass per bed | `max(B − 11, 0) × A_net / f` g/bed |
+| Estimated fresh mass per plant | `max(B − 11, 0) × A_net / (96 × f)` g/plant |
 
 Here `f` is the dry-matter fraction of fresh mass. The dashboard's default
 `f = 0.05` (5%) is an **assumption**, not a measured site value. The
@@ -204,15 +209,19 @@ harvestability assumptions (about **7.0 kg/plant** under the same assumptions).
 The model does not predict individual-plant variation or marketable-head
 fraction and has not been calibrated against these site harvest weights.
 
-The dashboard's plant-density control is a **what-if conversion**, initialized
-to the site's 8.53 plants/m². It changes per-plant equivalents only; the
-reference-bed comparison always uses the specified 11.25 m² bed footprint and
-96 plants. The separate economics area control is a user-selected scenario
-area, not an assertion about the physical reference-bed size.
+The dashboard's net-planted-area control scales bed and system totals and
+derives the reference density as `96 / A_net`; it does not change modeled
+biomass per m² or the 96-plant count. Its plant-density control is a separate
+**what-if conversion** for the per-plant estimate in the growth-cycle readout.
+The economics area control remains a user-selected scenario area, not an
+assertion about the physical reference-bed size.
 
-The area conversion treats the stated 7.5 m × 1.5 m bed footprint as cultivated
-area. If paths, borders, or unplanted margins are included in those dimensions,
-replace it with measured net planted area before reporting per-plant estimates.
+The Python configuration exposes `cultivation.net_planted_area_fraction` as
+derived net planted area and plant density. The standalone browser dashboard
+does not load the YAML; its net-area control starts at the mirrored default
+`1.0` and can be adjusted independently. If the configured default changes,
+update the dashboard's mirrored cultivation default as well. Neither value is
+a field measurement until net planted area is measured on site.
 The PDF source and the project’s evidence/methods register are in
 [`references/`](./references/README.md).
 
@@ -220,21 +229,28 @@ The PDF source and the project’s evidence/methods register are in
 
 [`project/scenarios/run_timeseries.py`](./project/scenarios/run_timeseries.py)
 evaluates a set of offsets from the sun-following tracker position. At each
-time step, the optimizer scores each candidate by:
+time step, it scores candidates using a light-deficit-first objective plus PV
+and movement penalties:
 
 ```text
-absolute crop-light target error
-+ PV-power loss penalty
+light score:
+  below target: target PPFD − crop PPFD
+  at or above target: −crop PPFD / target PPFD
+  at night (zero target): −crop PPFD
++ PV-power loss penalty (relative to the best candidate at that time)
 + movement penalty
 ```
 
-The light target is derived from the configured DLI target using a
-representative 12-hour daylight window, then set to zero when the sun is below
-the horizon. The reported daily DLI is integrated from the selected crop PPFD
-time series; it is not the same thing as that instantaneous target. Candidate
-offsets are applied to the signed tracker rotation and limited to the installed
-±55° travel; module-facing geometry is then recalculated from that rotation.
-Wind stow can replace a selected position with the configured fallback.
+The instantaneous light target is derived separately for each date by dividing
+the configured DLI target by the daylight duration represented in that date's
+samples, using apparent solar zenith below 90° to identify daylight. It is set
+to zero at night. Below the target, candidates that reduce the deficit score
+better; at or above it, candidates providing more crop PPFD score better. The
+reported daily DLI is integrated from the selected crop PPFD time series; it
+is not the same thing as that instantaneous target. Candidate offsets are
+applied to the signed tracker rotation and limited to the installed ±55°
+travel; module-facing geometry is then recalculated from that rotation. Wind
+stow can replace a selected position with the configured fallback.
 
 These are model recommendations, not actuator commands. The available
 `DryRunCommandSink` and `JsonlCommandSink` only collect or record messages.
@@ -340,8 +356,11 @@ simulation. Check the call path and tests before treating a setting as active.
   Rejected values become missing; they are not evidence of what the true value
   was.
 - Interpolation is limited to short internal gaps. Long outages remain missing.
-  Daily output includes `input_data_complete_fraction` to show how much
-  irradiance input was present before interpolation.
+  Daily output includes `input_data_complete_fraction`, computed from
+  non-missing GHI samples before resampling and interpolation. It does not
+  summarize DHI, DNI, or other weather-variable completeness; remaining missing
+  PPFD contributes zero to integrated DLI and can make incomplete days appear
+  lower.
 - The crop model's dry biomass is modeled state. Any conversion to fresh mass
   or assumptions about crop cycles in a report are additional assumptions and
   should be checked in that report's generator.

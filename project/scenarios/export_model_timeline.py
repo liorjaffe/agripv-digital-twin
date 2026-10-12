@@ -79,7 +79,7 @@ def build_timeline_payload() -> dict:
         ),
     }
     for setup, cycle in cycle_frames.items():
-        hourly[f"fresh_{setup}_g_m2"] = cycle["cycle_fresh_biomass_g_m2"]
+        hourly[f"fresh_{setup}_g_m2"] = cycle["cycle_model_fresh_biomass_g_m2"]
         hourly[f"harvest_{setup}"] = cycle["harvest"]
 
     leaf_temp = seasonal_canopy_temperature(hourly.index, planting_temp_c=24.0)

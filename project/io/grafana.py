@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -36,10 +36,21 @@ def _escape(value: str) -> str:
 
 def to_influx_lines(results: pd.DataFrame, *, measurement: str = "agripv", subzone_id: str = "pilot") -> str:
     """Serialize numeric results as InfluxDB line protocol for Grafana ingestion."""
+    if not isinstance(results.index, pd.DatetimeIndex):
+        raise TypeError("results must use a DatetimeIndex")
+    if results.index.tz is None:
+        raise ValueError("results timestamps must be timezone-aware")
+
     telemetry = telemetry_frame(results, subzone_id=subzone_id).set_index("time")
     lines = []
     for timestamp, row in telemetry.iterrows():
-        fields = [f"{key}={float(value)}" for key, value in row.items() if key != "subzone_id" and pd.notna(value)]
+        fields = [
+            f"{key}={numeric_value}"
+            for key, value in row.items()
+            if key != "subzone_id"
+            and pd.notna(value)
+            and math.isfinite(numeric_value := float(value))
+        ]
         if fields:
             ns = int(timestamp.timestamp() * 1_000_000_000)
             lines.append(f"{_escape(measurement)},subzone_id={_escape(subzone_id)} {','.join(fields)} {ns}")

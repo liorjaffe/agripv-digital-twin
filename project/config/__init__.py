@@ -34,6 +34,7 @@ class RuntimeConfig:
     bed_width_m: float
     rows_per_bed: int
     plants_per_row: int
+    net_planted_area_fraction: float
     dli_target_mol_m2_day: float
     co2_ppm: float
     move_limit_deg_per_hour: float
@@ -49,8 +50,12 @@ class RuntimeConfig:
         return self.rows_per_bed * self.plants_per_row
 
     @property
+    def net_planted_area_m2(self) -> float:
+        return self.bed_area_m2 * self.net_planted_area_fraction
+
+    @property
     def plant_density_per_m2(self) -> float:
-        return self.plants_per_bed / self.bed_area_m2
+        return self.plants_per_bed / self.net_planted_area_m2
 
     def make_location(self) -> pvlib.location.Location:
         return pvlib.location.Location(
@@ -103,6 +108,10 @@ def load_runtime_config(path: str | Path = DEFAULT_CONFIG_PATH) -> RuntimeConfig
 
     rows_per_bed = _number(cultivation, "rows_per_bed", config_path)
     plants_per_row = _number(cultivation, "plants_per_row", config_path)
+    net_planted_area_fraction = cultivation.get("net_planted_area_fraction", 1.0)
+    if isinstance(net_planted_area_fraction, bool) or not isinstance(net_planted_area_fraction, (int, float)) or not math.isfinite(float(net_planted_area_fraction)):
+        raise ValueError(f"Configuration value 'cultivation.net_planted_area_fraction' in {config_path} must be a finite number")
+    net_planted_area_fraction = float(net_planted_area_fraction)
     if not rows_per_bed.is_integer() or not plants_per_row.is_integer():
         raise ValueError(f"Bed row and plant counts in {config_path} must be whole numbers")
 
@@ -124,6 +133,7 @@ def load_runtime_config(path: str | Path = DEFAULT_CONFIG_PATH) -> RuntimeConfig
         bed_width_m=_number(cultivation, "bed_width_m", config_path),
         rows_per_bed=int(rows_per_bed),
         plants_per_row=int(plants_per_row),
+        net_planted_area_fraction=net_planted_area_fraction,
         dli_target_mol_m2_day=_number(crop, "dli_target_mol_m2_day", config_path),
         co2_ppm=_number(crop, "co2_ppm_target", config_path),
         move_limit_deg_per_hour=_number(tracker, "move_limit_deg_per_hour", config_path),
@@ -145,6 +155,8 @@ def load_runtime_config(path: str | Path = DEFAULT_CONFIG_PATH) -> RuntimeConfig
         raise ValueError(f"Bed length and width in {config_path} must be greater than zero")
     if values.rows_per_bed <= 0 or values.plants_per_row <= 0:
         raise ValueError(f"Bed row and plant counts in {config_path} must be greater than zero")
+    if not 0.0 < values.net_planted_area_fraction <= 1.0:
+        raise ValueError(f"Configuration value 'cultivation.net_planted_area_fraction' in {config_path} must be in (0, 1]")
     if not 0.0 < values.max_tilt_deg <= MAX_TRACKER_TILT_DEG:
         raise ValueError(
             f"Configuration value 'pv.max_tilt_deg' in {config_path} must be in "

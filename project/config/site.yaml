@@ -32,8 +32,11 @@ crop:
 
 cultivation:
   # Site reference SITE-001; geometric bed footprint and planting grid.
+  # The default net planted area assumes the full footprint is used unless a
+  # more detailed planter-path or margin geometry is established later.
   bed_length_m: 7.5
   bed_width_m: 1.5
+  net_planted_area_fraction: 1.0
   rows_per_bed: 24
   plants_per_row: 4
 

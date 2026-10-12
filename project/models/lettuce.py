@@ -12,6 +12,20 @@ import numpy as np
 import pandas as pd
 
 
+MODEL_TEMPERATURE_RANGE_C = (5.0, 40.0)
+
+
+def _clamp_model_temperature(u_t: float) -> float:
+    """Restrict temperature to the domain where the empirical conductance term is valid.
+
+    The Van Henten-inspired conductance polynomial in this implementation is only
+    physically meaningful between 5 C and 40 C. Outside that band we keep the model
+    finite and non-productive instead of letting negative conductance or a division-by-
+    zero event destabilize the crop dynamics.
+    """
+    return float(np.clip(u_t, MODEL_TEMPERATURE_RANGE_C[0], MODEL_TEMPERATURE_RANGE_C[1]))
+
+
 @dataclass
 class LettuceParams:
     c_ch2o: float = 30.0 / 44.0
@@ -57,11 +71,14 @@ def get_epsilon(u_co2: float, gamma: float, p: LettuceParams | None = None) -> f
 
 def get_g_car(u_t: float, p: LettuceParams | None = None) -> float:
     p = p or LettuceParams()
+    u_t = _clamp_model_temperature(u_t)
     return p.c_car1 * u_t**2 + p.c_car2 * u_t + p.c_car3
 
 
 def get_g_co2(g_car: float, p: LettuceParams | None = None) -> float:
     p = p or LettuceParams()
+    if g_car <= 0.0:
+        return 0.0
     return 1.0 / ((1.0 / p.g_bnd) + (1.0 / p.g_stm) + (1.0 / g_car))
 
 

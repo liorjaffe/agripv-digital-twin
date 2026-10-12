@@ -48,3 +48,16 @@ def test_validate_radiation_requires_timezone_aware_observations():
         pass
     else:
         raise AssertionError("naive timestamps should be rejected")
+
+
+def test_validate_radiation_aligns_mixed_timezones_before_comparison():
+    utc_times = pd.date_range("2026-01-01T00:00:00", periods=4, freq="15min", tz="UTC")
+    sao_times = utc_times.tz_convert("America/Sao_Paulo")
+    measured = pd.Series([100.0, 200.0, 300.0, 400.0], index=sao_times)
+    modeled = pd.Series([110.0, 205.0, 290.0, 410.0], index=utc_times)
+
+    result = validate_radiation(measured, modeled)
+
+    assert result["status"] == "ok"
+    assert result["samples"] == 4
+    assert result["validated_days"] == 1

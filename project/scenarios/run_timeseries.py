@@ -125,11 +125,17 @@ def run_timeseries_pipeline(
         )
         candidates[float(offset)] = evaluated
 
-    daylight_seconds = 12.0 * 3600.0
-    target_ppfd = pd.Series(
-        dli_target_mol_m2_day * 1_000_000.0 / daylight_seconds,
-        index=weather.index,
-    ).where(solar["apparent_zenith"] < 90.0, 0.0)
+    target_ppfd = pd.Series(0.0, index=weather.index, dtype=float)
+    for day in pd.date_range(weather.index.min().normalize(), weather.index.max().normalize(), freq="D"):
+        day_mask = weather.index.normalize() == day
+        if not day_mask.any():
+            continue
+        daylight = solar.loc[day_mask, "apparent_zenith"] < 90.0
+        daylight_seconds = float(daylight.astype(float).sum() * pd.Timedelta(control_interval).total_seconds())
+        if daylight_seconds <= 0.0:
+            continue
+        target_ppfd.loc[day_mask] = dli_target_mol_m2_day * 1_000_000.0 / daylight_seconds
+    target_ppfd = target_ppfd.where(solar["apparent_zenith"] < 90.0, 0.0)
     schedule = optimize_tilt_schedule(
         candidates,
         target_ppfd,

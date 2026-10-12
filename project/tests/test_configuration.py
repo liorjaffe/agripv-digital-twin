@@ -20,8 +20,28 @@ def test_runtime_configuration_matches_current_model_defaults():
     assert config.fallback_tilt_offset_deg == 0.0
     assert config.max_tilt_deg == 55.0
     assert config.bed_area_m2 == 11.25
+    assert config.net_planted_area_m2 == pytest.approx(11.25)
     assert config.plants_per_bed == 96
     assert config.plant_density_per_m2 == pytest.approx(96 / 11.25)
+
+
+def test_net_planted_area_fraction_scales_derived_area_and_plant_density(tmp_path: Path):
+    source = Path(__file__).parents[1] / "config" / "site.yaml"
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "net_planted_area_fraction: 1.0",
+            "net_planted_area_fraction: 0.8",
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    assert config.bed_area_m2 == 11.25
+    assert config.net_planted_area_m2 == pytest.approx(9.0)
+    assert config.plants_per_bed == 96
+    assert config.plant_density_per_m2 == pytest.approx(96 / 9.0)
 
 
 def test_site_location_uses_configured_coordinates_and_altitude():
@@ -186,6 +206,7 @@ crop:
 cultivation:
   bed_length_m: 0
   bed_width_m: 1.5
+  net_planted_area_fraction: 1.0
   rows_per_bed: 24
   plants_per_row: 4
 tracker:

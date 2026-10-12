@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime
 import json
 import math
 from pathlib import Path
@@ -22,6 +23,14 @@ class TrackerCommand:
     tilt_deg: float | None = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.timestamp, str) or not self.timestamp.strip():
+            raise ValueError("timestamp must be a non-empty timezone-aware ISO 8601 string")
+        try:
+            parsed_timestamp = datetime.fromisoformat(self.timestamp.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValueError("timestamp must be a valid timezone-aware ISO 8601 string") from error
+        if parsed_timestamp.tzinfo is None or parsed_timestamp.utcoffset() is None:
+            raise ValueError("timestamp must be timezone-aware")
         if not math.isfinite(self.tilt_offset_deg) or abs(self.tilt_offset_deg) > MAX_TRACKER_TILT_DEG:
             raise ValueError(
                 f"tilt_offset_deg must be finite and between "

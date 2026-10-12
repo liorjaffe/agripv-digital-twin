@@ -78,7 +78,7 @@ class FieldBounds:
 # sample when a cloud edge passes, so it is bounded but not slew-limited.
 FIELD_BOUNDS: dict[str, FieldBounds] = {
     MODULE_TEMP_C: FieldBounds(lower=-15.0, upper=85.0, max_step=25.0),
-    AIR_TEMP_C: FieldBounds(lower=-10.0, upper=50.0, max_step=12.0),
+    AIR_TEMP_C: FieldBounds(lower=5.0, upper=40.0, max_step=12.0),
     PPFD_UMOL_M2_S: FieldBounds(lower=0.0, upper=2500.0),
     RELATIVE_HUMIDITY_PCT: FieldBounds(lower=0.0, upper=100.0),
     PRECIPITATION_MM: FieldBounds(lower=0.0, upper=50.0),

@@ -41,7 +41,9 @@ def simulate_repeated_crops(
 ) -> pd.DataFrame:
     """Simulate report crop cycles from hourly light and thermal-time development.
 
-    The report's fresh-mass estimate assumes dry matter is 5% of fresh mass.
+    The report's fresh-mass equivalent is a model estimate derived from dry-biomass
+    gain using a fixed 5% dry-matter assumption. It is not a measured crop yield and
+    should be labelled as such in any reporting or monetization layer.
     ``mark_cycle_window_end_as_harvest`` preserves the timeline export's historical
     convention of marking the end of its final, incomplete data window as a harvest.
     """
@@ -50,7 +52,13 @@ def simulate_repeated_crops(
     if light_column not in results.columns:
         raise ValueError(f"results are missing light column {light_column!r}")
 
-    columns = ["cycle_id", "cycle_dry_biomass_g_m2", "cycle_fresh_biomass_g_m2", "harvest"]
+    columns = [
+        "cycle_id",
+        "cycle_dry_biomass_g_m2",
+        "cycle_fresh_biomass_g_m2",
+        "cycle_model_fresh_biomass_g_m2",
+        "harvest",
+    ]
     if results.empty:
         return pd.DataFrame(columns=columns, index=results.index)
 
@@ -89,10 +97,11 @@ def simulate_repeated_crops(
         cycle = pd.DataFrame(index=crop.index)
         cycle["cycle_id"] = cycle_number
         cycle["cycle_dry_biomass_g_m2"] = growth["total_dry_biomass"]
-        cycle["cycle_fresh_biomass_g_m2"] = (
+        cycle["cycle_model_fresh_biomass_g_m2"] = (
             (growth["total_dry_biomass"] - INITIAL_DRY_BIOMASS_G_M2).clip(lower=0.0)
             / DRY_MATTER_FRACTION_OF_FRESH_MASS
         )
+        cycle["cycle_fresh_biomass_g_m2"] = cycle["cycle_model_fresh_biomass_g_m2"]
         cycle["harvest"] = False
         if matured or mark_cycle_window_end_as_harvest:
             cycle.iloc[-1, cycle.columns.get_loc("harvest")] = True

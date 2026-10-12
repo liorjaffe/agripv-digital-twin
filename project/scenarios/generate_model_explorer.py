@@ -39,7 +39,7 @@ def build_report(input_path: Path, output_path: Path) -> None:
         "under": simulate_repeated_crops(hourly, "light_under_w_m2"),
     }
     for setup, cycle in cycle_frames.items():
-        hourly[f"fresh_{setup}_g_m2"] = cycle["cycle_fresh_biomass_g_m2"]
+        hourly[f"fresh_{setup}_g_m2"] = cycle["cycle_model_fresh_biomass_g_m2"]
         hourly[f"harvest_{setup}"] = cycle["harvest"]
     model_data = {
         "timestamps": [timestamp.isoformat() for timestamp in hourly.index],

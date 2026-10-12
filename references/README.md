@@ -10,6 +10,15 @@ measurement or validation result.
 
 ### SITE-001 — Field beds and PV-system layout
 
+- **Citation:**
+  - **Authors / organization:** AgriPV project user; internal field-layout drawing for the AgriPV site.
+  - **Year:** 2026.
+  - **Full title:** *AgriPV – Planta de Identificação de Sistemas FV e Canteiros*.
+  - **Journal / publisher / report:** Internal design drawing / project site layout document.
+  - **Volume, issue, pages:** Not applicable; project drawing sheet, no journal citation.
+  - **DOI or stable URL:** Not available.
+  - **Local source file:** [`field-layouts/Id_canteiros_e_sistemas_fv_v5_260506.pdf`](./field-layouts/Id_canteiros_e_sistemas_fv_v5_260506.pdf)
+  - **Access date:** not recorded; internal source provided by the project user.
 - **Source file:** [`field-layouts/Id_canteiros_e_sistemas_fv_v5_260506.pdf`](./field-layouts/Id_canteiros_e_sistemas_fv_v5_260506.pdf)
 - **Document title:** *AgriPV – Planta de Identificação de Sistemas FV e Canteiros*.
 - **Document metadata:** title block shows date 20/02/2026 and version 05; the uploaded filename is retained as a normalized local filename.
@@ -17,9 +26,9 @@ measurement or validation result.
 - **Field facts:** bed footprint 7.5 m × 1.5 m; planting grid 24 × 4; 96 plants per bed.
 - **Derived geometry:** 11.25 m²/bed; 8.5333 plants/m².
 - **Implemented configuration:** [`project/config/site.yaml`](../project/config/site.yaml), `cultivation` section.
-- **Implementation/use:** [`project/config/__init__.py`](../project/config/__init__.py) validates the dimensions and exposes derived area and plant density; [`agripv_dashboard.html`](../agripv_dashboard.html) presents the reference-bed comparison.
+- **Implementation/use:** [`project/config/__init__.py`](../project/config/__init__.py) validates the dimensions and exposes gross area, net area, and derived plant density. The standalone [`agripv_dashboard.html`](../agripv_dashboard.html) provides a net planted-area what-if control that scales bed/system conversions; it mirrors the YAML default and does not load the file.
 - **Evidence status:** site-layout reference; it is not a crop-yield dataset and does not validate the growth model.
-- **Open measurement note:** current area conversion uses the full stated footprint as planted area. Confirm or replace this with net planted area if paths, margins, or gaps are within the 7.5 m × 1.5 m dimensions.
+- **Open measurement note:** `net_planted_area_fraction` is currently set to `1.0`, so derived configuration and the dashboard default assume the full 7.5 m × 1.5 m footprint is net planted area. This is not a field measurement. The dashboard control is independent of the YAML value; update its mirrored default if the configured default changes.
 
 ## Methods and code map
 
@@ -34,15 +43,17 @@ measurement or validation result.
 | Parameter calibration | [`project/validation/calibrate_lettuce.py`](../project/validation/calibrate_lettuce.py) | Requires timestamped observations; a fit is not independent validation. |
 | Regression evidence | [`project/tests/`](../project/tests/) | Tests verify software behavior and equations, not empirical validity. |
 
-The conversion from area-based model output to this bed layout is:
+Let `A_net = 11.25 m² × net_planted_area_fraction`. The dashboard scales
+area-based model output to this bed layout as follows:
 
 ```text
-bed_area_m2 = 7.5 m × 1.5 m = 11.25 m²
+gross_bed_area_m2 = 7.5 m × 1.5 m = 11.25 m²
+net_planted_area_m2 = gross_bed_area_m2 × net_planted_area_fraction
 plants_per_bed = 24 rows × 4 plants/row = 96 plants
-plant_density = 96 plants / 11.25 m² = 8.5333 plants/m²
+plant_density = 96 plants / net_planted_area_m2
 
-dry_g_per_bed = dry_g_per_m2 × 11.25 m²
-area_average_dry_g_per_plant = dry_g_per_m2 × 11.25 m² / 96 plants
+dry_g_per_bed = dry_g_per_m2 × net_planted_area_m2
+area_average_dry_g_per_plant = dry_g_per_bed / 96 plants
 ```
 
 For an estimated fresh-mass equivalent, use **net modeled dry-biomass gain**
@@ -50,9 +61,12 @@ above the model's initial state and state the assumed dry-matter fraction `f`:
 
 ```text
 net_dry_g_per_m2 = max(final_dry_g_per_m2 − 11 g/m², 0)
-estimated_fresh_g_per_bed = net_dry_g_per_m2 × 11.25 m² / f
+estimated_fresh_g_per_bed = net_dry_g_per_m2 × net_planted_area_m2 / f
 estimated_fresh_g_per_plant = estimated_fresh_g_per_bed / 96 plants
 ```
+
+At the current default fraction of `1.0`, `net_planted_area_m2` is 11.25 m²;
+other fractions scale bed totals accordingly.
 
 The default `f = 0.05` is a dashboard scenario assumption, not a site
 measurement. The calculation additionally assumes all modeled dry-matter gain
