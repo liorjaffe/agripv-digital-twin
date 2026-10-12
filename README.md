@@ -1,4 +1,4 @@
-# AgriPV Digital Twin
+# AgriPV Digital Twin Prototype
 
 A research-oriented model of an agrivoltaic lettuce-and-solar system at the
 Fotovoltaica / UFSC pilot in Florianópolis, Brazil. This guide is the starting

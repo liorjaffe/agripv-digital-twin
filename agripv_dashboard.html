@@ -102,7 +102,7 @@
 <body>
 <main>
   <header>
-    <div><div class="eyebrow">Fotovoltaica / UFSC · Florianópolis</div><h1 id="appTitle">AgriPV Digital Twin Dashboard</h1></div>
+    <div><div class="eyebrow">Fotovoltaica / UFSC · Florianópolis</div><h1 id="appTitle">AgriPV Digital Twin Prototype Dashboard</h1></div>
     <div><div class="language-switch" aria-label="Language / Sprache / Idioma"><button class="language-button active" id="languageDe" type="button" title="Deutsch" aria-label="Deutsch" aria-pressed="true">🇩🇪</button><button class="language-button" id="languageEn" type="button" title="English" aria-label="English" aria-pressed="false">🇬🇧</button><button class="language-button" id="languagePt" type="button" title="Português (Brasil)" aria-label="Português (Brasil)" aria-pressed="false">🇧🇷</button></div><div class="subtitle" id="appSubtitle">Eine interaktive Darstellung des Zusammenspiels von Sonnenstand, Trackerstellung, Pflanzenlicht, DLI und PV-Ertrag.</div></div>
   </header>
   <div class="data-mode" aria-label="Data source mode"><strong id="dataModeLabel">Datenquelle</strong><button id="trainingMode" class="active" type="button" aria-pressed="true">Training / Modell</button><button id="fieldMode" type="button" aria-pressed="false">Period_Results-Jahresreihe</button><span id="dataModeState">Reglerbasierte Simulation; keine Messwerte.</span></div>
@@ -1028,8 +1028,8 @@
     $('languageDe').setAttribute('aria-pressed', language === 'de');
     $('languageEn').setAttribute('aria-pressed', language === 'en');
     $('languagePt').setAttribute('aria-pressed', language === 'pt');
-    document.title = language === 'de' ? 'AgriPV Digital Twin Dashboard' : 'AgriPV Digital Twin Dashboard';
-    $('appTitle').textContent = 'AgriPV Digital Twin Dashboard';
+    document.title = language === 'de' ? 'AgriPV Digital Twin Prototype Dashboard' : 'AgriPV Digital Twin Prototype Dashboard';
+    $('appTitle').textContent = 'AgriPV Digital Twin Prototype Dashboard';
     document.querySelector('.scene-location').textContent = tr('Standort: Florianópolis, Brasilien · 27,5949° S, 48,5480° W', 'Location: Florianopolis, Brazil · 27.5949° S, 48.5480° W');
     $('appSubtitle').textContent = tr(
       'Eine interaktive Darstellung des Zusammenspiels von Sonnenstand, Trackerstellung, Pflanzenlicht, DLI und PV-Ertrag.',

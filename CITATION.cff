@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite this repository and the specific release."
-title: "AgriPV Digital Twin"
+title: "AgriPV Digital Twin Prototype"
 type: software
 version: "0.1.0"
 repository-code: "https://github.com/liorjaffe/agripv-digital-twin"
