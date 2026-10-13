@@ -62,9 +62,24 @@ channel map covering sensor type, units, and physical placement before treating
 these comparisons as measured bed-level validation.
 
 Run `PYTHONPATH=. .venv/bin/python project/scenarios/run_benchmark.py` to
-compare the optimized schedule with a flat-angle baseline on the tracked
-`Period_Components.csv` input. The benchmark reports metrics from those model
-runs and leaves DLI/PV results unavailable when coverage is insufficient.
+compare the optimized schedule with a sun-tracking baseline (zero offset from
+the solar tracker baseline) on the tracked `Period_Components.csv` input. This
+is not a horizontal-module or fixed-angle baseline. The benchmark reports
+metrics from those model runs and leaves DLI/PV results unavailable when
+coverage is insufficient.
+
+Run the optional 16-case operating-point sensitivity grid with
+`PYTHONPATH=. .venv/bin/python project/scenarios/run_benchmark.py --sensitivity`.
+It varies DLI targets and ceilings plus normalized PV-loss and movement
+preferences, logging DLI, PV energy, biomass, tracker motion, and modeled
+candidate-band reachability for each case. Each row flags the non-dominated
+cases for covered PV energy (maximize), absolute DLI-target error (minimize),
+and tracker movement (minimize). These are model-output trade-offs, not
+agronomic objectives validated for this site. The current defaults prioritize PV
+among candidates that meet the light objective (`pv_loss_weight=1.0`,
+`movement_weight=0.0`); these are a provisional operating point, not calibrated
+or validated site-optimal weights. Compare the resulting Pareto trade-offs
+before using the settings operationally.
 
 ## Testing
 

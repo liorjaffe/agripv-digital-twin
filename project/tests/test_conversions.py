@@ -114,3 +114,37 @@ def test_optimize_tilt_schedule_uses_light_deficit_when_target_is_unreachable():
     )
 
     assert schedule["tilt_deg"].tolist() == [55.0, 55.0, 55.0]
+
+
+def test_unreachable_dli_ceiling_prefers_pv_once_minimum_light_is_met():
+    index = pd.date_range(
+        "2026-01-01 09:00:00",
+        periods=4,
+        freq="15min",
+        tz="America/Sao_Paulo",
+    )
+    candidates = {
+        0.0: pd.DataFrame(
+            {"crop_ppfd_umol_m2_s": 100.0, "pv_power_w": 100.0},
+            index=index,
+        ),
+        30.0: pd.DataFrame(
+            {"crop_ppfd_umol_m2_s": 200.0, "pv_power_w": 200.0},
+            index=index,
+        ),
+    }
+    schedule = optimize_tilt_schedule(
+        candidates,
+        pd.Series(0.0, index=index),
+        previous_tilt=0.0,
+        max_move_deg=30.0,
+        pv_loss_weight=1.0,
+        movement_weight=0.0,
+        dli_target_mol_m2_day=0.01,
+        dli_max_mol_m2_day=0.02,
+        daylight_seconds=pd.Series(900.0, index=index),
+    )
+
+    assert not schedule["dli_ceiling_enforced"].any()
+    assert schedule["candidate_min_dli_mol_m2_day"].iloc[0] > 0.02
+    assert schedule["tilt_deg"].eq(30.0).all()

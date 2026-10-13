@@ -90,6 +90,26 @@ def daily_table(daily: pd.DataFrame) -> str:
         coverage_text = f"{coverage * 100:.0f}%" if pd.notna(coverage) else "n/a"
         dli_text = f"{row['dli_mol_m2_day']:.2f}" if pd.notna(row["dli_mol_m2_day"]) else "n/a"
         pv_text = f"{row['pv_energy_kwh']:.2f}" if pd.notna(row["pv_energy_kwh"]) else "n/a"
+        if pd.isna(row.get("candidate_dli_target_band_reachable")):
+            reachability_text = "unknown"
+        elif (
+            not bool(row["candidate_dli_ceiling_reachable"])
+            and not bool(row["candidate_dli_minimum_reachable"])
+        ):
+            reachability_text = "target and ceiling unreachable"
+        elif not bool(row["candidate_dli_ceiling_reachable"]):
+            reachability_text = "ceiling unreachable"
+        elif not bool(row["candidate_dli_minimum_reachable"]):
+            reachability_text = "target unreachable"
+        else:
+            reachability_text = "band reachable"
+        candidate_min = row.get("candidate_min_dli_mol_m2_day")
+        candidate_max = row.get("candidate_max_dli_mol_m2_day")
+        candidate_range_text = (
+            f"{candidate_min:.2f}–{candidate_max:.2f}"
+            if pd.notna(candidate_min) and pd.notna(candidate_max)
+            else "unknown"
+        )
         rows.append(
             "<tr>"
             f"<td>{html.escape(timestamp.strftime('%Y-%m-%d'))}</td>"
@@ -97,6 +117,8 @@ def daily_table(daily: pd.DataFrame) -> str:
             f"<td>{pv_text}</td>"
             f"<td>{row['final_dry_biomass']:.2f}</td>"
             f"<td>{coverage_text}</td>"
+            f"<td>{candidate_range_text}</td>"
+            f"<td>{reachability_text}</td>"
             "</tr>"
         )
     return "".join(rows)
@@ -141,7 +163,7 @@ def channel_comparison_summary(results: pd.DataFrame) -> str:
 
     return f"""
     <h3>Exploratory channel comparison</h3>
-    <p class="note">Not independent validation: channel units and sensor roles are not identified in the source metadata. For comparison only, each channel is assumed to be shortwave irradiance in W/m² and converted with PAR fraction 0.45 and 4.57 µmol/J. Channels are shown by export name; no bed mapping is asserted. Open item: obtain an authoritative sensor/channel map before treating these as measured bed-level PPFD. DLI errors are omitted because daylight sampling coverage is incomplete.</p>
+    <p class="note"><strong>Open scientific task:</strong> obtain the authoritative site channel map, including sensor type, units, calibration, and physical placement. These values are exploratory, not independent validation: only for comparison, each channel is assumed to be shortwave irradiance in W/m² and converted with PAR fraction 0.45 and 4.57 µmol/J. A different sensor type could materially change the comparison. Do not use these metrics to calibrate crop-light conversion until the channel map is verified. Channels are shown by export name; no bed mapping is asserted. DLI errors are omitted because daylight sampling coverage is incomplete.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Export channel</th><th>Paired samples</th><th>Days represented</th><th>MAE PPFD<br>(µmol/m²/s)</th><th>RMSE PPFD<br>(µmol/m²/s)</th><th>Bias PPFD<br>(µmol/m²/s)</th></tr></thead>
       <tbody>{''.join(rows)}</tbody>
@@ -187,13 +209,13 @@ def subzone_section(subzone_id: str, results: pd.DataFrame, daily: pd.DataFrame)
       <div class="metrics">
         <div><strong>{mean_dli_text}</strong><span>Average DLI (mol/m2/day; {covered_days} covered days)</span></div>
         <div><strong>{total_energy_text}</strong><span>PV energy (kWh; covered days only)</span></div>
-        <div><strong>{final_biomass:.2f}</strong><span>Final dry biomass (g/m2)</span></div>
+        <div><strong>{final_biomass:.2f}</strong><span>Final dry biomass (g/m2; temperature-source scenario)</span></div>
       </div>
     <div class="dashboard-grid">{chart_cards(results, daily)}</div>
       {channel_comparison_summary(results)}
       <h3>Daily results</h3>
       <table>
-        <thead><tr><th>Date</th><th>DLI<br>(mol/m2/day)</th><th>PV energy<br>(kWh)</th><th>Dry biomass<br>(g/m2)</th><th>Daylight coverage</th></tr></thead>
+        <thead><tr><th>Date</th><th>DLI<br>(mol/m2/day)</th><th>PV energy<br>(kWh)</th><th>Dry biomass<br>(g/m2)</th><th>Daylight coverage</th><th>Candidate DLI envelope<br>(mol/m2/day)</th><th>Candidate-band reachability<br>(movement/stow unconstrained)</th></tr></thead>
         <tbody>{daily_table(daily)}</tbody>
       </table>
       <details>
@@ -220,7 +242,8 @@ def build_report(input_path: Path, output_path: Path) -> None:
     temperature_note = (
         f" Temperature-dependent calculations use {temperature_value:.1f}°C "
         "as a configured scenario fallback because no air-temperature channel "
-        "is present in this export."
+        "is present in this export; the resulting biomass trajectory is a "
+        "fallback-temperature scenario, not a field prediction."
         if temperature_source == "configured scenario fallback"
         else f" Temperature input source for this run: {temperature_source}."
     )

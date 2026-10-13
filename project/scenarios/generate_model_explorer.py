@@ -60,6 +60,9 @@ def build_report(input_path: Path, output_path: Path) -> None:
     synthetic_notice = (
         f"{SYNTHETIC_INPUTS_NOTICE} In this run the pipeline temperature "
         f"input was {temperature_source} ({temperature_value:.1f}°C). "
+        "The displayed crop-cycle dates use a separate illustrative seasonal "
+        "temperature curve, not measured site temperature, and are not harvest "
+        "predictions. "
         f"Generated from commit {artifact_metadata['source_commit']}; working "
         f"tree dirty: {str(artifact_metadata['working_tree_dirty']).lower()}."
     )
@@ -77,6 +80,7 @@ def build_report(input_path: Path, output_path: Path) -> None:
         },
         "cycle_count": int(cycle_frames["open"]["cycle_id"].max()),
         "harvest_mode": "thermal GDD",
+        "crop_cycle_temperature_source": "illustrative seasonal curve; not site data",
         "harvest_indices": [index for index, is_harvest in enumerate(hourly["harvest_open"]) if is_harvest],
         "synthetic_inputs_notice": synthetic_notice,
         "air_temperature_source": temperature_source,

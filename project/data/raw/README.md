@@ -24,7 +24,17 @@ sign convention is also not documented here.
 
 **Open item:** obtain the instrument/channel map and measurement protocol from
 the site, then update this dictionary and the references register before
-presenting channel-derived values as measured bed-level light.
+presenting channel-derived values as measured bed-level light. Until then,
+do not use the exploratory channel-comparison metrics to calibrate crop-light
+conversion or revise the DLI target/ceiling; the comparison's assumed units
+could change the apparent error substantially.
+
+`Period_Components.csv` also has no documented air-temperature series. The
+pipeline's biomass model therefore uses the configured 26°C fallback on this
+dataset. Separately generated crop-cycle and harvest markers use an
+illustrative synthetic seasonal-temperature curve. Neither output should be
+read as a temperature-driven site prediction until measured site temperatures
+are available and the crop model has been validated.
 
 ## Public dashboard data
 

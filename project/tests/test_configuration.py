@@ -1,6 +1,10 @@
 from pathlib import Path
+from datetime import datetime
+import re
+from zoneinfo import ZoneInfo
 
 import pytest
+import yaml
 
 from project.config import load_runtime_config, make_site_location
 from project.scenarios.generate_simple_report import DEFAULT_OUTPUT as SIMPLE_REPORT_OUTPUT
@@ -56,6 +60,40 @@ def test_site_location_uses_configured_coordinates_and_altitude():
     assert location.longitude == -48.5480
     assert location.altitude == 20.0
     assert location.tz == "America/Sao_Paulo"
+
+
+def test_dashboard_location_and_dli_defaults_stay_synced_with_site_yaml():
+    root = Path(__file__).parents[2]
+    settings = yaml.safe_load(
+        (root / "project" / "config" / "site.yaml").read_text(encoding="utf-8")
+    )
+    dashboard = (root / "agripv_dashboard.html").read_text(encoding="utf-8")
+    site_match = re.search(r"const SITE = \{([^}]+)\}", dashboard)
+    assert site_match is not None
+    dashboard_site = {
+        key: float(value)
+        for key, value in re.findall(
+            r"(latitude|longitude|utcOffsetHours|altitudeM):\s*(-?\d+(?:\.\d+)?)",
+            site_match.group(1),
+        )
+    }
+    site = settings["site"]
+    expected_utc_offset = (
+        ZoneInfo(site["timezone"])
+        .utcoffset(datetime(2026, 1, 15))
+        .total_seconds()
+        / 3600.0
+    )
+    assert dashboard_site["latitude"] == site["latitude"]
+    assert dashboard_site["longitude"] == site["longitude"]
+    assert dashboard_site["altitudeM"] == site["altitude_m"]
+    assert dashboard_site["utcOffsetHours"] == expected_utc_offset
+
+    target_match = re.search(
+        r'<input id="target"[^>]*value="([0-9.]+)"', dashboard
+    )
+    assert target_match is not None
+    assert float(target_match.group(1)) == settings["crop"]["dli_target_mol_m2_day"]
 
 
 def test_invalid_site_geometry_is_rejected(tmp_path: Path):

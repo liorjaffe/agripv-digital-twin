@@ -41,6 +41,8 @@ def run_timeseries_pipeline(
     dli_target_mol_m2_day: float = _DEFAULT_CONFIG.dli_target_mol_m2_day,
     dli_min_mol_m2_day: float = _DEFAULT_CONFIG.dli_min_mol_m2_day,
     dli_max_mol_m2_day: float = _DEFAULT_CONFIG.dli_max_mol_m2_day,
+    pv_loss_weight: float = 1.0,
+    movement_weight: float = 0.0,
     control_interval: str = "15min",
     tilt_offsets_deg: tuple[float, ...] = (-55.0, -30.0, 0.0, 30.0, 55.0),
     max_gap_periods: int = 4,
@@ -234,21 +236,34 @@ def run_timeseries_pipeline(
         target_ppfd,
         previous_tilt=0.0,
         max_move_deg=max_move_deg,
-        pv_loss_weight=0.001,
-        movement_weight=0.05,
+        pv_loss_weight=pv_loss_weight,
+        movement_weight=movement_weight,
         dli_target_mol_m2_day=effective_dli_target,
         dli_max_mol_m2_day=dli_max_mol_m2_day,
         daylight_seconds=daylight_seconds,
     )
     selected = pd.DataFrame(index=weather.index)
     selected["tilt_offset_deg"] = schedule["tilt_deg"]
+    for column in (
+        "candidate_min_dli_mol_m2_day",
+        "candidate_max_dli_mol_m2_day",
+        "candidate_dli_minimum_reachable",
+        "candidate_dli_ceiling_reachable",
+        "candidate_dli_target_band_reachable",
+        "dli_ceiling_enforced",
+    ):
+        selected[column] = schedule[column]
     selected["crop_ghi_w_m2"] = [candidates[tilt].loc[t, "crop_ghi_w_m2"] for t, tilt in schedule["tilt_deg"].items()]
     selected["crop_ppfd_umol_m2_s"] = [candidates[tilt].loc[t, "crop_ppfd_umol_m2_s"] for t, tilt in schedule["tilt_deg"].items()]
     selected["pv_power_w"] = [candidates[tilt].loc[t, "pv_power_w"] for t, tilt in schedule["tilt_deg"].items()]
     selected["tracker_theta_deg"] = [candidates[tilt].loc[t, "tracker_theta_deg"] for t, tilt in schedule["tilt_deg"].items()]
     if wind_column is not None:
-        wind = weather[wind_column].reindex(weather.index).interpolate(limit_direction="both")
-        stow_mask = wind >= wind_stow_speed_ms
+        wind = weather[wind_column].reindex(weather.index).interpolate(
+            method="time",
+            limit=max_gap_periods,
+            limit_area="inside",
+        )
+        stow_mask = wind.isna() | wind.ge(wind_stow_speed_ms)
         if stow_mask.any():
             stow_orientation = baseline.copy()
             stow_orientation["tracker_theta"] = pd.Series(
@@ -307,6 +322,25 @@ def run_timeseries_pipeline(
         selected["pv_power_w"]
     ).reindex(daily.index)
     daily["final_dry_biomass"] = selected["total_dry_biomass"].resample("1D").last()
+    daily["model_air_temp_source"] = temperature_source
+    for column in (
+        "candidate_min_dli_mol_m2_day",
+        "candidate_max_dli_mol_m2_day",
+        "candidate_dli_minimum_reachable",
+        "candidate_dli_ceiling_reachable",
+        "candidate_dli_target_band_reachable",
+        "dli_ceiling_enforced",
+    ):
+        daily[column] = selected[column].resample("1D").first()
+    boolean_diagnostics = (
+        "candidate_dli_minimum_reachable",
+        "candidate_dli_ceiling_reachable",
+        "candidate_dli_target_band_reachable",
+        "dli_ceiling_enforced",
+    )
+    daily[list(boolean_diagnostics)] = daily[list(boolean_diagnostics)].astype(
+        "boolean"
+    )
     if raw_ghi_presence is not None:
         expected_times = pd.date_range(
             weather.index.min().normalize(),
@@ -336,4 +370,10 @@ def run_timeseries_pipeline(
         daily["daylight_coverage_sufficient"] = ~insufficient_coverage
         daily["input_data_complete_fraction"] = coverage
         daily.loc[insufficient_coverage, ["dli_mol_m2_day", "pv_energy_kwh"]] = float("nan")
+        diagnostic_columns = (
+            "candidate_min_dli_mol_m2_day",
+            "candidate_max_dli_mol_m2_day",
+        )
+        daily.loc[insufficient_coverage, diagnostic_columns] = pd.NA
+        daily.loc[insufficient_coverage, list(boolean_diagnostics)] = pd.NA
     return selected, daily

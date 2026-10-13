@@ -175,7 +175,11 @@ The project has two different lettuce models; they answer different questions:
   biomass and does not account for light or humidity.
 
 The two models are not interchangeable, and a predicted biomass or GDD-based
-harvest date is not a measured crop yield. Calibration and field validation
+harvest date is not a measured crop yield. On the bundled field dataset, the
+biomass model uses its configured 26°C air-temperature fallback; report
+crop-cycle/harvest markers use a separate illustrative seasonal-temperature
+curve. Both are scenario outputs, not temperature-informed site predictions.
+Calibration and field validation
 need appropriate biomass and sensor observations; when those are missing, the
 validation code reports that explicitly instead of fabricating a fit.
 
@@ -193,16 +197,17 @@ values. Conversion equations and a worked example are in the
 [`project/scenarios/run_timeseries.py`](./project/scenarios/run_timeseries.py)
 evaluates a set of offsets from the sun-following tracker position. At each
 time step, it uses accumulated daily DLI and remaining daylight to compute a
-target-to-maximum PPFD band, then scores candidates for deficit below that band
-or excess above it, plus PV and movement penalties:
+target-to-maximum PPFD band, then prioritizes light-band compliance and uses
+normalized PV and movement preferences to choose among equally compliant
+candidates:
 
 ```text
 light score:
   below the remaining-light target: target PPFD − crop PPFD
   above the remaining-light ceiling: crop PPFD − ceiling PPFD
   inside the band: 0
-+ PV-power loss penalty (relative to the best candidate at that time)
-+ movement penalty
++ dimensionless PV-power loss preference (loss divided by best candidate power)
++ dimensionless movement preference (movement divided by the allowed move)
 ```
 
 The daily bounds come from the configured DLI target and maximum, updating as
@@ -215,7 +220,26 @@ controller instead commands the configured **absolute tracker rotation**
 That park-angle assumption has not been confirmed against a manufacturer
 specification and must be verified before connecting any hardware. The reported
 daily DLI is computed from the selected crop PPFD series; it can exceed the
-maximum where no evaluated tracker position can shade enough light.
+maximum where no evaluated tracker position can shade enough light. When the
+lowest-light candidate envelope already exceeds the configured DLI ceiling,
+the controller disables that unreachable ceiling and prioritizes the
+remaining minimum-light target; among equally acceptable candidates, its
+normalized secondary preferences trade PV output against movement. Daily
+reports show the modeled candidate DLI range and whether the configured target
+band intersects that range. This per-timestep candidate envelope is an ideal
+model bound: it does not enforce movement or wind-stow constraints, so it is
+not proof that a complete physical schedule can attain the band. The DLI values
+and band remain provisional until the site channel map and sensor units support
+light-model calibration. The available export cannot yet distinguish a
+site-specific DLI target/ceiling that is inappropriate for this system from a
+crop-light model that overpredicts ground PPFD: the comparison channels have
+unverified sensor types and units. Obtain the channel map before interpreting
+the positive exploratory model-to-channel bias as calibration evidence or
+changing the 14/18 mol/m²/day target/ceiling.
+When a wind channel is present, only gaps up to `max_gap_periods` are
+interpolated; a longer unresolved gap is treated as unknown wind and triggers
+the configured absolute stow angle. This is a conservative model fallback,
+not a commissioned hardware-safety function.
 Daily DLI and PV energy use trapezoidal integration over finite adjacent
 samples. The pipeline reports pre-interpolation daylight source coverage and
 suppresses those daily metrics below 80% coverage rather than treating missing
@@ -328,10 +352,10 @@ movement/wind-stow settings. The Python pipeline loads those settings through
 `project.config`. Runtime values should be changed there rather than copied
 into individual scenario scripts.
 
-The same YAML also contains descriptive site/crop fields that are not yet
-inputs to every model (for example, bed labels, system inventory, and the crop
-temperature thresholds). Comments in the YAML identify declarative-only
-values. The DLI minimum acts as a floor for the controller target; the DLI
+The YAML's `descriptive_metadata` section is documentation-only: system/bed
+labels, nominal row width, crop temperature thresholds, and tracker control
+mode are not inputs to current model calculations. The DLI minimum acts as a
+floor for the controller target; the DLI
 target and ceiling define its light band. Missing air temperature uses the
 explicit, logged `site.fallback_air_temp_c` scenario value, recorded in each
 time-series result with its source.

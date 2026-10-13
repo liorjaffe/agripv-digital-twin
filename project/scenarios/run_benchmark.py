@@ -1,8 +1,11 @@
-"""Compare the configured tracker controller with a flat-angle baseline."""
+"""Compare the configured tracker controller with a sun-tracking baseline."""
 
 from __future__ import annotations
 
+import argparse
+from itertools import product
 import logging
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -20,6 +23,7 @@ def summarize_strategy(results: pd.DataFrame, daily: pd.DataFrame) -> dict[str, 
     covered = daily["daylight_coverage_sufficient"].fillna(False)
     valid_dli = daily.loc[covered, "dli_mol_m2_day"].dropna()
     valid_energy = daily.loc[covered, "pv_energy_kwh"].dropna()
+    valid_diagnostics = daily.loc[covered]
     return {
         "timesteps": int(len(results)),
         "covered_days": int(covered.sum()),
@@ -33,6 +37,35 @@ def summarize_strategy(results: pd.DataFrame, daily: pd.DataFrame) -> dict[str, 
         "nonzero_tilt_fraction": float(
             results["tilt_offset_deg"].abs().gt(1e-9).mean()
         ),
+        "mean_absolute_tracker_angle_deg": float(
+            results["tracker_theta_deg"].abs().mean()
+        ),
+        "mean_tilt_movement_deg_per_timestep": float(
+            results["tilt_offset_deg"].diff().abs().mean()
+        ),
+        "candidate_target_band_reachable_days": int(
+            valid_diagnostics["candidate_dli_target_band_reachable"]
+            .fillna(False)
+            .sum()
+        ),
+        "candidate_target_unreachable_days": int(
+            (~valid_diagnostics["candidate_dli_minimum_reachable"].fillna(False))
+            .sum()
+        ),
+        "candidate_ceiling_unreachable_days": int(
+            (~valid_diagnostics["candidate_dli_ceiling_reachable"].fillna(False))
+            .sum()
+        ),
+        "mean_candidate_min_dli_mol_m2_day": (
+            float(valid_diagnostics["candidate_min_dli_mol_m2_day"].mean())
+            if valid_diagnostics["candidate_min_dli_mol_m2_day"].notna().any()
+            else float("nan")
+        ),
+        "mean_candidate_max_dli_mol_m2_day": (
+            float(valid_diagnostics["candidate_max_dli_mol_m2_day"].mean())
+            if valid_diagnostics["candidate_max_dli_mol_m2_day"].notna().any()
+            else float("nan")
+        ),
     }
 
 
@@ -41,20 +74,122 @@ def compare_strategies(
     location: pvlib.location.Location,
     **pipeline_options,
 ) -> dict[str, dict[str, float | int]]:
-    """Run the optimizer and an always-zero-offset baseline on the same data."""
+    """Compare the optimizer with an always-zero-offset sun-tracking schedule."""
     optimized, optimized_daily = run_timeseries_pipeline(
         weather, location, **pipeline_options
     )
-    flat_options = {
+    sun_tracking_options = {
         **pipeline_options,
         "tilt_offsets_deg": (0.0,),
         "move_limit_deg_per_hour": 0.0,
     }
-    flat, flat_daily = run_timeseries_pipeline(weather, location, **flat_options)
+    sun_tracking, sun_tracking_daily = run_timeseries_pipeline(
+        weather, location, **sun_tracking_options
+    )
     return {
         "optimized": summarize_strategy(optimized, optimized_daily),
-        "flat_baseline": summarize_strategy(flat, flat_daily),
+        "sun_tracking_baseline": summarize_strategy(
+            sun_tracking, sun_tracking_daily
+        ),
     }
+
+
+def run_sensitivity_sweep(
+    weather: pd.DataFrame,
+    location: pvlib.location.Location,
+    *,
+    dli_targets: tuple[float, ...] = (10.0, 14.0),
+    dli_ceilings: tuple[float, ...] = (18.0, 24.0),
+    pv_loss_weights: tuple[float, ...] = (0.5, 1.0),
+    movement_weights: tuple[float, ...] = (0.0, 0.05),
+) -> list[dict[str, float | int]]:
+    """Run an explicit grid of target, ceiling, PV, and movement settings.
+
+    Output rows retain DLI, PV energy, biomass, and schedule movement metrics
+    together so users can inspect the operating-point trade rather than infer a
+    universally optimal set of weights.
+    """
+    axes = {
+        "dli_target_mol_m2_day": dli_targets,
+        "dli_max_mol_m2_day": dli_ceilings,
+        "pv_loss_weight": pv_loss_weights,
+        "movement_weight": movement_weights,
+    }
+    if any(not values for values in axes.values()):
+        raise ValueError("every sensitivity axis must contain at least one value")
+
+    rows = []
+    for target, ceiling, pv_weight, movement_weight in product(
+        dli_targets, dli_ceilings, pv_loss_weights, movement_weights
+    ):
+        if ceiling < target:
+            continue
+        results, daily = run_timeseries_pipeline(
+            weather,
+            location,
+            dli_target_mol_m2_day=target,
+            dli_max_mol_m2_day=ceiling,
+            pv_loss_weight=pv_weight,
+            movement_weight=movement_weight,
+        )
+        rows.append(
+            {
+                "dli_target_mol_m2_day": target,
+                "dli_max_mol_m2_day": ceiling,
+                "pv_loss_weight": pv_weight,
+                "movement_weight": movement_weight,
+                **summarize_strategy(results, daily),
+            }
+        )
+    if not rows:
+        raise ValueError("sensitivity grid has no cases where DLI ceiling >= target")
+    for row in rows:
+        target_error = abs(
+            float(row["mean_covered_dli_mol_m2_day"])
+            - float(row["dli_target_mol_m2_day"])
+        )
+        row["dli_target_error_mol_m2_day"] = target_error
+    for row in rows:
+        row["pareto_optimal"] = not any(
+            _dominates(other, row) for other in rows if other is not row
+        )
+    return rows
+
+
+def _dominates(
+    candidate: dict[str, float | int],
+    other: dict[str, float | int],
+) -> bool:
+    """Return whether candidate is no worse on all three sensitivity objectives."""
+    candidate_energy = float(candidate["covered_pv_energy_kwh"])
+    other_energy = float(other["covered_pv_energy_kwh"])
+    candidate_error = float(candidate["dli_target_error_mol_m2_day"])
+    other_error = float(other["dli_target_error_mol_m2_day"])
+    candidate_movement = float(candidate["mean_tilt_movement_deg_per_timestep"])
+    other_movement = float(other["mean_tilt_movement_deg_per_timestep"])
+    if not all(
+        math.isfinite(value)
+        for value in (
+            candidate_energy,
+            other_energy,
+            candidate_error,
+            other_error,
+            candidate_movement,
+            other_movement,
+        )
+    ):
+        return False
+    no_worse = (
+        candidate_energy >= other_energy
+        and candidate_error <= other_error
+        and candidate_movement <= other_movement
+    )
+    strictly_better = (
+        candidate_energy > other_energy
+        or candidate_error < other_error
+        or candidate_movement < other_movement
+    )
+    return no_worse and strictly_better
 
 
 def run_benchmark(
@@ -81,6 +216,19 @@ def run_benchmark(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    benchmark = run_benchmark()
-    for name, metrics in benchmark["strategies"].items():
-        logging.info("%s: %s", name, metrics)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--sensitivity",
+        action="store_true",
+        help="run the default 16-case DLI/PV/movement sensitivity grid",
+    )
+    args = parser.parse_args()
+    if args.sensitivity:
+        weather, _, _ = period_results_weather(DEFAULT_SOURCE)
+        sweep = run_sensitivity_sweep(weather, make_site_location())
+        for row in sweep:
+            logging.info("sensitivity case: %s", row)
+    else:
+        benchmark = run_benchmark()
+        for name, metrics in benchmark["strategies"].items():
+            logging.info("%s: %s", name, metrics)

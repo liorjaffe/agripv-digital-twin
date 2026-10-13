@@ -73,7 +73,10 @@ def build_timeline_metadata(hourly: pd.DataFrame) -> dict:
         "synthetic_inputs_notice": (
             f"{SYNTHETIC_INPUTS_NOTICE} Generated from commit "
             f"{artifact_metadata['source_commit']}; working tree dirty: "
-            f"{str(artifact_metadata['working_tree_dirty']).lower()}."
+            f"{str(artifact_metadata['working_tree_dirty']).lower()}. "
+            "Crop-cycle and harvest markers use a synthetic seasonal "
+            "temperature curve, not measured site air temperature; they are "
+            "illustrative and not harvest predictions."
         ),
         **artifact_metadata,
         "n": len(hourly),

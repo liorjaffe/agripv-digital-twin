@@ -36,21 +36,60 @@ def test_low_light_schedule_can_move_and_remains_light_seeking():
     assert schedule.diff().abs().gt(0.0).any()
 
 
-def test_dli_ceiling_sensitivity_reduces_excess_light():
+def test_unreachable_dli_ceilings_do_not_change_the_control_schedule():
     location, weather = _clear_sky_weather()
 
-    target_schedule, target_daily = run_timeseries_pipeline(
+    _, daily = run_timeseries_pipeline(weather, location)
+
+    assert bool(daily["candidate_dli_ceiling_reachable"].iloc[0])
+
+
+def test_bright_day_reports_unreachable_dli_ceiling():
+    location = make_site_location()
+    times = pd.date_range(
+        "2026-01-15 05:00",
+        "2026-01-15 20:00",
+        freq="15min",
+        tz="America/Sao_Paulo",
+    )
+    weather = location.get_clearsky(times, model="ineichen")
+    weather["air_temp_c"] = 24.0
+    weather["wind_speed_ms"] = 2.0
+
+    _, daily = run_timeseries_pipeline(weather, location)
+
+    assert daily["candidate_min_dli_mol_m2_day"].iloc[0] > 18.0
+    assert bool(daily["candidate_dli_minimum_reachable"].iloc[0])
+    assert not bool(daily["candidate_dli_ceiling_reachable"].iloc[0])
+    assert not bool(daily["candidate_dli_target_band_reachable"].iloc[0])
+    assert not bool(daily["dli_ceiling_enforced"].iloc[0])
+
+
+def test_unreachable_dli_ceiling_is_ignored_when_tuning_operating_point():
+    location = make_site_location()
+    times = pd.date_range(
+        "2026-01-15 05:00",
+        "2026-01-15 20:00",
+        freq="15min",
+        tz="America/Sao_Paulo",
+    )
+    weather = location.get_clearsky(times, model="ineichen")
+    weather["air_temp_c"] = 24.0
+    weather["wind_speed_ms"] = 2.0
+
+    lower_ceiling, lower_daily = run_timeseries_pipeline(
         weather, location, dli_max_mol_m2_day=14.0
     )
-    capped_schedule, capped_daily = run_timeseries_pipeline(
+    higher_ceiling, higher_daily = run_timeseries_pipeline(
         weather, location, dli_max_mol_m2_day=18.0
     )
 
-    dli_at_target_ceiling = target_daily["dli_mol_m2_day"].iloc[0]
-    dli_at_higher_ceiling = capped_daily["dli_mol_m2_day"].iloc[0]
-    assert abs(dli_at_target_ceiling - 14.0) < abs(dli_at_higher_ceiling - 14.0)
-    assert not target_schedule["tilt_offset_deg"].equals(capped_schedule["tilt_offset_deg"])
-    assert dli_at_higher_ceiling <= 18.0
+    assert not bool(lower_daily["candidate_dli_ceiling_reachable"].iloc[0])
+    assert not bool(higher_daily["candidate_dli_ceiling_reachable"].iloc[0])
+    assert lower_ceiling["tilt_offset_deg"].equals(
+        higher_ceiling["tilt_offset_deg"]
+    )
+    assert lower_daily["candidate_min_dli_mol_m2_day"].iloc[0] > 18.0
 
 
 def test_configured_dli_minimum_is_an_active_target_floor():
@@ -100,6 +139,15 @@ def test_high_wind_commands_absolute_tracker_stow_angle():
     assert baseline["tracker_theta"].dropna().abs().max() > 0.0
 
 
+def test_unknown_wind_after_long_outage_defaults_to_absolute_stow():
+    location, weather = _clear_sky_weather()
+    weather.loc[weather.index[:8], "wind_speed_ms"] = float("nan")
+
+    results, _ = run_timeseries_pipeline(weather, location, max_gap_periods=4)
+
+    assert results["tracker_theta_deg"].iloc[:4].eq(0.0).all()
+
+
 def test_daily_energy_metrics_are_suppressed_when_daylight_coverage_is_low():
     location, weather = _clear_sky_weather()
     times = weather.index
@@ -113,3 +161,4 @@ def test_daily_energy_metrics_are_suppressed_when_daylight_coverage_is_low():
     assert not daily["daylight_coverage_sufficient"].iloc[0]
     assert pd.isna(daily["dli_mol_m2_day"].iloc[0])
     assert pd.isna(daily["pv_energy_kwh"].iloc[0])
+    assert pd.isna(daily["candidate_dli_target_band_reachable"].iloc[0])

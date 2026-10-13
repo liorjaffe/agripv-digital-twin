@@ -29,3 +29,5 @@ def test_timeline_only_exports_variables_with_explicit_scenario_labels():
     assert "synthetic" in metadata["vars"]["t_folha"]["rot"]
     assert "not measured" in metadata["vars"]["fm"]["rot"]
     assert "harvest markers are generated" in metadata["synthetic_inputs_notice"]
+    assert "not measured site air temperature" in metadata["synthetic_inputs_notice"]
+    assert "not harvest predictions" in metadata["synthetic_inputs_notice"]
