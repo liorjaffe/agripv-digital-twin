@@ -1,10 +1,10 @@
 """Thermal-time (growing-degree-day) phenology clock for hydroponic curly lettuce.
 
-Source attribution: `GDD-001`. The defaults are attributed to the four-cycle
-mean basal temperatures and thermal requirements in Janaina Goncalves da
-Silva's 2022 UFSC thesis; the source locations and four-cycle calculation must
-be verified against the original thesis before treating them as literature
-parameters.
+Source attribution: `GDD-001`. The defaults are the four-crop mean basal
+temperatures and thermal requirements reported in Janaina Goncalves da Silva's
+2022 UFSC thesis (verified against the PDF on 2026-10-13; ST = sowing to final
+transplant, TC = final transplant to harvest). Since CROP-003 the report crop
+cycles simulate field biomass only during TC.
 
 This module is a development/phenology clock, not a biomass model: it tracks
 which stage the crop is in and how close it is to completing that stage's
@@ -35,7 +35,7 @@ class LettuceThermalDevelopmentParams:
 
     lettuce_base_temperature_st: float = 4.1
     lettuce_base_temperature_tc: float = 6.1
-    lettuce_thermal_requirement_st: float = 398.67
+    lettuce_thermal_requirement_st: float = 398.64  # GDD-001 abstract value (was 398.67, corrected 2026-10).
     lettuce_thermal_requirement_tc: float = 472.79
 
     def stage_params(self, stage: Stage) -> LettuceThermalStageParams:

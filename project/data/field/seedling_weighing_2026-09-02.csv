@@ -1,0 +1,7 @@
+date,bed_code,sample_code,fresh_mass_g,leaf_count,dry_mass_raw_g,dry_mass_usable,note
+2026-09-02,Seedlings,1,1.04,9,0.07,false,below scale/bag resolution
+2026-09-02,Seedlings,2,0.86,8,0.00,false,below scale/bag resolution
+2026-09-02,Seedlings,3,0.95,9,-0.10,false,negative: below scale/bag resolution
+2026-09-02,Seedlings,4,0.87,8,-0.01,false,negative: below scale/bag resolution
+2026-09-02,Seedlings,5,0.90,8,-0.04,false,negative: below scale/bag resolution
+2026-09-02,Seedlings,6,0.77,8,-0.08,false,negative: below scale/bag resolution

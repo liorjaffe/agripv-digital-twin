@@ -31,9 +31,13 @@ SYNTHETIC_INPUTS_NOTICE = (
     "Unrecorded irradiance timestamps are assumed to have zero light. Crop "
     "biomass values are uncalibrated model-derived scenario estimates, not "
     "validated yields: the growth equation, channel units, and dry-matter "
-    "conversion are not calibrated for this site. The GDD clock makes cool-season "
-    "cycles longer while the separate biomass equation accumulates throughout "
-    "each cycle. The final cycle may be incomplete. These are "
+    "conversion are not calibrated for this site. Each cycle starts at sowing; "
+    "the GDD clock runs the nursery (sowing-to-transplant) stage without field "
+    "biomass, and the biomass equation runs only from transplant to harvest, "
+    "starting from the measured seedling fresh mass. Known limitation: the "
+    "biomass equation gains more dry mass in cool air, opposite to measured "
+    "lettuce growth, so cool-season values may be overstated. The final cycle may "
+    "be incomplete. These are "
     "scenario outputs, not observed harvests or independent field validation."
 )
 
@@ -58,7 +62,9 @@ def cycle_summary_html(cycle_frames: dict[str, pd.DataFrame]) -> str:
             mass_per_plant = mass / plant_density
             lower, upper = USER_REPORTED_FRESH_MASS_RANGE_G_PER_PLANT
             comparison = (
-                "above user-reported range"
+                "not compared (cycle incomplete)"
+                if not completed
+                else "above user-reported range"
                 if mass_per_plant > upper
                 else "below user-reported range"
                 if mass_per_plant < lower
@@ -78,9 +84,11 @@ def cycle_summary_html(cycle_frames: dict[str, pd.DataFrame]) -> str:
             )
     return (
         "<details><summary>Modeled crop-cycle estimates (uncalibrated)</summary>"
-        "<p>Fresh-mass equivalent = modeled dry-mass gain divided by the "
-        "assumed 5% dry-matter fraction. The GDD clock sets cycle duration and "
-        "the separate biomass model accumulates throughout the cycle. The "
+        "<p>Fresh-mass equivalent = modeled field dry mass at harvest "
+        "(including the transplanted seedling) divided by the "
+        "assumed 5% dry-matter fraction. The GDD clock sets cycle duration "
+        "(Days = sowing to harvest, including the nursery stage); field "
+        "biomass is simulated only from transplant to harvest. The "
         "per-plant conversion uses the configured 96 plants over 11.25 m². "
         "For context only, values are compared with the user-reported 100–300 "
         "g/plant range; those records are not currently available for "

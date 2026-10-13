@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pandas as pd
 
+from project.config import load_runtime_config
 from project.models.conversions import PAR_FRACTION
 from project.models.lettuce import (
     DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
@@ -14,12 +16,39 @@ from project.models.lettuce import (
 )
 from project.models.lettuce_development import LettuceThermalDevelopment
 
+# Kept for backward compatibility with callers that import it; crop cycles now
+# start from the transplant seedling state below instead of this value.
 INITIAL_DRY_BIOMASS_G_M2 = (
     DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2
     + DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2
 )
 # CROP-002: assumed dry-matter fraction; not measured for this cultivar/site.
 DRY_MATTER_FRACTION_OF_FRESH_MASS = 0.05
+# SITE-003: measured mean fresh mass per seedling at final transplant
+# (2026-09-02, n = 6, SD 0.09 g; plants "a couple of weeks old"). Representative
+# for every cycle until further transplant weighings are added.
+TRANSPLANT_FRESH_MASS_G_PER_PLANT = 0.90
+# Seedling dry mass could not be weighed reliably (below scale resolution), so it
+# is derived with the same dry-matter fraction used for the fresh-mass output.
+# This keeps the conversion consistent: the seedling contributes 0.90 g to the
+# reported harvest fresh mass. See references/SITE-003.md for the sensitivity.
+SEEDLING_DRY_MATTER_FRACTION = DRY_MATTER_FRACTION_OF_FRESH_MASS
+TRANSPLANT_DRY_MASS_G_PER_PLANT = (
+    TRANSPLANT_FRESH_MASS_G_PER_PLANT * SEEDLING_DRY_MATTER_FRACTION
+)
+# Keeps the existing 8:3 structural/non-structural split of the model default.
+TRANSPLANT_STRUCTURAL_FRACTION = (
+    DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2 / INITIAL_DRY_BIOMASS_G_M2
+)
+
+
+def transplant_initial_state_g_m2(plant_density_per_m2: float) -> tuple[float, float]:
+    """Return (structural, non-structural) dry biomass in g/m² at transplant."""
+    if not math.isfinite(plant_density_per_m2) or plant_density_per_m2 <= 0.0:
+        raise ValueError("plant_density_per_m2 must be finite and positive")
+    total = TRANSPLANT_DRY_MASS_G_PER_PLANT * plant_density_per_m2
+    structural = total * TRANSPLANT_STRUCTURAL_FRACTION
+    return structural, total - structural
 
 
 def seasonal_mean_temp_c(day_of_year: int) -> float:
@@ -49,12 +78,21 @@ def simulate_repeated_crops(
     *,
     mark_cycle_window_end_as_harvest: bool = False,
     temperature_c: pd.Series | None = None,
+    plant_density_per_m2: float | None = None,
 ) -> pd.DataFrame:
     """Simulate report crop cycles from hourly light and thermal-time development.
 
-    The report's fresh-mass equivalent is a model estimate derived from dry-biomass
-    gain using a fixed 5% dry-matter assumption. It is not a measured crop yield and
-    should be labelled as such in any reporting or monetization layer.
+    Each cycle starts at sowing (CROP-003). The GDD-001 clock first runs the
+    sowing-to-transplant (ST, nursery) stage; no field biomass exists during
+    that stage, so field dry/fresh biomass is reported as 0 and
+    ``cycle_stage`` is ``"nursery"``. At the end of the day the ST requirement
+    is met, the seedling is transplanted at field density with
+    ``TRANSPLANT_DRY_MASS_G_PER_PLANT`` and the biomass model runs until the
+    transplant-to-harvest (TC) requirement is met (``cycle_stage == "field"``).
+
+    The fresh-mass equivalent is total modeled field dry biomass (including the
+    transplanted seedling) divided by a fixed 5% dry-matter assumption. It is
+    not a measured crop yield and should be labelled as such.
     When ``temperature_c`` is supplied it is used for both crop growth and
     thermal-time development; otherwise the explicitly illustrative seasonal curve
     remains the fallback for standalone callers.
@@ -70,9 +108,13 @@ def simulate_repeated_crops(
             raise ValueError("temperature_c must align with results")
         if not all(math.isfinite(float(value)) for value in temperature_c):
             raise ValueError("temperature_c must contain only finite values")
+    if plant_density_per_m2 is None:
+        plant_density_per_m2 = load_runtime_config().plant_density_per_m2
+    x_sdw0, x_nsdw0 = transplant_initial_state_g_m2(float(plant_density_per_m2))
 
     columns = [
         "cycle_id",
+        "cycle_stage",
         "cycle_dry_biomass_g_m2",
         "cycle_fresh_biomass_g_m2",
         "cycle_model_fresh_biomass_g_m2",
@@ -94,48 +136,61 @@ def simulate_repeated_crops(
             if temperature_c is None
             else temperature_c.loc[candidate.index]
         )
+        candidate_days = candidate.index.normalize()
         thermal = LettuceThermalDevelopment()
+        transplant_position: int | None = None
         harvest_position = len(candidate) - 1
         matured = False
         for date, day_temperature in candidate_temperature.groupby(
-            candidate_temperature.index.normalize()
+            candidate_days
         ).mean().items():
-            if thermal.update(float(day_temperature))["harvest_ready"]:
-                day_positions = [
-                    position
-                    for position, timestamp in enumerate(candidate.index)
-                    if timestamp.normalize() == date
-                ]
-                if day_positions:
-                    harvest_position = day_positions[-1]
-                    matured = True
-                    break
+            state = thermal.update(float(day_temperature))
+            day_positions = np.flatnonzero(candidate_days == date)
+            if len(day_positions) == 0:
+                continue
+            if transplant_position is None and state["stage"] != "ST":
+                # ST requirement met during this day: transplant at its end.
+                transplant_position = int(day_positions[-1]) + 1
+            if state["harvest_ready"]:
+                harvest_position = int(day_positions[-1])
+                matured = True
+                break
 
         crop = candidate.iloc[: harvest_position + 1]
-        growth = simulate_growth_timeseries(
-            crop.index,
-            crop[light_column] * PAR_FRACTION,
-            (
-                seasonal_canopy_temperature(crop.index)
-                if temperature_c is None
-                else temperature_c.loc[crop.index]
-            ),
-            x_sdw0=DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
-            x_nsdw0=DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
-        )
         cycle = pd.DataFrame(index=crop.index)
         cycle["cycle_id"] = cycle_number
-        cycle["cycle_dry_biomass_g_m2"] = growth["total_dry_biomass"]
-        cycle["cycle_model_fresh_biomass_g_m2"] = (
-            (growth["total_dry_biomass"] - INITIAL_DRY_BIOMASS_G_M2).clip(lower=0.0)
-            / DRY_MATTER_FRACTION_OF_FRESH_MASS
-        )
+        cycle["cycle_stage"] = "nursery"
+        cycle["cycle_dry_biomass_g_m2"] = 0.0
+        cycle["cycle_model_fresh_biomass_g_m2"] = 0.0
+
+        if transplant_position is not None and transplant_position < len(crop):
+            field = crop.iloc[transplant_position:]
+            growth = simulate_growth_timeseries(
+                field.index,
+                field[light_column] * PAR_FRACTION,
+                (
+                    seasonal_canopy_temperature(crop.index).loc[field.index]
+                    if temperature_c is None
+                    else temperature_c.loc[field.index]
+                ),
+                x_sdw0=x_sdw0,
+                x_nsdw0=x_nsdw0,
+            )
+            cycle.loc[field.index, "cycle_stage"] = "field"
+            cycle.loc[field.index, "cycle_dry_biomass_g_m2"] = growth[
+                "total_dry_biomass"
+            ].to_numpy()
+            cycle.loc[field.index, "cycle_model_fresh_biomass_g_m2"] = (
+                growth["total_dry_biomass"].clip(lower=0.0)
+                / DRY_MATTER_FRACTION_OF_FRESH_MASS
+            ).to_numpy()
+
         cycle["cycle_fresh_biomass_g_m2"] = cycle["cycle_model_fresh_biomass_g_m2"]
         cycle["harvest"] = False
         if matured or mark_cycle_window_end_as_harvest:
             cycle.iloc[-1, cycle.columns.get_loc("harvest")] = True
 
-        records.append(cycle)
+        records.append(cycle[columns])
         start += len(crop)
         cycle_number += 1
     return pd.concat(records, ignore_index=False)

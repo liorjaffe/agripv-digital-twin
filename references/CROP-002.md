@@ -30,6 +30,9 @@
 | --- | --- | --- | --- | --- |
 | Dry-matter fraction of fresh mass | `DRY_MATTER_FRACTION_OF_FRESH_MASS` | Fraction | 0.05 (5%) | Similar-crop primary data in LETTUCE-005 derive 5.3–6.6% for hydroponic red-leaf ‘Red Wave’; this does not establish a curly-lettuce range or site value |
 | Initial structural/non-structural dry biomass | `DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2`, `DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2` | g/m² | 8 / 3; total 11; structural share 72.7% | No transplant measurement or primary literature source verified; this is not the cited 30/70 structural/non-structural split |
+| Transplant seedling mass (crop cycles) | `TRANSPLANT_FRESH_MASS_G_PER_PLANT` × `SEEDLING_DRY_MATTER_FRACTION` in `crop_cycles.py` | g/plant | 0.90 g fresh (measured, SITE-003) × 0.05 = 0.045 g DW; 8:3 structural split | Fresh mass measured; seedling dry-matter fraction assumed |
+| Published hydroponic dry-matter range | LETTUCE-009, LETTUCE-012 | % | 2.6–4.9 % | 0.05 sits at/above this range; lower DMF raises fresh-mass estimates |
+| Site dry-matter content, cycle 1 (preliminary) | SITE-003, weighings 18.09 and 25.09 | % | ≈ 9.8–9.9 % | Single unfinished cycle; 5 h at 90 °C drying may not reach constant mass; NOT used yet |
 | Synthetic seasonal temperature | `seasonal_mean_temp_c` and `seasonal_canopy_temperature` | °C; day of year | `20.5 + 5 cos(2π(day−34)/365.25)`, then shifted to 24 °C on planting day | Entirely synthetic. No site temperature channel is used by this report method. |
 
 ## Connection to this project
@@ -42,8 +45,11 @@
 - Configuration key(s): Not applicable
 - Related test(s): [`project/tests/test_model_explorer.py`](../project/tests/test_model_explorer.py),
   [`project/tests/test_timeline_export.py`](../project/tests/test_timeline_export.py)
-- Adaptation made for this project: The fixed dry-matter fraction converts
-  modeled dry-mass gain to a fresh-mass equivalent; supplied TMY air
+- Adaptation made for this project: Since CROP-003 (2026-10) the fixed
+  dry-matter fraction converts total modeled field dry mass at harvest
+  (including the transplanted seedling) to a fresh-mass equivalent; the
+  8 + 3 g/m² default initial state is no longer used by crop cycles (it remains
+  the default for `simulate_growth_timeseries` and the continuous pipeline); supplied TMY air
   temperature is used for report-only thermal development and temperature
   response, with a synthetic curve retained only as a fallback for callers
   that do not provide temperature.
@@ -79,6 +85,9 @@
   scenario illustrations, not measured crop predictions.
 
 ## Decision log
+
+- Update 2026-10-13: See [CROP-003](./CROP-003.md) for the crop-cycle
+  correction, the new transplant placeholder, and before/after results.
 
 - Decision: Retain 0.05 as a disclosed scenario assumption; use LETTUCE-005
   only as adjacent evidence that this order of magnitude is plausible for

@@ -42,6 +42,9 @@ def test_model_explorer_exports_uncalibrated_values_and_marks_incomplete_cycles(
     summary = cycle_summary_html({"open": cycle})
     assert "5072.5" in summary
     assert "594.4" in summary
-    assert "above user-reported range" in summary
+    assert "not compared (cycle incomplete)" in summary
     assert "in progress at data end" in summary
     assert "GDD clock sets cycle duration" in summary
+
+    harvested = cycle.assign(harvest=[False, True])
+    assert "above user-reported range" in cycle_summary_html({"open": harvested})
