@@ -2,7 +2,6 @@
 
 import re
 import yaml
-import pytest
 
 from project.models.lettuce import LettuceParams
 from project.models.conversions import PAR_FRACTION, PPFD_PER_PAR_WM2
