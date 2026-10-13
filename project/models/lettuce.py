@@ -154,41 +154,154 @@ def simulate_growth_timeseries(
     x_nsdw0=DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
     par_to_ppfd_factor: float = PPFD_PER_PAR_WM2,
     params: LettuceParams | None = None,
+    max_gap_periods: int = 4,
+    integration_step_seconds: float = 900.0,
 ):
     """Integrate biomass over an arbitrary, timezone-aware time series.
 
-    ``par_wm2`` is PAR energy in W/m². Actual elapsed seconds are used between
-    samples, so 15-minute, hourly, monthly, and multi-year input series are all
-    handled consistently. The state is carried continuously across day boundaries.
+    ``par_wm2`` is PAR energy in W/m². Short internal input gaps are interpolated
+    up to ``max_gap_periods``; missing model input beyond that point invalidates
+    the biomass state for that timestamp and all subsequent timestamps. The
+    model uses fixed-step RK4 integration between observations and carries state
+    continuously across day boundaries.
     """
     times = pd.DatetimeIndex(times)
     if times.tz is None:
         raise ValueError("times must be timezone-aware")
-    par = pd.Series(par_wm2, index=times, dtype=float).fillna(0.0).clip(lower=0.0)
-    temp = pd.Series(temp_air_c, index=times, dtype=float).interpolate(limit_direction="both").fillna(25.0)
-    co2 = pd.Series(co2_ppm, index=times, dtype=float).interpolate(limit_direction="both").fillna(420.0)
+    if max_gap_periods < 0:
+        raise ValueError("max_gap_periods must be non-negative")
+    if not np.isfinite(integration_step_seconds) or integration_step_seconds <= 0.0:
+        raise ValueError("integration_step_seconds must be finite and positive")
+    raw_par = pd.Series(par_wm2, index=times, dtype=float)
+    raw_temp = pd.Series(temp_air_c, index=times, dtype=float)
+    raw_co2 = pd.Series(co2_ppm, index=times, dtype=float)
+    par = (
+        raw_par
+        .interpolate(method="time", limit=max_gap_periods, limit_area="inside")
+        .clip(lower=0.0)
+    )
+    temp = raw_temp.interpolate(
+        method="time",
+        limit=max_gap_periods,
+        limit_area="inside",
+    )
+    co2 = raw_co2.interpolate(
+        method="time",
+        limit=max_gap_periods,
+        limit_area="inside",
+    )
 
     x_sdw, x_nsdw = float(x_sdw0), float(x_nsdw0)
+    state_valid = True
     records = []
     for position, timestamp in enumerate(times):
-        dt_s = 0.0 if position == 0 else max((times[position] - times[position - 1]).total_seconds(), 0.0)
         par_value = float(par.iloc[position])
-        dx_sdw, dx_nsdw = lettuce_rhs(
-            0.0,
-            (x_sdw, x_nsdw),
-            (float(temp.iloc[position]), par_value, float(co2.iloc[position])),
-            params,
+        temp_value = float(temp.iloc[position])
+        co2_value = float(co2.iloc[position])
+        input_valid = all(
+            np.isfinite(value) for value in (par_value, temp_value, co2_value)
         )
-        x_sdw = max(x_sdw + dx_sdw * dt_s, 0.0)
-        x_nsdw = max(x_nsdw + dx_nsdw * dt_s, 0.0)
+        if not input_valid:
+            state_valid = False
+        if position > 0 and state_valid:
+            start = times[position - 1]
+            interval_seconds = (timestamp - start).total_seconds()
+            if interval_seconds < 0.0:
+                raise ValueError("times must be monotonically increasing")
+            if interval_seconds > 0.0:
+                start_inputs = (
+                    float(temp.iloc[position - 1]),
+                    float(par.iloc[position - 1]),
+                    float(co2.iloc[position - 1]),
+                )
+                end_inputs = (temp_value, par_value, co2_value)
+                if not all(np.isfinite(value) for value in start_inputs):
+                    state_valid = False
+                else:
+                    elapsed = 0.0
+                    while elapsed < interval_seconds:
+                        step = min(
+                            integration_step_seconds,
+                            interval_seconds - elapsed,
+                        )
+                        fraction_start = elapsed / interval_seconds
+                        fraction_mid = (elapsed + step * 0.5) / interval_seconds
+                        fraction_end = (elapsed + step) / interval_seconds
+
+                        def inputs_at(fraction: float) -> tuple[float, float, float]:
+                            return tuple(
+                                start_value
+                                + (end_value - start_value) * fraction
+                                for start_value, end_value in zip(
+                                    start_inputs,
+                                    end_inputs,
+                                )
+                            )
+
+                        state = np.array([x_sdw, x_nsdw], dtype=float)
+
+                        def derivative(
+                            state_values: np.ndarray,
+                            fraction: float,
+                        ) -> np.ndarray:
+                            return np.asarray(
+                                lettuce_rhs(
+                                    elapsed,
+                                    state_values,
+                                    inputs_at(fraction),
+                                    params,
+                                ),
+                                dtype=float,
+                            )
+
+                        k1 = derivative(state, fraction_start)
+                        k2 = derivative(
+                            np.maximum(state + step * k1 * 0.5, 0.0),
+                            fraction_mid,
+                        )
+                        k3 = derivative(
+                            np.maximum(state + step * k2 * 0.5, 0.0),
+                            fraction_mid,
+                        )
+                        k4 = derivative(
+                            np.maximum(state + step * k3, 0.0),
+                            fraction_end,
+                        )
+                        state = np.maximum(
+                            state + step * (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0,
+                            0.0,
+                        )
+                        x_sdw, x_nsdw = (float(value) for value in state)
+                        elapsed += step
+        if not state_valid:
+            x_sdw = x_nsdw = float("nan")
         records.append({
             "time": timestamp,
             "x_sdw": x_sdw,
             "x_nsdw": x_nsdw,
             "total_dry_biomass": x_sdw + x_nsdw,
-            "par_wm2": par_value,
-            "ppfd_umol_m2_s": par_value * par_to_ppfd_factor,
-            "temp_air_c": float(temp.iloc[position]),
-            "co2_ppm": float(co2.iloc[position]),
+            "par_wm2": par_value if np.isfinite(par_value) else float("nan"),
+            "ppfd_umol_m2_s": (
+                par_value * par_to_ppfd_factor
+                if np.isfinite(par_value)
+                else float("nan")
+            ),
+            "temp_air_c": temp_value,
+            "co2_ppm": co2_value,
+            "input_data_complete": bool(
+                np.isfinite(raw_par.iloc[position])
+                and np.isfinite(raw_temp.iloc[position])
+                and np.isfinite(raw_co2.iloc[position])
+            ),
+            "model_input_valid": input_valid,
+            "biomass_state_valid": state_valid,
+            "light_interpolated": bool(
+                pd.isna(raw_par.iloc[position])
+                and np.isfinite(par_value)
+            ),
+            "temperature_interpolated": bool(
+                pd.isna(raw_temp.iloc[position])
+                and np.isfinite(temp_value)
+            ),
         })
     return pd.DataFrame(records).set_index("time")

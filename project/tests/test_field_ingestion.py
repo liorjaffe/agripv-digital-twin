@@ -276,7 +276,7 @@ def test_process_field_export_runs_end_to_end_with_synthetic_station_export():
     assert np.isfinite(results["crop_ppfd_umol_m2_s"]).all()
     assert (results["pv_power_w"] >= 0.0).all()
     assert results["pv_power_w"].max() <= default_config.pdc0_w
-    assert results["tilt_offset_deg"].between(-55.0, 55.0).all()
+    assert results["tracker_theta_deg"].between(-55.0, 55.0).all()
     assert not telemetry.empty
     assert "input_data_complete_fraction" in daily.columns
 

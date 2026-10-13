@@ -11,6 +11,7 @@ This intentionally keeps the units explicit to avoid a common factor-of-two bug.
 
 from __future__ import annotations
 
+import math
 from typing import Union
 
 import numpy as np
@@ -107,6 +108,26 @@ def dli_from_timeseries(ppfd_umol_m2_s: pd.Series) -> pd.Series:
     )
 
 
+def dli_interval_contribution(
+    previous_ppfd_umol_m2_s: float | None,
+    current_ppfd_umol_m2_s: float,
+    elapsed_seconds: float | None,
+) -> float | None:
+    """Return one finite adjacent-sample trapezoid contribution in mol/m²."""
+    if (
+        previous_ppfd_umol_m2_s is None
+        or elapsed_seconds is None
+        or not math.isfinite(previous_ppfd_umol_m2_s)
+        or not math.isfinite(current_ppfd_umol_m2_s)
+        or not math.isfinite(elapsed_seconds)
+        or elapsed_seconds <= 0.0
+    ):
+        return None
+    previous = max(0.0, previous_ppfd_umol_m2_s)
+    current = max(0.0, current_ppfd_umol_m2_s)
+    return (previous + current) * 0.5 * elapsed_seconds / 1_000_000.0
+
+
 def energy_from_power_timeseries_kwh(power_w: pd.Series) -> pd.Series:
     """Integrate finite adjacent power samples into daily AC/DC energy in kWh."""
     return _daily_trapezoid_integral(power_w, scale=3_600_000.0).rename(
@@ -137,8 +158,26 @@ def _daily_trapezoid_integral(values: pd.Series, *, scale: float) -> pd.Series:
         & same_local_day
         & elapsed_seconds.gt(0.0)
     )
-    contributions = (
-        (ordered + previous_values) / 2.0 * elapsed_seconds / scale
-    ).where(valid_intervals)
+    if scale == 1_000_000.0:
+        contributions = pd.Series(
+            [
+                dli_interval_contribution(previous, current, elapsed)
+                if same_day and valid
+                else None
+                for previous, current, elapsed, same_day, valid in zip(
+                    previous_values,
+                    ordered,
+                    elapsed_seconds,
+                    same_local_day,
+                    valid_intervals,
+                )
+            ],
+            index=ordered.index,
+            dtype=float,
+        )
+    else:
+        contributions = (
+            (ordered + previous_values) / 2.0 * elapsed_seconds / scale
+        ).where(valid_intervals)
     daily = contributions.groupby(ordered.index.normalize()).sum(min_count=1)
     return daily

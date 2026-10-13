@@ -122,6 +122,9 @@ for a comparison; treat those labels and the resulting crop comparisons as
 scenario assumptions, not as universally established sensor mappings.
 See the [raw-data dictionary](./project/data/raw/README.md) for documented
 gaps in instrument identity, units, averaging, and tracker-angle convention.
+Rows later than the current export cutoff are marked
+`future_timestamp_unverified`; they are not assumed to be forecasts or
+simulations and are excluded from the dashboard's observed-data view.
 
 ## The science, in plain language
 
@@ -182,6 +185,11 @@ harvest date is not a measured crop yield. On the bundled field dataset, the
 biomass model uses its configured 26°C air-temperature fallback; report
 crop-cycle/harvest markers use a separate illustrative seasonal-temperature
 curve. Both are scenario outputs, not temperature-informed site predictions.
+The biomass solver uses fixed 15-minute RK4 substeps by default, regardless of
+weather sampling interval. Light, temperature, and CO₂ gaps are interpolated only when
+they are internal and no longer than `max_gap_periods`; an unresolved input gap
+marks biomass state unknown at that point and thereafter rather than treating
+missing light as darkness or silently resuming from an invented state.
 Calibration and field validation
 need appropriate biomass and sensor observations; when those are missing, the
 validation code reports that explicitly instead of fabricating a fit.
@@ -198,11 +206,14 @@ values. Conversion equations and a worked example are in the
 ### Tracker recommendations
 
 [`project/scenarios/run_timeseries.py`](./project/scenarios/run_timeseries.py)
-evaluates a set of offsets from the sun-following tracker position. At each
-time step, it uses accumulated daily DLI and remaining daylight to compute a
-target-to-maximum PPFD band, then prioritizes light-band compliance and uses
-normalized PV and movement preferences to choose among equally compliant
-candidates:
+evaluates absolute mechanical tracker angles on a grid spaced no farther apart
+than the allowed movement per control interval. The configured
+`tilt_offsets_deg` seed additional candidates relative to the sun-following
+baseline at the first timestamp; reported `tilt_offset_deg` remains relative to
+the changing baseline. At each time step, the controller uses accumulated
+trapezoidal daily DLI and remaining daylight to compute a target-to-maximum
+PPFD band, then prioritizes light-band compliance and uses normalized PV and
+movement preferences to choose among equally compliant candidates:
 
 ```text
 light score:
@@ -214,14 +225,18 @@ light score:
 ```
 
 The daily bounds come from the configured DLI target and maximum, updating as
-light accumulates and the day's remaining daylight changes. Candidate offsets
-are evaluated at reachable increments so the per-step movement limit does not
-make every non-zero move impossible. Offsets are applied to signed tracker
-rotation and limited to installed ±55° travel. On wind-stow threshold, the
+light accumulates and the day's remaining daylight changes. Normal movement limits now constrain changes in **absolute tracker angle**,
+not changes in the sun-relative offset. The initial mechanical angle is assumed to equal the sun-following baseline at
+the first input timestamp because the current interface has no tracker-state
+input.
+Angles are limited to installed ±55° travel. On wind-stow threshold, the
 controller instead commands the configured **absolute tracker rotation**
-(`wind_stow_tracker_theta_deg`, currently 0°), not an offset from sun-following.
-That park-angle assumption has not been confirmed against a manufacturer
-specification and must be verified before connecting any hardware. The reported
+(`wind_stow_tracker_theta_deg`, currently 0°), even if that emergency command
+exceeds the normal slew limit. Actual movement and `wind_stow_slew_override`
+are reported; after stow, ordinary movement is constrained from the parked
+angle. This prioritizes a safety park in the model but is not a commissioned
+hardware-safety function. The park-angle assumption has not been confirmed
+against manufacturer guidance. The reported
 daily DLI is computed from the selected crop PPFD series; it can exceed the
 maximum where no evaluated tracker position can shade enough light. When the
 lowest-light candidate envelope already exceeds the configured DLI ceiling,
@@ -241,8 +256,9 @@ the positive exploratory model-to-channel bias as calibration evidence or
 changing the 14/18 mol/m²/day target/ceiling.
 When a wind channel is present, only gaps up to `max_gap_periods` are
 interpolated; a longer unresolved gap is treated as unknown wind and triggers
-the configured absolute stow angle. This is a conservative model fallback,
-not a commissioned hardware-safety function.
+the configured absolute stow angle. The optimizer's running DLI diagnostic and
+the reported daily DLI use the same finite-adjacent-sample trapezoidal rule;
+`controller_dli_mol_m2_day` exposes the running accumulation.
 Daily DLI and PV energy use trapezoidal integration over finite adjacent
 samples. The pipeline reports pre-interpolation daylight source coverage and
 suppresses those daily metrics below 80% coverage rather than treating missing

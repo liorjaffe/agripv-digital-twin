@@ -3,6 +3,7 @@ import pandas as pd
 from project.config import make_site_location
 from project.scenarios.run_benchmark import (
     compare_strategies,
+    run_benchmark,
     run_sensitivity_sweep,
 )
 
@@ -61,3 +62,77 @@ def test_sensitivity_sweep_reports_operating_point_and_pareto_metrics():
     assert all("movement_weight" in row for row in rows)
     assert all("pareto_optimal" in row for row in rows)
     assert all("dli_target_error_mol_m2_day" in row for row in rows)
+
+
+def test_benchmark_excludes_future_timestamp_rows(tmp_path, monkeypatch):
+    source = tmp_path / "period-results.csv"
+    pd.DataFrame(
+        {
+            "datetime": [
+                "2026-10-13T08:00:00-03:00",
+                "2026-10-13T09:00:00-03:00",
+                "2026-10-13T10:00:00-03:00",
+            ],
+            "GHI": [50.0, 60.0, 70.0],
+            "DNI": [0.0, 10.0, 20.0],
+            "DHI": [50.0, 50.0, 50.0],
+            "Solar_Azimuth": [0.0, 0.0, 0.0],
+            "Solar_Zenith": [90.0, 80.0, 70.0],
+            "Solar_Elevation": [0.0, 10.0, 20.0],
+            "Tracker_Angle": [0.0, 1.0, 2.0],
+        }
+    ).to_csv(source, index=False)
+    compared_row_counts = []
+
+    def fake_compare(weather, location, **options):
+        compared_row_counts.append(len(weather))
+        return {}
+
+    monkeypatch.setattr("project.scenarios.run_benchmark.compare_strategies", fake_compare)
+
+    result = run_benchmark(
+        source,
+        make_site_location(),
+        as_of="2026-10-13T09:00:00-03:00",
+    )
+
+    assert compared_row_counts == [2]
+    assert result["observed_rows"] == 2
+    assert result["future_timestamp_unverified_rows_excluded"] == 1
+    assert result["data_as_of"] == "2026-10-13T09:00:00-03:00"
+
+
+def test_benchmark_movement_metric_uses_absolute_tracker_angles():
+    from project.scenarios.run_benchmark import summarize_strategy
+
+    index = pd.date_range(
+        "2026-06-15 12:00",
+        periods=3,
+        freq="15min",
+        tz="America/Sao_Paulo",
+    )
+    results = pd.DataFrame(
+        {
+            "tilt_offset_deg": [0.0, 0.0, 0.0],
+            "tracker_theta_deg": [0.0, 2.0, 5.0],
+            "total_dry_biomass": [1.0, 1.1, 1.2],
+        },
+        index=index,
+    )
+    daily = pd.DataFrame(
+        {
+            "daylight_coverage_sufficient": [True],
+            "dli_mol_m2_day": [10.0],
+            "pv_energy_kwh": [2.0],
+            "candidate_dli_target_band_reachable": [True],
+            "candidate_dli_minimum_reachable": [True],
+            "candidate_dli_ceiling_reachable": [True],
+            "candidate_min_dli_mol_m2_day": [10.0],
+            "candidate_max_dli_mol_m2_day": [15.0],
+        },
+        index=pd.DatetimeIndex([index[0].normalize()]),
+    )
+
+    metrics = summarize_strategy(results, daily)
+
+    assert metrics["mean_tracker_angle_movement_deg_per_timestep"] == 2.5

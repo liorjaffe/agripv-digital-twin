@@ -40,7 +40,15 @@ are available and the crop model has been validated.
 
 Run `PYTHONPATH=. python scripts/export-period-results-public.py` from the
 repository root to regenerate `public/data/period-results-2026.js` from the
-tracked CSV. No ignored workbook is required. The public export includes only
-timestamp and GHI/DNI/DHI values; other raw channels are intentionally
-excluded. The generated file records the source commit and whether the
-working tree had changes.
+tracked CSV. No ignored workbook is required. The public export includes
+timestamp, GHI/DNI/DHI values, and timestamp-based source status; other raw
+channels are intentionally excluded. The generated file records the source
+commit and whether the working tree had changes.
+
+At export time, rows later than the current timestamp in the record timezone
+are tagged `future_timestamp_unverified`, not forecast or simulation; the
+available source does not establish what they represent. The dashboard's
+observational view excludes these rows, while generated research outputs retain
+them with that explicit status. Pass an explicit timezone-aware `as_of` when
+calling the export or service function to reproduce a cutoff in tests or other
+code.

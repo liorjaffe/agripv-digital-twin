@@ -6,7 +6,10 @@ import math
 
 import pandas as pd
 
-from project.models.conversions import dli_from_timeseries
+from project.models.conversions import (
+    dli_from_timeseries,
+    dli_interval_contribution,
+)
 
 
 def _light_objective(
@@ -27,6 +30,8 @@ def optimize_tilt_schedule(
     target_ppfd: pd.Series,
     *,
     previous_tilt: float | None = None,
+    previous_tracker_theta: float | None = None,
+    movement_override: pd.Series | None = None,
     max_move_deg: float | None = None,
     pv_loss_weight: float = 0.0,
     movement_weight: float = 0.0,
@@ -52,6 +57,8 @@ def optimize_tilt_schedule(
         raise ValueError("optimizer weights must be finite and non-negative")
     tilts = sorted(float(tilt) for tilt in candidates)
     index = target_ppfd.index
+    if movement_override is not None and not index.equals(movement_override.index):
+        raise ValueError("movement_override must align with target_ppfd")
     dynamic_dli = dli_target_mol_m2_day is not None or dli_max_mol_m2_day is not None
     if dynamic_dli:
         if dli_target_mol_m2_day is None or dli_max_mol_m2_day is None or daylight_seconds is None:
@@ -98,8 +105,16 @@ def optimize_tilt_schedule(
         daily_candidate_dli["dli_ceiling_enforced"] = daily_ceiling_reachable
     selected = []
     last_tilt = previous_tilt
+    last_tracker_theta = (
+        previous_tracker_theta
+        if previous_tracker_theta is not None
+        else previous_tilt
+    )
     accumulated_dli_by_day: dict[pd.Timestamp, float] = {}
     elapsed_daylight_by_day: dict[pd.Timestamp, float] = {}
+    previous_selected_ppfd_by_day: dict[pd.Timestamp, float] = {}
+    previous_timestamp_by_day: dict[pd.Timestamp, pd.Timestamp] = {}
+    controller_dli_values = []
     for timestamp in index:
         target = float(target_ppfd.loc[timestamp])
         minimum_ppfd = target
@@ -144,11 +159,24 @@ def optimize_tilt_schedule(
         )
         scored = []
         for tilt in tilts:
-            move = 0.0 if last_tilt is None else abs(tilt - last_tilt)
-            if max_move_deg is not None and move > max_move_deg:
-                continue
             values = valid_candidates.get(tilt)
             if values is None:
+                continue
+            tracker_theta = float(values.get("tracker_theta_deg", tilt))
+            move = (
+                0.0
+                if last_tracker_theta is None
+                else abs(tracker_theta - last_tracker_theta)
+            )
+            override_move_limit = (
+                movement_override is not None
+                and bool(movement_override.loc[timestamp])
+            )
+            if (
+                max_move_deg is not None
+                and move > max_move_deg
+                and not override_move_limit
+            ):
                 continue
             crop_ppfd = float(values["crop_ppfd_umol_m2_s"])
             pv_loss = max_power - float(values["pv_power_w"])
@@ -164,31 +192,58 @@ def optimize_tilt_schedule(
                     pv_loss_weight * normalized_pv_loss
                     + movement_weight * normalized_move
                 )
-                scored.append(((score, operating_cost, tilt), tilt))
+                scored.append(((score, operating_cost, move, tilt), tilt))
             else:
                 score += pv_loss_weight * pv_loss + movement_weight * move
-                scored.append(((score, tilt), tilt))
+                scored.append(((score, move, tilt), tilt))
         if not scored:
             chosen = last_tilt if last_tilt is not None else tilts[0]
+            chosen_values = valid_candidates.get(chosen)
+            if chosen_values is not None:
+                last_tracker_theta = float(
+                    chosen_values.get("tracker_theta_deg", chosen)
+                )
         else:
             chosen = min(scored)[1]
+            chosen_values = valid_candidates[chosen]
+            last_tracker_theta = float(
+                chosen_values.get("tracker_theta_deg", chosen)
+            )
         selected.append(chosen)
         last_tilt = chosen
         if dynamic_dli:
             chosen_ppfd = float(candidates[chosen].loc[timestamp, "crop_ppfd_umol_m2_s"])
             interval_daylight = float(daylight_seconds.loc[timestamp])
             day = timestamp.normalize()
+            previous_ppfd = previous_selected_ppfd_by_day.get(day)
+            previous_timestamp = previous_timestamp_by_day.get(day)
+            elapsed_seconds = (
+                (timestamp - previous_timestamp).total_seconds()
+                if previous_timestamp is not None
+                else None
+            )
+            contribution = dli_interval_contribution(
+                previous_ppfd,
+                chosen_ppfd,
+                elapsed_seconds,
+            )
+            accumulated_dli_by_day[day] = (
+                accumulated_dli_by_day.get(day, 0.0)
+                + (contribution if contribution is not None else 0.0)
+            )
             if math.isfinite(chosen_ppfd):
-                accumulated_dli_by_day[day] = (
-                    accumulated_dli_by_day.get(day, 0.0)
-                    + chosen_ppfd * interval_daylight / 1_000_000.0
-                )
+                previous_selected_ppfd_by_day[day] = chosen_ppfd
+            else:
+                previous_selected_ppfd_by_day.pop(day, None)
+            previous_timestamp_by_day[day] = timestamp
+            controller_dli_values.append(accumulated_dli_by_day[day])
             elapsed_daylight_by_day[day] = (
                 elapsed_daylight_by_day.get(day, 0.0) + interval_daylight
             )
 
     schedule = pd.DataFrame({"tilt_deg": selected}, index=index)
     if dynamic_dli:
+        schedule["controller_dli_mol_m2_day"] = controller_dli_values
         days = pd.Series(index.normalize(), index=index)
         for column in daily_candidate_dli:
             schedule[column] = days.map(daily_candidate_dli[column])

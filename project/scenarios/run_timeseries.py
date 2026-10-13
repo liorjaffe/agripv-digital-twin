@@ -51,6 +51,7 @@ def run_timeseries_pipeline(
     bifaciality: float = _DEFAULT_CONFIG.bifaciality,
     co2_ppm: float = _DEFAULT_CONFIG.co2_ppm,
     move_limit_deg_per_hour: float = _DEFAULT_CONFIG.move_limit_deg_per_hour,
+    enforce_absolute_slew_limit: bool = True,
     wind_stow_speed_ms: float = _DEFAULT_CONFIG.wind_stow_speed_ms,
     wind_stow_tracker_theta_deg: float = _DEFAULT_CONFIG.wind_stow_tracker_theta_deg,
     fallback_air_temp_c: float = _DEFAULT_CONFIG.fallback_air_temp_c,
@@ -72,6 +73,9 @@ def run_timeseries_pipeline(
     ``temperature_c`` takes precedence. If no finite air-temperature input is
     available, the explicitly configured ``fallback_air_temp_c`` scenario
     value is used and logged; it is included in the output with its source.
+    When absolute slew limiting is enabled, the starting angle is assumed to be
+    the baseline tracker angle at the first input timestamp. The configured
+    emergency wind-stow angle overrides that limit and is reported explicitly.
 
     Only up to ``max_gap_periods`` consecutive missing samples are bridged by
     interpolation; longer comms outages are left as ``NaN`` rather than invented,
@@ -114,6 +118,16 @@ def run_timeseries_pipeline(
 
     wind_column = next((column for column in ("wind_speed_ms", "wind_speed") if column in weather.columns), None)
     wind_speed_ms = weather[wind_column] if wind_column is not None else 1.0
+    if wind_column is not None:
+        wind = weather[wind_column].reindex(weather.index).interpolate(
+            method="time",
+            limit=max_gap_periods,
+            limit_area="inside",
+        )
+        stow_mask = wind.isna() | wind.ge(wind_stow_speed_ms)
+    else:
+        wind = None
+        stow_mask = pd.Series(False, index=weather.index)
     if temperature_c is None:
         if "air_temp_c" in weather.columns and weather["air_temp_c"].notna().any():
             temperature_c = weather["air_temp_c"]
@@ -159,6 +173,10 @@ def run_timeseries_pipeline(
         location, weather.index, pressure_hpa=pressure_hpa, temp_air_c=refraction_temp_c
     )
     baseline = tracker_orientation(solar, axis_azimuth_deg, gcr, max_tilt_deg=max_tilt_deg)
+    first_baseline_theta = baseline["tracker_theta"].iloc[0]
+    initial_tracker_theta = (
+        float(first_baseline_theta) if pd.notna(first_baseline_theta) else None
+    )
 
     if not tilt_offsets_deg:
         raise ValueError("tilt_offsets_deg must contain at least one candidate")
@@ -186,28 +204,80 @@ def run_timeseries_pipeline(
         target_ppfd.loc[day_mask] = effective_dli_target * 1_000_000.0 / total_daylight_seconds
     target_ppfd = target_ppfd.where(solar["apparent_zenith"] < 90.0, 0.0)
     max_move_deg = move_limit_deg_per_hour * (interval_seconds / 3600.0)
-    candidate_offsets = {float(offset) for offset in tilt_offsets_deg}
-    if max_move_deg > 0.0:
-        min_offset = min(candidate_offsets)
-        max_offset = max(candidate_offsets)
-        step = max_move_deg
-        value = 0.0
-        while value <= max_offset:
-            candidate_offsets.add(round(value, 6))
-            value += step
-        value = -step
-        while value >= min_offset:
-            candidate_offsets.add(round(value, 6))
-            value -= step
-        candidate_offsets.update((min_offset, max_offset))
-    candidates = {}
-    for offset in sorted(candidate_offsets):
-        orientation = offset_tracker_orientation(
-            baseline,
-            offset,
-            axis_azimuth_deg,
-            max_tilt_deg=max_tilt_deg,
+    absolute_angle_candidates = enforce_absolute_slew_limit
+    candidate_angles: set[float] = set()
+    if absolute_angle_candidates:
+        candidate_step_deg = max_move_deg if max_move_deg > 0.0 else 1.0
+        angle = -max_tilt_deg
+        while angle < max_tilt_deg:
+            candidate_angles.add(round(angle, 8))
+            angle += candidate_step_deg
+        candidate_angles.add(float(max_tilt_deg))
+        if initial_tracker_theta is not None:
+            candidate_angles.add(initial_tracker_theta)
+            candidate_angles.update(
+                min(
+                    max(initial_tracker_theta + offset, -max_tilt_deg),
+                    max_tilt_deg,
+                )
+                for offset in tilt_offsets_deg
+            )
+        candidate_offsets = candidate_angles
+    else:
+        candidate_offsets = {float(offset) for offset in tilt_offsets_deg}
+    stowed = None
+    if stow_mask.any():
+        stow_orientation = baseline.copy()
+        stow_orientation["tracker_theta"] = pd.Series(
+            wind_stow_tracker_theta_deg,
+            index=weather.index,
         )
+        surface_orientation = pvlib.tracking.calc_surface_orientation(
+            stow_orientation["tracker_theta"],
+            axis_azimuth=axis_azimuth_deg,
+        )
+        stow_orientation[["surface_tilt", "surface_azimuth"]] = surface_orientation
+        stowed = crop_and_pv_irradiance(
+            solar,
+            weather,
+            stow_orientation,
+            gcr=gcr,
+            height_m=height_m,
+            pitch_m=pitch_m,
+            albedo=albedo,
+            bifaciality=bifaciality,
+        )
+        stowed["pv_power_w"] = pvwatts_power(
+            stowed["poa_global_w_m2"],
+            temperature_c,
+            pdc0_w,
+            gamma_pdc,
+            system_losses_percent=pv_system_losses_percent,
+            inverter_efficiency=pv_inverter_efficiency,
+            wind_speed_ms=wind_speed_ms,
+            module_temp_c=module_temp_c,
+        )
+        stowed["tracker_theta_deg"] = stow_orientation["tracker_theta"]
+    candidates = {}
+    for candidate in sorted(candidate_offsets):
+        if absolute_angle_candidates:
+            orientation = baseline.copy()
+            orientation["tracker_theta"] = pd.Series(
+                candidate,
+                index=weather.index,
+            )
+            surface_orientation = pvlib.tracking.calc_surface_orientation(
+                orientation["tracker_theta"],
+                axis_azimuth=axis_azimuth_deg,
+            )
+            orientation[["surface_tilt", "surface_azimuth"]] = surface_orientation
+        else:
+            orientation = offset_tracker_orientation(
+                baseline,
+                candidate,
+                axis_azimuth_deg,
+                max_tilt_deg=max_tilt_deg,
+            )
         evaluated = crop_and_pv_irradiance(
             solar,
             weather,
@@ -229,13 +299,29 @@ def run_timeseries_pipeline(
             module_temp_c=module_temp_c,
         )
         evaluated["tracker_theta_deg"] = orientation["tracker_theta"]
-        candidates[float(offset)] = evaluated
+        if stowed is not None:
+            for column in (
+                "crop_ghi_w_m2",
+                "crop_ppfd_umol_m2_s",
+                "pv_power_w",
+                "tracker_theta_deg",
+            ):
+                evaluated.loc[stow_mask, column] = stowed.loc[stow_mask, column]
+        candidates[float(candidate)] = evaluated
 
     schedule = optimize_tilt_schedule(
         candidates,
         target_ppfd,
-        previous_tilt=0.0,
-        max_move_deg=max_move_deg,
+        previous_tilt=(
+            initial_tracker_theta
+            if absolute_angle_candidates
+            else 0.0
+        ),
+        previous_tracker_theta=initial_tracker_theta,
+        movement_override=stow_mask,
+        max_move_deg=(
+            max_move_deg if absolute_angle_candidates else None
+        ),
         pv_loss_weight=pv_loss_weight,
         movement_weight=movement_weight,
         dli_target_mol_m2_day=effective_dli_target,
@@ -243,7 +329,15 @@ def run_timeseries_pipeline(
         daylight_seconds=daylight_seconds,
     )
     selected = pd.DataFrame(index=weather.index)
-    selected["tilt_offset_deg"] = schedule["tilt_deg"]
+    if absolute_angle_candidates:
+        selected["tilt_offset_deg"] = (
+            schedule["tilt_deg"] - baseline["tracker_theta"].fillna(0.0)
+        )
+    else:
+        selected["tilt_offset_deg"] = schedule["tilt_deg"]
+    selected["controller_dli_mol_m2_day"] = schedule[
+        "controller_dli_mol_m2_day"
+    ]
     for column in (
         "candidate_min_dli_mol_m2_day",
         "candidate_max_dli_mol_m2_day",
@@ -257,51 +351,37 @@ def run_timeseries_pipeline(
     selected["crop_ppfd_umol_m2_s"] = [candidates[tilt].loc[t, "crop_ppfd_umol_m2_s"] for t, tilt in schedule["tilt_deg"].items()]
     selected["pv_power_w"] = [candidates[tilt].loc[t, "pv_power_w"] for t, tilt in schedule["tilt_deg"].items()]
     selected["tracker_theta_deg"] = [candidates[tilt].loc[t, "tracker_theta_deg"] for t, tilt in schedule["tilt_deg"].items()]
-    if wind_column is not None:
-        wind = weather[wind_column].reindex(weather.index).interpolate(
-            method="time",
-            limit=max_gap_periods,
-            limit_area="inside",
+    if stowed is not None:
+        stow_offset = (
+            stowed["tracker_theta_deg"] - baseline["tracker_theta"].fillna(0.0)
         )
-        stow_mask = wind.isna() | wind.ge(wind_stow_speed_ms)
-        if stow_mask.any():
-            stow_orientation = baseline.copy()
-            stow_orientation["tracker_theta"] = pd.Series(
-                wind_stow_tracker_theta_deg, index=weather.index
-            )
-            surface_orientation = pvlib.tracking.calc_surface_orientation(
-                stow_orientation["tracker_theta"],
-                axis_azimuth=axis_azimuth_deg,
-            )
-            stow_orientation[["surface_tilt", "surface_azimuth"]] = surface_orientation
-            stowed = crop_and_pv_irradiance(
-                solar,
-                weather,
-                stow_orientation,
-                gcr=gcr,
-                height_m=height_m,
-                pitch_m=pitch_m,
-                albedo=albedo,
-                bifaciality=bifaciality,
-            )
-            stowed["pv_power_w"] = pvwatts_power(
-                stowed["poa_global_w_m2"],
-                temperature_c,
-                pdc0_w,
-                gamma_pdc,
-                system_losses_percent=pv_system_losses_percent,
-                inverter_efficiency=pv_inverter_efficiency,
-                wind_speed_ms=wind_speed_ms,
-                module_temp_c=module_temp_c,
-            )
-            selected.loc[stow_mask, "crop_ghi_w_m2"] = stowed.loc[stow_mask, "crop_ghi_w_m2"]
-            selected.loc[stow_mask, "crop_ppfd_umol_m2_s"] = stowed.loc[stow_mask, "crop_ppfd_umol_m2_s"]
-            selected.loc[stow_mask, "pv_power_w"] = stowed.loc[stow_mask, "pv_power_w"]
-            selected.loc[stow_mask, "tracker_theta_deg"] = stow_orientation[
-                "tracker_theta"
-            ].loc[stow_mask]
-            stow_offset = stow_orientation["tracker_theta"] - baseline["tracker_theta"]
-            selected.loc[stow_mask, "tilt_offset_deg"] = stow_offset.loc[stow_mask].fillna(0.0)
+        selected.loc[stow_mask, "tilt_offset_deg"] = stow_offset.loc[stow_mask].fillna(0.0)
+    elapsed_seconds = (
+        selected.index.to_series().diff().dt.total_seconds().to_numpy(copy=True)
+    )
+    elapsed_seconds[0] = interval_seconds
+    angle_movement = selected["tracker_theta_deg"].diff().abs()
+    angle_movement.iloc[0] = (
+        abs(float(selected["tracker_theta_deg"].iloc[0]) - initial_tracker_theta)
+        if initial_tracker_theta is not None
+        else 0.0
+    )
+    selected["tracker_angle_movement_deg"] = angle_movement.fillna(0.0)
+    selected["tracker_slew_limit_deg"] = (
+        move_limit_deg_per_hour * elapsed_seconds / 3600.0
+    )
+    selected["wind_stow_slew_override"] = (
+        stow_mask
+        & selected["tracker_angle_movement_deg"].gt(
+            selected["tracker_slew_limit_deg"]
+        )
+    )
+    selected["tracker_slew_limit_exceeded"] = (
+        selected["tracker_angle_movement_deg"].gt(
+            selected["tracker_slew_limit_deg"]
+        )
+        & ~selected["wind_stow_slew_override"]
+    )
     selected["target_ppfd_umol_m2_s"] = target_ppfd
     selected["model_air_temp_c"] = model_air_temperature
     selected["model_air_temp_source"] = temperature_source
@@ -318,6 +398,9 @@ def run_timeseries_pipeline(
     daily["dli_mol_m2_day"] = dli_from_timeseries(
         selected["crop_ppfd_umol_m2_s"]
     ).reindex(daily.index)
+    daily["controller_dli_mol_m2_day"] = (
+        selected["controller_dli_mol_m2_day"].resample("1D").last()
+    )
     daily["pv_energy_kwh"] = energy_from_power_timeseries_kwh(
         selected["pv_power_w"]
     ).reindex(daily.index)

@@ -12,7 +12,10 @@ import pandas as pd
 import pvlib
 
 from project.config import make_site_location
-from project.io.period_results import period_results_weather
+from project.io.period_results import (
+    period_results_data_source,
+    period_results_weather,
+)
 from project.scenarios.run_timeseries import run_timeseries_pipeline
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,8 +43,8 @@ def summarize_strategy(results: pd.DataFrame, daily: pd.DataFrame) -> dict[str, 
         "mean_absolute_tracker_angle_deg": float(
             results["tracker_theta_deg"].abs().mean()
         ),
-        "mean_tilt_movement_deg_per_timestep": float(
-            results["tilt_offset_deg"].diff().abs().mean()
+        "mean_tracker_angle_movement_deg_per_timestep": float(
+            results["tracker_theta_deg"].diff().abs().mean()
         ),
         "candidate_target_band_reachable_days": int(
             valid_diagnostics["candidate_dli_target_band_reachable"]
@@ -82,6 +85,7 @@ def compare_strategies(
         **pipeline_options,
         "tilt_offsets_deg": (0.0,),
         "move_limit_deg_per_hour": 0.0,
+        "enforce_absolute_slew_limit": False,
     }
     sun_tracking, sun_tracking_daily = run_timeseries_pipeline(
         weather, location, **sun_tracking_options
@@ -165,8 +169,10 @@ def _dominates(
     other_energy = float(other["covered_pv_energy_kwh"])
     candidate_error = float(candidate["dli_target_error_mol_m2_day"])
     other_error = float(other["dli_target_error_mol_m2_day"])
-    candidate_movement = float(candidate["mean_tilt_movement_deg_per_timestep"])
-    other_movement = float(other["mean_tilt_movement_deg_per_timestep"])
+    candidate_movement = float(
+        candidate["mean_tracker_angle_movement_deg_per_timestep"]
+    )
+    other_movement = float(other["mean_tracker_angle_movement_deg_per_timestep"])
     if not all(
         math.isfinite(value)
         for value in (
@@ -192,24 +198,53 @@ def _dominates(
     return no_worse and strictly_better
 
 
+def _observed_period_weather(
+    source: str | Path,
+    *,
+    as_of: str | pd.Timestamp | None = None,
+) -> tuple[pd.DataFrame, pd.Timestamp, int]:
+    weather, _, _ = period_results_weather(source)
+    cutoff = pd.Timestamp.now(tz=weather.index.tz) if as_of is None else pd.Timestamp(as_of)
+    source_status = period_results_data_source(weather.index, as_of=cutoff)
+    observed = source_status.eq("observed_field_data")
+    if not observed.any():
+        raise ValueError("No Period_Results rows exist at or before the as-of cutoff")
+    return (
+        weather.loc[observed],
+        cutoff.tz_convert(weather.index.tz),
+        int((~observed).sum()),
+    )
+
+
 def run_benchmark(
     source: str | Path = DEFAULT_SOURCE,
     location: pvlib.location.Location | None = None,
+    *,
+    as_of: str | pd.Timestamp | None = None,
     **pipeline_options,
 ) -> dict[str, object]:
-    """Benchmark model strategies against the supplied irradiance time series."""
+    """Benchmark strategies using only rows not later than the as-of cutoff."""
     source_path = Path(source)
-    weather, _, _ = period_results_weather(source_path)
+    weather, cutoff, excluded_future_rows = _observed_period_weather(
+        source_path,
+        as_of=as_of,
+    )
     strategies = compare_strategies(
         weather, location or make_site_location(), **pipeline_options
     )
     logging.info(
-        "Benchmark completed for %s rows from %s",
+        "Benchmark used %d observed rows at or before %s from %s; excluded %d "
+        "later timestamps with unverified provenance",
         len(weather),
+        cutoff.isoformat(),
         source_path,
+        excluded_future_rows,
     )
     return {
         "source": str(source_path),
+        "data_as_of": cutoff.isoformat(),
+        "observed_rows": len(weather),
+        "future_timestamp_unverified_rows_excluded": excluded_future_rows,
         "strategies": strategies,
     }
 
@@ -224,7 +259,14 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     if args.sensitivity:
-        weather, _, _ = period_results_weather(DEFAULT_SOURCE)
+        weather, cutoff, excluded_future_rows = _observed_period_weather(DEFAULT_SOURCE)
+        logging.info(
+            "Sensitivity uses %d rows at or before %s; excluded %d later timestamps "
+            "with unverified provenance",
+            len(weather),
+            cutoff.isoformat(),
+            excluded_future_rows,
+        )
         sweep = run_sensitivity_sweep(weather, make_site_location())
         for row in sweep:
             logging.info("sensitivity case: %s", row)

@@ -50,6 +50,31 @@ def inventory_period_results(frame: pd.DataFrame) -> PeriodResultsInventory:
     )
 
 
+def period_results_data_source(
+    index: pd.DatetimeIndex,
+    *,
+    as_of: str | pd.Timestamp | None = None,
+) -> pd.Series:
+    """Classify rows by timestamp without guessing what future rows represent.
+
+    Timestamps after the cutoff are retained as ``future_timestamp_unverified``;
+    the available export does not establish whether they are forecasts or
+    simulations. A timezone-aware cutoff is required when one is provided.
+    """
+    if not isinstance(index, pd.DatetimeIndex) or index.tz is None:
+        raise ValueError("Period_Results timestamps must be timezone-aware")
+    cutoff = pd.Timestamp.now(tz=index.tz) if as_of is None else pd.Timestamp(as_of)
+    if cutoff.tzinfo is None:
+        raise ValueError("as_of must be timezone-aware")
+    cutoff = cutoff.tz_convert(index.tz)
+    return pd.Series(
+        ["observed_field_data" if timestamp <= cutoff else "future_timestamp_unverified"
+         for timestamp in index],
+        index=index,
+        name="data_source",
+    )
+
+
 def period_results_weather(source: str, *, sheet_name: str = "in") -> tuple[pd.DataFrame, pd.DataFrame, PeriodResultsInventory]:
     """Load real irradiance/weather inputs and separate tracker observations.
 

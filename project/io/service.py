@@ -15,7 +15,11 @@ from project.io.field_data import (
 )
 from project.io.grafana import telemetry_frame
 from project.io.ingestion import load_field_export, load_timeseries, validate_weather_contract
-from project.io.period_results import PeriodResultsInventory, period_results_weather
+from project.io.period_results import (
+    PeriodResultsInventory,
+    period_results_data_source,
+    period_results_weather,
+)
 from project.models.radiation import estimate_ghi_dni_dhi_from_ppfd
 from project.scenarios.run_timeseries import run_timeseries_pipeline
 
@@ -113,17 +117,28 @@ def process_field_export(
 def process_period_results_export(
     source,
     location: pvlib.location.Location,
+    *,
+    as_of: str | pd.Timestamp | None = None,
     **pipeline_options,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, PeriodResultsInventory]:
     """Run model recommendations on real Period_Results irradiance only.
 
-    Outputs retain measured tracker angles in a separate column and are marked
-    ``observed_field_data``. Unidentified ``0A``--``5F`` channels are not used
-    as pipeline inputs; the report may show selected channels only as explicitly
-    assumption-based comparisons, not as confirmed PAR measurements.
+    Outputs retain tracker angles in a separate column. Rows at or before
+    ``as_of`` are marked ``observed_field_data``; later timestamps are retained
+    but marked ``future_timestamp_unverified`` because the export does not say
+    whether those records are forecasts or simulations. Unidentified
+    ``0A``--``5F`` channels are not used as pipeline inputs.
     """
     weather, observed_tracker, inventory = period_results_weather(source)
     results, daily = run_timeseries_pipeline(weather, location, **pipeline_options)
-    results = results.join(observed_tracker).assign(data_source="observed_field_data")
-    daily = daily.assign(data_source="observed_field_data")
+    row_sources = period_results_data_source(results.index, as_of=as_of)
+    results = results.join(observed_tracker).assign(data_source=row_sources)
+    daily_sources = row_sources.groupby(row_sources.index.normalize()).agg(
+        lambda sources: (
+            "observed_field_data"
+            if sources.eq("observed_field_data").all()
+            else "future_timestamp_unverified"
+        )
+    )
+    daily["data_source"] = daily.index.normalize().map(daily_sources)
     return results, daily, telemetry_frame(results, subzone_id="period-results"), inventory

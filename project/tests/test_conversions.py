@@ -9,6 +9,7 @@ from project.models.conversions import (
     energy_from_power_timeseries_kwh,
     ghi_to_par,
     par_to_ppfd,
+    dli_interval_contribution,
 )
 from project.models.radiation import pvwatts_power
 
@@ -34,6 +35,15 @@ def test_dli_from_timeseries_integrates_actual_intervals():
     ppfd = pd.Series(1000.0, index=times)
     value = dli_from_timeseries(ppfd).iloc[0]
     assert math.isclose(value, 3.6, rel_tol=1e-9)
+
+
+def test_dli_interval_contribution_uses_same_trapezoid_and_rejects_invalid_interval():
+    assert math.isclose(
+        dli_interval_contribution(100.0, 300.0, 900.0),
+        0.18,
+        rel_tol=1e-9,
+    )
+    assert dli_interval_contribution(100.0, 300.0, 0.0) is None
 
 
 def test_daily_integrators_skip_intervals_with_missing_samples():
@@ -114,6 +124,31 @@ def test_optimize_tilt_schedule_uses_light_deficit_when_target_is_unreachable():
     )
 
     assert schedule["tilt_deg"].tolist() == [55.0, 55.0, 55.0]
+
+
+def test_optimize_tilt_schedule_holds_previous_tilt_when_night_candidates_tie():
+    index = pd.date_range(
+        "2026-01-01 00:00:00",
+        periods=5,
+        freq="15min",
+        tz="America/Sao_Paulo",
+    )
+    candidates = {
+        tilt: pd.DataFrame(
+            {"crop_ppfd_umol_m2_s": 0.0, "pv_power_w": 0.0},
+            index=index,
+        )
+        for tilt in (-55.0, -3.75, 0.0, 3.75, 55.0)
+    }
+
+    schedule = optimize_tilt_schedule(
+        candidates,
+        pd.Series(0.0, index=index),
+        previous_tilt=0.0,
+        max_move_deg=3.75,
+    )
+
+    assert schedule["tilt_deg"].tolist() == [0.0] * len(index)
 
 
 def test_unreachable_dli_ceiling_prefers_pv_once_minimum_light_is_met():

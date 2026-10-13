@@ -31,9 +31,19 @@ def test_low_light_schedule_can_move_and_remains_light_seeking():
 
     schedule = results["tilt_offset_deg"]
     assert schedule.nunique() > 1
-    assert schedule.diff().abs().dropna().max() <= 3.75
+    assert (
+        results.loc[
+            ~results["wind_stow_slew_override"],
+            "tracker_angle_movement_deg",
+        ].max()
+        <= 3.75
+    )
     assert daily["dli_mol_m2_day"].iloc[0] < 14.0
     assert schedule.diff().abs().gt(0.0).any()
+    assert abs(
+        results["controller_dli_mol_m2_day"].iloc[-1]
+        - daily["dli_mol_m2_day"].iloc[0]
+    ) < 1e-10
 
 
 def test_unreachable_dli_ceilings_do_not_change_the_control_schedule():
@@ -137,6 +147,29 @@ def test_high_wind_commands_absolute_tracker_stow_angle():
 
     assert results["tracker_theta_deg"].eq(0.0).all()
     assert baseline["tracker_theta"].dropna().abs().max() > 0.0
+
+
+def test_wind_stow_overrides_entry_slew_but_tracker_respects_limit_after_stow():
+    location, weather = _clear_sky_weather()
+    stow_start = weather.index[28]
+    stow_end = weather.index[32]
+    weather.loc[stow_start:stow_end, "wind_speed_ms"] = 20.0
+
+    results, daily = run_timeseries_pipeline(weather, location)
+
+    assert results.loc[stow_start:stow_end, "tracker_theta_deg"].eq(0.0).all()
+    assert results.loc[stow_start, "wind_stow_slew_override"]
+    after_stow = results.loc[stow_end + pd.Timedelta(minutes=15) :]
+    assert not after_stow["wind_stow_slew_override"].any()
+    assert not after_stow["tracker_slew_limit_exceeded"].any()
+    assert (
+        after_stow["tracker_angle_movement_deg"]
+        <= after_stow["tracker_slew_limit_deg"]
+    ).all()
+    assert abs(
+        results["controller_dli_mol_m2_day"].iloc[-1]
+        - daily["dli_mol_m2_day"].iloc[0]
+    ) < 1e-10
 
 
 def test_unknown_wind_after_long_outage_defaults_to_absolute_stow():
