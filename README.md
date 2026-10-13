@@ -148,9 +148,12 @@ commonly confused light quantities explicit:
 | PPFD | Instantaneous photosynthetic photon flux | µmol photons/m²/s |
 | DLI | PPFD accumulated over a day | mol photons/m²/day |
 
-The pipeline assumes a PAR fraction of **0.45** and an approximate conversion
-of **4.57 µmol/m²/s per W/m² of PAR**; these are scenario conversions, not
-site-specific sensor calibration. DLI and PV energy are trapezoidally
+The pipeline assumes a fixed PAR fraction of **0.45** and an approximate
+conversion of **4.57 µmol/m²/s per W/m² of PAR**. Both are scenario
+conversions, not site-specific sensor calibration; see
+[`LIGHT-002`](./references/LIGHT-002.md) and
+[`LIGHT-001`](./references/LIGHT-001.md). The fixed fraction omits spectral
+variation with sky and atmospheric conditions. DLI and PV energy are trapezoidally
 integrated across adjacent finite samples; missing intervals are not filled
 with zero, and daily metrics are withheld below 80% pre-interpolation daylight
 coverage. See the [references and methods register](./references/README.md)
@@ -249,7 +252,7 @@ The `pdc0_w = 8000 W` rating scope (single tracker row versus the full
 2A-2B-2C subsystem) is not documented by the field data, so PV energy remains
 conditional on this unverified system scope. `gamma_pdc = -0.004 °C⁻¹` is a
 generic PVWatts coefficient, not a value from a module datasheet; see
-[`PV-001`](./references/README.md#pv-001--pvwatts-version-5-system-and-inverter-model).
+[`PV-001`](./references/PV-001.md).
 
 These are model recommendations, not actuator commands. The available
 `DryRunCommandSink` and `JsonlCommandSink` only collect or record messages.

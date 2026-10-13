@@ -35,52 +35,49 @@ measurement or validation result.
 | Research-method element | Current implementation | Interpretation / evidence boundary |
 | --- | --- | --- |
 | Site, PV and bed configuration | [`project/config/site.yaml`](../project/config/site.yaml) | Runtime geometry and settings; descriptions are not measurements unless supported by a cited field source. |
-| Solar and tracker geometry | [`project/models/radiation.py`](../project/models/radiation.py) | Uses `pvlib`; tracker travel is constrained to the installed ±55°. |
-| Light-unit conversions | [`project/models/conversions.py`](../project/models/conversions.py) | PAR/PPFD and DLI conversions; assumptions are documented in the root README. |
-| Lettuce dry-biomass equations | [`project/models/lettuce.py`](../project/models/lettuce.py) | Van Henten-style model; parameter calibration and field validation are separate tasks. |
-| Thermal development clock | [`project/models/lettuce_development.py`](../project/models/lettuce_development.py) | GDD stage timing; it does not calculate biomass. |
+| Solar and tracker geometry | [`project/models/radiation.py`](../project/models/radiation.py) | pvlib methods are cross-referenced in PV-002–PV-008; site geometry remains provisional under SITE-002. |
+| Light-unit conversions | [`project/models/conversions.py`](../project/models/conversions.py) | 4.57 PAR-band conversion is LIGHT-001; the fixed 0.45 PAR fraction is LIGHT-002. |
+| Lettuce dry-biomass equations | [`project/models/lettuce.py`](../project/models/lettuce.py) | Coefficients link to VAN-001 and source-specific LETTUCE-001–005 entries; unresolved primary-source locations are marked. |
+| Thermal development clock | [`project/models/lettuce_development.py`](../project/models/lettuce_development.py) | GDD-001 records the thesis evidence status; it does not calculate biomass. |
 | Field-data ingestion and quality control | [`project/io/`](../project/io/) and [`project/qc/`](../project/qc/) | Preserve source measurements, report rejected/missing values, and distinguish estimated weather inputs. |
 | Parameter calibration | [`project/validation/calibrate_lettuce.py`](../project/validation/calibrate_lettuce.py) | Requires timestamped observations; a fit is not independent validation. |
 | Regression evidence | [`project/tests/`](../project/tests/) | Tests verify software behavior and equations, not empirical validity. |
 
-### VAN-001 — Dynamic lettuce growth model
+## Stable reference register
 
-The citation metadata for E. J. Van Henten's 1994 lettuce-model validation
-article is registered in [`VAN-001.md`](./VAN-001.md). It is model context,
-not evidence that this repository's coefficients or initial state have been
-validated. The coefficients in [`project/models/lettuce.py`](../project/models/lettuce.py)
-still need a line-by-line reconciliation against the paper before being called
-verified.
+Each entry follows [`REFERENCE_TEMPLATE.md`](./REFERENCE_TEMPLATE.md).
+References document evidence status as well as positive support; an
+“attributed-unverified” entry is not a verified parameter source.
 
-### GDD-001 — Hydroponic curly lettuce thermal development
-
-[`GDD-001.md`](./GDD-001.md) records the Silva (2022) UFSC thesis attribution
-and the GDD values used in
-[`project/models/lettuce_development.py`](../project/models/lettuce_development.py).
-The code source note identifies the author, title, and university, but the
-thesis URL and supporting page/table have not been verified; the values remain
-provisionally attributed rather than fully sourced.
-
-### LIGHT-001 — PAR-to-PPFD conversion
-
-[`LIGHT-001.md`](./LIGHT-001.md) records the Plant Growth Chamber Handbook
-attribution for the approximate 4.57 conversion factor. The intended handbook
-edition and page/table have not been supplied; the citation is explicitly
-incomplete.
-
-### DLI-001 — Lettuce light target
-
-[`DLI-001.md`](./DLI-001.md) records the configured 14 mol/m²/day target and
-the reported 12–17 guidance range. The exact Runkle / extension publication
-and relevant table remain unidentified.
-
-### PV-001 — PVWatts Version 5 system and inverter model
-
-- **Citation:** Dobos, A. P. (2014). *PVWatts Version 5 Manual*. NREL/TP-6A20-62641. National Renewable Energy Laboratory. <https://pvwatts.nrel.gov/downloads/pvwattsv5.pdf>.
-- **Supports:** PVWatts DC temperature coefficient range, aggregate standard system-loss factors, and the nominal-efficiency inverter model used by `pvlib`.
-- **Implementation:** [`project/models/radiation.py`](../project/models/radiation.py), `pvwatts_power`; [`project/config/site.yaml`](../project/config/site.yaml).
-- **Configured assumptions:** `gamma_pdc_per_c = -0.004 °C⁻¹`, aggregate standard PVWatts V5 system losses `14.0756606883%` (soiling 2%, shading 3%, snow 0%, mismatch 2%, wiring 2%, connections 0.5%, LID 1.5%, nameplate 1%, age 0%, availability 3%), and inverter nominal efficiency `0.96`. These are generic model defaults, not site measurements or module/inverter datasheet values.
-- **Open scope item:** `pdc0_w = 8000 W` is used as both the DC array reference rating and inverter DC input limit. The repository does not establish whether this is one tracker row or the full `2A-2B-2C` subsystem; the resulting energy must be treated as conditional on that unverified scope.
+| ID | Source or method | Code connection / role |
+| --- | --- | --- |
+| [SITE-001](./SITE-001.md) | Bed layout and planting-grid source | Bed footprint/grid; drawing version 05 |
+| [SITE-002](./SITE-002.md) | PV geometry and optical assumptions | Tracker row geometry, axis, albedo, bifaciality; retained drawing is not to scale |
+| [VAN-001](./VAN-001.md) | Van Henten (1994) lettuce model | Coefficient-by-coefficient primary-source reconciliation remains open |
+| [LETTUCE-001](./LETTUCE-001.md) | Sweeney et al. (1981) attribution | `c_yf` |
+| [LETTUCE-002](./LETTUCE-002.md) | van Holsteijn (1981) attribution | `c_gr_max` |
+| [LETTUCE-003](./LETTUCE-003.md) | Lorenz and Wiebe (1980) attribution | Soil-origin `c_tau` attribution, `c_k`, `c_lar`; transfer unverified |
+| [LETTUCE-004](./LETTUCE-004.md) | Goudriaan and Monteith (1990) attribution | Canopy light-interception equation |
+| [LETTUCE-005](./LETTUCE-005.md) | Sakamoto and Suzuki (2015) | Derived hydroponic root-share proxy; current `c_tau = 0.14` |
+| [CHEM-001](./CHEM-001.md) | IUPAC standard atomic weights | `c_ch2o = 30/44` stoichiometric ratio |
+| [GDD-001](./GDD-001.md) | Silva (2022) UFSC thesis | ST/TC GDD values; thesis metadata/pages must be verified |
+| [LIGHT-001](./LIGHT-001.md) | Plant Growth Chamber Handbook, chapter 1 | 4.57 µmol/J conversion within PAR spectral band |
+| [LIGHT-002](./LIGHT-002.md) | Meek et al. (1984) PAR/global-solar study | Primary abstract supports a study-specific 0.45 estimate |
+| [LIGHT-003](./LIGHT-003.md) | Pashiardis (2022) Cyprus PAR study | Candidate context for variability; exact ratios not verified |
+| [LIGHT-004](./LIGHT-004.md) | Thimijan and Heins (1983) interconversion review | Candidate conversion reference; 4.57 table not verified |
+| [DLI-001](./DLI-001.md) | Virginia Cooperative Extension SPES-720 | General lettuce DLI range attribution |
+| [DLI-002](./DLI-002.md) | Michigan State Extension / Runkle attribution | Crop-type guidance; exact publication pending |
+| [PV-001](./PV-001.md) | PVWatts V5 manual | DC temperature coefficient, generic loss factors, inverter |
+| [PV-002](./PV-002.md) | pvlib-python implementation | Software/API version range; not an exact version pin |
+| [PV-003](./PV-003.md) | Erbs et al. (1982) | GHI-to-DNI/DHI decomposition |
+| [PV-004](./PV-004.md) | Ineichen and Perez (2002) | Clear-sky irradiance |
+| [PV-005](./PV-005.md) | Hay and Davies (1980) attribution | Tilted-surface sky diffuse model |
+| [PV-006](./PV-006.md) | Faiman (2008) | PV module temperature |
+| [PV-007](./PV-007.md) | Mikofski et al. (2019) | Infinite-sheds bifacial irradiance |
+| [PV-008](./PV-008.md) | Anderson and Mikofski (2020) | Single-axis tracker/backtracking |
+| [CROP-001](./CROP-001.md) | Project crop-ground irradiance method | Formula, omitted terms, pending field validation |
+| [CROP-002](./CROP-002.md) | Project biomass and temperature assumptions | Dry matter, initial state, synthetic seasonal curve |
+| [CTRL-001](./CTRL-001.md) | Controller tuning and sensitivity design | Current defaults and reproducibility status of the reported trade-off |
 
 ## Unit conversions and open evidence
 
@@ -88,28 +85,30 @@ The light conversions used by the simulation are arithmetic assumptions:
 
 | Conversion | Project value | Evidence status |
 | --- | --- | --- |
-| Shortwave energy to PAR | PAR fraction `0.45` | Common project assumption; exact source edition/page not recorded |
-| PAR energy to PPFD | `4.57 µmol photons/m²/s` per `W/m² PAR` | The Plant Growth Chamber Handbook was identified as the intended reference, but its edition/page and exact table were not recorded |
-| Lettuce DLI target | `14 mol/m²/day` (range listed as 12–17) | The reviewer identified Runkle/extension tables; exact publication/table remains unverified |
-| GDD stage bases/requirements | ST: `4.1°C`, `398.67 GDD`; TC: `6.1°C`, `472.79 GDD` | Attributed to a 2022 UFSC thesis in `GDD-001`; source URL and page/table remain missing |
+| Global shortwave to PAR | `PAR_FRACTION = 0.45` | [LIGHT-002](./LIGHT-002.md): constant model assumption; primary evidence and expected site error remain unverified |
+| PAR-band energy to PPFD | `4.57 µmol photons/m²/s` per `W/m² PAR` | [LIGHT-001](./LIGHT-001.md): conversion applies to PAR-band radiant energy, not total shortwave; handbook edition/page pending |
+| Lettuce DLI target / bounds | target `14`, min `10`, max `18 mol/m²/day` | [DLI-001](./DLI-001.md) and [DLI-002](./DLI-002.md): general guidance attributed; no cultivar-specific justification for Crespa |
+| GDD stage bases/requirements | ST: `4.1°C`, `398.67 GDD`; TC: `6.1°C`, `472.79 GDD` | [GDD-001](./GDD-001.md): thesis values attributed; PDF, page/table, and four-cycle mean claim need verification |
 
 The following values are active inputs but are not substantiated by a source
 in the repository:
 
 | Input | Current value | Implementation | Evidence status / follow-up |
 | --- | --- | --- | --- |
-| Ground albedo | `0.18` | `pv.albedo` | Assumption; obtain a site surface measurement or documented source |
-| Module bifaciality | `0.7` | `pv.bifaciality` | Assumption; verify against the module datasheet |
-| Tracker pitch / row width / height | `12 m / 4.768 m / 2.6 m` | `pv.pitch_m`, `pv.row_width_m`, `pv.height_m` | Site geometry values; exact drawing callout and measurement status need a source citation |
-| Ground coverage ratio | `0.3973` | `pv.gcr` | Derived from row width / pitch (`4.768 / 12`); inherits their unresolved provenance |
-| Optimizer weights | PV `0.001`; movement `0.05` | `project/scenarios/run_timeseries.py` | Engineering heuristics; not calibrated or optimized against field outcomes |
-| Initial lettuce state | Structural `8`, non-structural `3 g/m²` | `project/models/lettuce.py`, `simulate_growth_timeseries` | Uncalibrated scenario initialization; literature split and total have not been reconciled |
+| Ground albedo | `0.18` | `pv.albedo` | SITE-002 assumption; obtain a site reflectance measurement |
+| Module bifaciality | `0.7` | `pv.bifaciality` | SITE-002 gallery-pattern assumption; verify against module datasheet |
+| Tracker pitch / row width / height | `12 m / 4.768 m / 2.6 m` | `pv.pitch_m`, `row_width_m`, `pv.height_m` | SITE-002 scenario values; the retained drawing is marked “sem escala” and has no dimension callouts for them |
+| Ground coverage ratio | `0.3973` | `pv.gcr` | SITE-002 derived value, approximately `4.768 / 12`; inherits unresolved geometry |
+| Optimizer weights | current defaults PV `1.0`; movement `0.0`; sweep includes PV `0.5/1.0`, movement `0/0.05` | `project/scenarios/run_timeseries.py`, `run_benchmark.py` | [CTRL-001](./CTRL-001.md): provisional objective settings. Previously reported `0.001/0.05` do not match current code; claimed PV −12% / DLI +10% trade not reproduced from a retained output |
+| Initial lettuce state | Structural `8`, non-structural `3 g/m²` | `project/models/lettuce.py`, `simulate_growth_timeseries` | [CROP-002](./CROP-002.md): unmeasured scenario initialization; it is not a 30/70 structural/non-structural split |
+| Fresh-mass conversion | dry-matter fraction `0.05` | `project/scenarios/crop_cycles.py` | [CROP-002](./CROP-002.md): unverified for curly/hydroponic lettuce |
+| Crop-ground irradiance | `unshaded × DNI × cos(zenith) + view_factor × DHI` | `project/models/radiation.py` | [CROP-001](./CROP-001.md): project approximation; circumsolar and ground-reflected crop irradiance omitted; field validation pending |
 
-Do not treat an incomplete citation as a verified source. Keep these values
-visible as assumptions until the exact source, location, units, and
-adaptation are documented. Sensor-channel identity and the scope of the
-8,000 W PV rating are separate open site-data questions; see
-[`project/data/raw/README.md`](../project/data/raw/README.md) and `PV-001`.
+Do not treat an incomplete citation as a verified source. Unverified values
+remain explicitly marked in their entries. Sensor-channel identity and the
+scope of the 8,000 W PV rating are separate open site-data questions; see
+[`project/data/raw/README.md`](../project/data/raw/README.md) and
+[PV-001](./PV-001.md).
 
 ## Biomass conversion table and worked example
 

@@ -41,8 +41,8 @@ def run_timeseries_pipeline(
     dli_target_mol_m2_day: float = _DEFAULT_CONFIG.dli_target_mol_m2_day,
     dli_min_mol_m2_day: float = _DEFAULT_CONFIG.dli_min_mol_m2_day,
     dli_max_mol_m2_day: float = _DEFAULT_CONFIG.dli_max_mol_m2_day,
-    pv_loss_weight: float = 1.0,
-    movement_weight: float = 0.0,
+    pv_loss_weight: float = 1.0,  # CTRL-001; provisional configured objective weight.
+    movement_weight: float = 0.0,  # CTRL-001; movement remains unweighted by default.
     control_interval: str = "15min",
     tilt_offsets_deg: tuple[float, ...] = (-55.0, -30.0, 0.0, 30.0, 55.0),
     max_gap_periods: int = 4,

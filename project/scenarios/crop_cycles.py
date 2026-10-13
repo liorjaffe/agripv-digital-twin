@@ -6,6 +6,7 @@ import math
 
 import pandas as pd
 
+from project.models.conversions import PAR_FRACTION
 from project.models.lettuce import (
     DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
     DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
@@ -17,19 +18,21 @@ INITIAL_DRY_BIOMASS_G_M2 = (
     DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2
     + DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2
 )
+# CROP-002: assumed dry-matter fraction; not measured for this cultivar/site.
 DRY_MATTER_FRACTION_OF_FRESH_MASS = 0.05
 
 
 def seasonal_mean_temp_c(day_of_year: int) -> float:
-    """Return the report's illustrative seasonal canopy-temperature curve."""
+    """Return CROP-002's synthetic seasonal temperature assumption."""
+    # CROP-002: illustrative annual mean/amplitude/phase, not site weather.
     return 20.5 + 5.0 * math.cos(2.0 * math.pi * (day_of_year - 34.0) / 365.25)
 
 
 def seasonal_canopy_temperature(
     times: pd.DatetimeIndex,
-    planting_temp_c: float = 24.0,
+    planting_temp_c: float = 24.0,  # CROP-002: assumed first-day temperature.
 ) -> pd.Series:
-    """Build the seasonal curve with its first day shifted to planting temperature."""
+    """Build the synthetic CROP-002 curve shifted to the assumed planting temperature."""
     if times.empty:
         return pd.Series(index=times, dtype=float)
     planting_offset = planting_temp_c - seasonal_mean_temp_c(int(times[0].dayofyear))
@@ -96,7 +99,7 @@ def simulate_repeated_crops(
         crop = candidate.iloc[: harvest_position + 1]
         growth = simulate_growth_timeseries(
             crop.index,
-            crop[light_column] * 0.45,
+            crop[light_column] * PAR_FRACTION,
             seasonal_canopy_temperature(crop.index),
             x_sdw0=DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
             x_nsdw0=DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,

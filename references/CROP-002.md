@@ -1,0 +1,84 @@
+# CROP-002 — Biomass initialization, dry-matter conversion, and synthetic temperature
+
+## Citation
+
+- Authors / organization: AgriPV Digital Twin Prototype project
+- Year: 2026
+- Full title: Crop-cycle biomass and temperature scenario assumptions
+- Journal / publisher / report: Project assumption register
+- Volume, issue, pages: Not applicable
+- DOI or stable URL: Not applicable
+- Local source file (if retained): [`project/scenarios/crop_cycles.py`](../project/scenarios/crop_cycles.py)
+- Access date: 2026-10-13
+
+## Source and scope
+
+- Source type: Model assumptions; no retained measurement source
+- Site, cultivar, equipment, and study scale: Report-only crop cycles for a
+  curly-lettuce scenario; not site-validated
+- What was measured or derived: Dry-matter fraction, initial state, and a
+  synthetic seasonal temperature curve used to derive report biomass and
+  harvest timing.
+- Relevant page, table, figure, equation, or dataset fields: Constants and
+  `seasonal_mean_temp_c` / `seasonal_canopy_temperature` in
+  `project/scenarios/crop_cycles.py`; initial state constants in
+  `project/models/lettuce.py`.
+
+## Evidence extracted
+
+| Claim or value | Source location | Original unit | Normalized value/unit | Uncertainty / qualification |
+| --- | --- | --- | --- | --- |
+| Dry-matter fraction of fresh mass | `DRY_MATTER_FRACTION_OF_FRESH_MASS` | Fraction | 0.05 (5%) | Similar-crop primary data in LETTUCE-005 derive 5.3–6.6% for hydroponic red-leaf ‘Red Wave’; this does not establish a curly-lettuce range or site value |
+| Initial structural/non-structural dry biomass | `DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2`, `DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2` | g/m² | 8 / 3; total 11; structural share 72.7% | No transplant measurement or primary literature source verified; this is not the cited 30/70 structural/non-structural split |
+| Synthetic seasonal temperature | `seasonal_mean_temp_c` and `seasonal_canopy_temperature` | °C; day of year | `20.5 + 5 cos(2π(day−34)/365.25)`, then shifted to 24 °C on planting day | Entirely synthetic. No site temperature channel is used by this report method. |
+
+## Connection to this project
+
+- Reference ID and evidence role: CROP-002; explicit model assumptions
+- Code file and symbol: [`project/scenarios/crop_cycles.py`](../project/scenarios/crop_cycles.py),
+  `DRY_MATTER_FRACTION_OF_FRESH_MASS`, `seasonal_mean_temp_c`,
+  `seasonal_canopy_temperature`; [`project/models/lettuce.py`](../project/models/lettuce.py),
+  initial-state constants
+- Configuration key(s): Not applicable
+- Related test(s): [`project/tests/test_model_explorer.py`](../project/tests/test_model_explorer.py),
+  [`project/tests/test_timeline_export.py`](../project/tests/test_timeline_export.py)
+- Adaptation made for this project: The fixed dry-matter fraction converts
+  modeled dry-mass gain to a fresh-mass equivalent; a temperature sinusoid
+  supplies report-only thermal development and temperature response.
+- Known differences or limitations: The curve is not observed weather; the
+  dry-matter fraction and initial state are not cultivar/site measurements.
+  LETTUCE-005 provides adjacent hydroponic evidence for a different lettuce
+  type, not a general dry-matter range.
+
+## Validation record
+
+- Dataset identity and version: No site temperature series or transplant
+  biomass record retained
+- Calibration or independent validation: Not performed
+- Inclusion/exclusion and quality-control rules: Not applicable
+- Metrics and uncertainty method: Not applicable
+- Results and unresolved discrepancies: LETTUCE-005 reports data from which
+  a 5.3–6.6% whole-plant dry-matter fraction can be derived for ‘Red Wave’;
+  a curly/hydroponic Crespa range remains unverified. Existing biomass
+  initialization differs from the review-cited 30/70 split, for which no
+  primary source was identified.
+- Reproduction command and output: Report-generation scripts; outputs remain
+  scenario illustrations, not measured crop predictions.
+
+## Decision log
+
+- Decision: Retain 0.05 as a disclosed scenario assumption; use LETTUCE-005
+  only as adjacent evidence that this order of magnitude is plausible for
+  one hydroponic red-leaf cultivar. Keep the initial biomass and temperature
+  curve explicitly synthetic/unmeasured.
+- Rationale: The adjacent study does not establish the site's curly cultivar
+  composition, transplant state, or temperature course.
+- Date: 2026-10-13
+- Follow-up needed:
+  - Obtain primary curly/hydroponic Crespa harvest-composition studies and
+    document the dry-matter range and measurement protocol.
+  - Measure transplant structural and non-structural dry mass or locate the
+    primary model initialization source; reconcile the present 8/3 g/m² state
+    with the attributed 30/70 split before claiming it as a literature default.
+  - Obtain site air/canopy-temperature records and rerun all temperature-driven
+    cycle, harvest, and biomass results.

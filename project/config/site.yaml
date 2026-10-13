@@ -5,26 +5,26 @@ site:
   timezone: "America/Sao_Paulo"
   altitude_m: 20.0
   # Explicit scenario fallback only when the input has no air-temperature channel.
-  fallback_air_temp_c: 26.0
+  fallback_air_temp_c: 26.0 # CROP-002; fallback scenario, not observed site temperature.
 
 pv:
-  pdc0_w: 8000.0
-  gamma_pdc_per_c: -0.004
+  pdc0_w: 8000.0 # PV-001; whether this is row or subsystem capacity is unresolved.
+  gamma_pdc_per_c: -0.004 # PV-001 generic default, not a module datasheet value.
   # Generic PVWatts V5 default loss-factor composition, not a site measurement.
-  system_losses_percent: 14.075660688264469
-  inverter_efficiency: 0.96
-  height_m: 2.6
-  pitch_m: 12.0
-  gcr: 0.3973
-  axis_azimuth_deg: 0.0
-  max_tilt_deg: 55.0
-  bifaciality: 0.7
-  albedo: 0.18
+  system_losses_percent: 14.075660688264469 # PV-001.
+  inverter_efficiency: 0.96 # PV-001 generic default, not an inverter datasheet value.
+  height_m: 2.6 # SITE-002; not dimensioned in the retained non-scale drawing.
+  pitch_m: 12.0 # SITE-002; not dimensioned in the retained non-scale drawing.
+  gcr: 0.3973 # SITE-002; derived from assumed row width / pitch.
+  axis_azimuth_deg: 0.0 # SITE-002; interpreted as a north-south axis, not surveyed.
+  max_tilt_deg: 55.0 # SITE-002; tracker stop value, manufacturer confirmation pending.
+  bifaciality: 0.7 # SITE-002; gallery-pattern assumption, module datasheet pending.
+  albedo: 0.18 # SITE-002; assumed ground value, not measured at site.
 
 crop:
-  dli_target_mol_m2_day: 14.0
-  dli_min_mol_m2_day: 10.0
-  dli_max_mol_m2_day: 18.0
+  dli_target_mol_m2_day: 14.0 # DLI-001; provisional, no cultivar-specific justification.
+  dli_min_mol_m2_day: 10.0 # DLI-001; scenario limit, not a site measurement.
+  dli_max_mol_m2_day: 18.0 # DLI-001; scenario limit, cultivar/source follow-up pending.
   co2_ppm_target: 420.0
 
 cultivation:
@@ -51,7 +51,7 @@ descriptive_metadata:
     modeled_subsystem: "2A-2B-2C"
     pv_over_beds: ["2A", "2C"]
     open_beds: ["2B"]
-    row_width_m: 4.768
+    row_width_m: 4.768 # SITE-002; not dimensioned in the retained drawing.
   crop:
     crop_type: "lettuce"
     temp_opt_c: 20.0

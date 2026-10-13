@@ -36,6 +36,7 @@ def solar_position_and_clearsky(
     if temp_air_c is not None:
         solarposition_kwargs["temperature"] = temp_air_c
     solar_position = location.get_solarposition(times, **solarposition_kwargs)
+    # PV-002/PV-004: pvlib's Ineichen-Perez clear-sky implementation.
     clearsky = location.get_clearsky(times, model="ineichen")
     return solar_position, clearsky
 
@@ -78,6 +79,7 @@ def estimate_ghi_dni_dhi_from_ppfd(
     clear_sky_index = clear_sky_index.where(solar_position["apparent_zenith"] < 87.0, 0.0)
 
     ghi_est = (clear_sky_index * clearsky_ghi).clip(lower=0.0)
+    # PV-002/PV-003: Erbs diffuse-fraction decomposition.
     decomposed = pvlib.irradiance.erbs(ghi_est, solar_position["zenith"], times)
     return pd.DataFrame(
         {
@@ -113,6 +115,7 @@ def tracker_orientation(
         "backtrack": backtrack,
         "gcr": gcr,
     }
+    # PV-002/PV-008: pvlib's single-axis tracker and backtracking implementation.
     return pvlib.tracking.singleaxis(**tracking_inputs)
 
 
@@ -154,6 +157,8 @@ def crop_and_pv_irradiance(
 
     ``weather`` must contain ``ghi``, ``dhi`` and ``dni``. The returned frame is
     indexed like the inputs and is suitable for DLI integration or PV calculations.
+    The crop-ground equation is the project approximation documented in CROP-001;
+    the bifacial module model uses the pvlib implementation sources in PV-002 onward.
     """
     required = {"ghi", "dhi", "dni"}
     missing = required.difference(weather.columns)
@@ -162,6 +167,8 @@ def crop_and_pv_irradiance(
 
     times = solar_position.index
     dni_extra = pvlib.irradiance.get_extra_radiation(times)
+    # PV-002/PV-007: infinite-sheds implementation; bifaciality is a site-model
+    # assumption documented in SITE-002, not a verified module-datasheet value.
     sheds = pvlib.bifacial.infinite_sheds.get_irradiance(
         surface_tilt=orientation["surface_tilt"],
         surface_azimuth=orientation["surface_azimuth"],
@@ -174,7 +181,7 @@ def crop_and_pv_irradiance(
         dhi=weather["dhi"],
         dni=weather["dni"],
         albedo=albedo,
-        model="haydavies",
+        model="haydavies",  # PV-002/PV-005: Hay-Davies sky-diffuse transposition.
         dni_extra=dni_extra,
         bifaciality=bifaciality,
     )
@@ -234,6 +241,7 @@ def pvwatts_power(
     if module_temp_c is not None:
         temp_cell = module_temp_c
     else:
+        # PV-002/PV-006: pvlib's Faiman model, using its documented defaults.
         temp_cell = pvlib.temperature.faiman(poa_global=irradiance, temp_air=temp_air_c, wind_speed=wind_speed_ms)
     if not math.isfinite(pdc0_w) or pdc0_w <= 0.0:
         raise ValueError("pdc0_w must be finite and greater than zero")
@@ -243,6 +251,7 @@ def pvwatts_power(
         raise ValueError("system_losses_percent must be finite and in [0, 100)")
     if not math.isfinite(inverter_efficiency) or not 0.0 < inverter_efficiency <= 1.0:
         raise ValueError("inverter_efficiency must be finite and in (0, 1]")
+    # PV-001/PV-002: generic PVWatts V5 coefficients; gamma is not from a module datasheet.
     dc_power = pvlib.pvsystem.pvwatts_dc(
         effective_irradiance=irradiance, temp_cell=temp_cell, pdc0=pdc0_w, gamma_pdc=gamma_pdc
     )

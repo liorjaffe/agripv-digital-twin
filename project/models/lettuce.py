@@ -13,8 +13,11 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
+from project.models.conversions import PPFD_PER_PAR_WM2
 
-MODEL_TEMPERATURE_RANGE_C = (5.0, 40.0)
+
+MODEL_TEMPERATURE_RANGE_C = (5.0, 40.0)  # VAN-001 attribution; polynomial validity range remains unverified.
+# CROP-002: provisional model initialization; it is not a transplant measurement.
 DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2 = 8.0
 DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2 = 3.0
 
@@ -32,29 +35,30 @@ def _clamp_model_temperature(u_t: float) -> float:
 
 @dataclass
 class LettuceParams:
-    c_ch2o: float = 30.0 / 44.0
-    c_yf: float = 0.8
-    c_gr_max: float = 5e-6
-    c_gamma: float = 1.1981
-    c_q10_gr: float = 1.6
-    c_resp_sht: float = 3.47e-7
-    c_resp_rt: float = 1.16e-7
-    c_q10_resp: float = 2.0
-    c_tau: float = 0.15
-    c_k: float = 0.9
-    c_lar: float = 75e-3
-    c_omega: float = 1.83e-3
-    c_ggamma: float = 40.0
-    c_q10_ggamma: float = 2.0
-    c_epsilon: float = 17e-6
-    g_bnd: float = 0.00071987
-    g_stm: float = 0.005
-    c_car1: float = -1.32e-5
-    c_car2: float = 5.94e-4
-    c_car3: float = -2.64e-3
+    c_ch2o: float = 30.0 / 44.0  # CHEM-001; stoichiometric mass ratio, not a fitted parameter.
+    c_yf: float = 0.8  # LETTUCE-001; Sweeney attribution remains unverified.
+    c_gr_max: float = 5e-6  # LETTUCE-002; van Holsteijn attribution remains unverified.
+    c_gamma: float = 1.1981  # VAN-001; primary-paper location is not yet verified.
+    c_q10_gr: float = 1.6  # VAN-001; primary-paper location is not yet verified.
+    c_resp_sht: float = 3.47e-7  # VAN-001; primary-paper location is not yet verified.
+    c_resp_rt: float = 1.16e-7  # VAN-001; primary-paper location is not yet verified.
+    c_q10_resp: float = 2.0  # VAN-001; primary-paper location is not yet verified.
+    c_tau: float = 0.14  # LETTUCE-005 hydroponic proxy; not calibrated for site cultivar.
+    c_k: float = 0.9  # LETTUCE-003; primary-source location is not yet verified.
+    c_lar: float = 75e-3  # LETTUCE-003; primary-source location is not yet verified.
+    c_omega: float = 1.83e-3  # VAN-001; primary-paper location is not yet verified.
+    c_ggamma: float = 40.0  # VAN-001; primary-paper location is not yet verified.
+    c_q10_ggamma: float = 2.0  # VAN-001; primary-paper location is not yet verified.
+    c_epsilon: float = 17e-6  # VAN-001; primary-paper location is not yet verified.
+    g_bnd: float = 0.00071987  # VAN-001; primary-paper location is not yet verified.
+    g_stm: float = 0.005  # VAN-001; primary-paper location is not yet verified.
+    c_car1: float = -1.32e-5  # VAN-001; primary-paper location is not yet verified.
+    c_car2: float = 5.94e-4  # VAN-001; primary-paper location is not yet verified.
+    c_car3: float = -2.64e-3  # VAN-001; primary-paper location is not yet verified.
 
 
 def get_r_gr(x_sdw: float, x_nsdw: float, u_t: float, p: LettuceParams | None = None) -> float:
+    """Return the saturating structural growth-rate equation attributed to VAN-001."""
     p = p or LettuceParams()
     return (
         p.c_gr_max
@@ -64,22 +68,26 @@ def get_r_gr(x_sdw: float, x_nsdw: float, u_t: float, p: LettuceParams | None = 
 
 
 def get_ggamma(u_t: float, p: LettuceParams | None = None) -> float:
+    """Return the temperature-adjusted compensation point attributed to VAN-001."""
     p = p or LettuceParams()
     return p.c_ggamma * (p.c_q10_ggamma ** ((u_t - 20.0) / 10.0))
 
 
 def get_epsilon(u_co2: float, gamma: float, p: LettuceParams | None = None) -> float:
+    """Return the CO2 response equation attributed to VAN-001."""
     p = p or LettuceParams()
     return p.c_epsilon * ((u_co2 - gamma) / (u_co2 + 2.0 * gamma))
 
 
 def get_g_car(u_t: float, p: LettuceParams | None = None) -> float:
+    """Return the clamped carboxylation conductance polynomial attributed to VAN-001."""
     p = p or LettuceParams()
     u_t = _clamp_model_temperature(u_t)
     return p.c_car1 * u_t**2 + p.c_car2 * u_t + p.c_car3
 
 
 def get_g_co2(g_car: float, p: LettuceParams | None = None) -> float:
+    """Combine conductances as attributed to VAN-001."""
     p = p or LettuceParams()
     if g_car <= 0.0:
         return 0.0
@@ -87,6 +95,7 @@ def get_g_co2(g_car: float, p: LettuceParams | None = None) -> float:
 
 
 def get_f_resp(x_sdw: float, u_t: float, p: LettuceParams | None = None) -> float:
+    """Return the shoot/root maintenance respiration equation attributed to VAN-001."""
     p = p or LettuceParams()
     return (
         (p.c_resp_sht * (1.0 - p.c_tau) * x_sdw + p.c_resp_rt * p.c_tau * x_sdw)
@@ -95,6 +104,7 @@ def get_f_resp(x_sdw: float, u_t: float, p: LettuceParams | None = None) -> floa
 
 
 def get_f_phot_max(u_par: float, u_co2: float, epsilon: float, g_co2: float, gamma: float, p: LettuceParams | None = None) -> float:
+    """Return the CO2-limited maximum photosynthesis equation attributed to VAN-001."""
     p = p or LettuceParams()
     numerator = epsilon * u_par * g_co2 * p.c_omega * (u_co2 - gamma)
     denominator = epsilon * u_par + g_co2 * p.c_omega * (u_co2 - gamma)
@@ -102,6 +112,7 @@ def get_f_phot_max(u_par: float, u_co2: float, epsilon: float, g_co2: float, gam
 
 
 def get_f_phot(x_sdw: float, f_phot_max: float, p: LettuceParams | None = None) -> float:
+    """Apply the canopy light-interception equation attributed to LETTUCE-004."""
     p = p or LettuceParams()
     return (1.0 - np.exp(-p.c_k * p.c_lar * (1.0 - p.c_tau) * x_sdw)) * f_phot_max
 
@@ -111,6 +122,10 @@ def lettuce_rhs(t: float, state: Sequence[float], u: Sequence[float], p: Lettuce
 
     state = [x_sdw, x_nsdw]
     u = [temp_air_c, par_wm2, co2_ppm]
+
+    The equation structure is attributed to VAN-001; the yield-factor term is
+    separately attributed to LETTUCE-001. Coefficient-level source locations
+    remain unverified in those records.
     """
     p = p or LettuceParams()
     x_sdw, x_nsdw = state
@@ -137,7 +152,7 @@ def simulate_growth_timeseries(
     co2_ppm=420.0,
     x_sdw0=DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
     x_nsdw0=DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
-    par_to_ppfd_factor: float = 4.57,
+    par_to_ppfd_factor: float = PPFD_PER_PAR_WM2,
     params: LettuceParams | None = None,
 ):
     """Integrate biomass over an arbitrary, timezone-aware time series.

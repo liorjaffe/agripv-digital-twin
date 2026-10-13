@@ -16,9 +16,9 @@ from typing import Union
 import numpy as np
 import pandas as pd
 
-# Scenario approximation; site-specific spectral conversion is not available.
+# LIGHT-002: constant-fraction scenario approximation; site-specific spectral conversion is unavailable.
 PAR_FRACTION = 0.45
-# See LIGHT-001; the handbook edition/page has not been verified.
+# LIGHT-001: the handbook's exact edition/page remains unverified.
 PPFD_PER_PAR_WM2 = 4.57
 PA_PER_HPA = 100.0
 SECONDS_PER_HOUR = 3600.0

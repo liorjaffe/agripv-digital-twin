@@ -10,6 +10,10 @@ from project.validation.calibrate_lettuce import calibrate_lettuce
 from project.validation.validate_radiation import validate_radiation
 
 
+def test_lettuce_defaults_use_the_hydroponic_root_fraction_proxy():
+    assert LettuceParams().c_tau == 0.14
+
+
 def test_calibrate_lettuce_reports_no_data_without_fabricating_a_fit():
     result = calibrate_lettuce()
     assert result["status"] == "no_data"
