@@ -36,6 +36,28 @@ def test_repeated_crop_window_preserves_timeline_harvest_marker_behavior():
     assert (timeline_cycles["cycle_fresh_biomass_g_m2"] == timeline_cycles["cycle_model_fresh_biomass_g_m2"]).all()
 
 
+def test_repeated_crop_uses_supplied_air_temperature_for_biomass():
+    times = pd.date_range("2026-01-01", periods=48, freq="h", tz="America/Sao_Paulo")
+    frame = pd.DataFrame({"crop_light": 100.0}, index=times)
+
+    cool = simulate_repeated_crops(
+        frame,
+        "crop_light",
+        max_cycle_days=2,
+        temperature_c=pd.Series(12.0, index=times),
+    )
+    warm = simulate_repeated_crops(
+        frame,
+        "crop_light",
+        max_cycle_days=2,
+        temperature_c=pd.Series(24.0, index=times),
+    )
+
+    assert cool["cycle_dry_biomass_g_m2"].iloc[-1] != warm[
+        "cycle_dry_biomass_g_m2"
+    ].iloc[-1]
+
+
 def test_repeated_crop_simulation_rejects_invalid_inputs():
     times = pd.date_range("2026-01-01", periods=1, freq="h", tz="America/Sao_Paulo")
     frame = pd.DataFrame({"crop_light": [100.0]}, index=times)
@@ -44,3 +66,11 @@ def test_repeated_crop_simulation_rejects_invalid_inputs():
         simulate_repeated_crops(frame, "crop_light", max_cycle_days=0)
     with pytest.raises(ValueError, match="missing light column"):
         simulate_repeated_crops(frame, "unknown")
+    with pytest.raises(ValueError, match="temperature_c must align"):
+        simulate_repeated_crops(
+            frame,
+            "crop_light",
+            temperature_c=pd.Series(
+                [20.0], index=frame.index + pd.Timedelta(hours=1)
+            ),
+        )

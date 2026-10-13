@@ -43,8 +43,10 @@
 - Related test(s): [`project/tests/test_model_explorer.py`](../project/tests/test_model_explorer.py),
   [`project/tests/test_timeline_export.py`](../project/tests/test_timeline_export.py)
 - Adaptation made for this project: The fixed dry-matter fraction converts
-  modeled dry-mass gain to a fresh-mass equivalent; a temperature sinusoid
-  supplies report-only thermal development and temperature response.
+  modeled dry-mass gain to a fresh-mass equivalent; supplied TMY air
+  temperature is used for report-only thermal development and temperature
+  response, with a synthetic curve retained only as a fallback for callers
+  that do not provide temperature.
 - Known differences or limitations: The curve is not observed weather; the
   dry-matter fraction and initial state are not cultivar/site measurements.
   LETTUCE-005 provides adjacent hydroponic evidence for a different lettuce
@@ -61,7 +63,18 @@
   a 5.3–6.6% whole-plant dry-matter fraction can be derived for ‘Red Wave’;
   a curly/hydroponic Crespa range remains unverified. Existing biomass
   initialization differs from the review-cited 30/70 split, for which no
-  primary source was identified.
+  primary source was identified. The report's GDD clock sets cycle duration
+  while the biomass model accumulates throughout that duration and has no
+  site-calibrated marketable-yield ceiling. In a same-light diagnostic, the
+  TMY-driven cool-season cycle lasted 76 days and reached 5,072.5 g/m² modeled
+  fresh-mass equivalent; a constant-26°C sensitivity lasted 43 days and reached
+  2,407.8 g/m². This roughly 2.1× difference is driven by the modeled cycle
+  lasting longer, not by applying temperature twice or changing irradiance.
+  At the configured 96 plants / 11.25 m², those equivalents are about 594 and
+  282 g/plant, respectively. The user reports a usual 100–300 g/plant range,
+  but dated per-cycle records are not currently retained, so this is a
+  plausibility comparison rather than calibration. These are outputs of
+  uncalibrated assumptions, not evidence that winter site yield is higher.
 - Reproduction command and output: Report-generation scripts; outputs remain
   scenario illustrations, not measured crop predictions.
 
@@ -69,8 +82,10 @@
 
 - Decision: Retain 0.05 as a disclosed scenario assumption; use LETTUCE-005
   only as adjacent evidence that this order of magnitude is plausible for
-  one hydroponic red-leaf cultivar. Keep the initial biomass and temperature
-  curve explicitly synthetic/unmeasured.
+  one hydroponic red-leaf cultivar. Show biomass and fresh-mass outputs in
+  reports as clearly labeled uncalibrated model scenarios, never as measured
+  or validated production. Keep the initial biomass explicitly synthetic/
+  unmeasured.
 - Rationale: The adjacent study does not establish the site's curly cultivar
   composition, transplant state, or temperature course.
 - Date: 2026-10-13
@@ -80,5 +95,7 @@
   - Measure transplant structural and non-structural dry mass or locate the
     primary model initialization source; reconcile the present 8/3 g/m² state
     with the attributed 30/70 split before claiming it as a literature default.
-  - Obtain site air/canopy-temperature records and rerun all temperature-driven
-    cycle, harvest, and biomass results.
+  - Obtain site canopy-temperature records and measured harvest/dry-mass
+    observations paired with verified channel units and locations; calibrate
+    and validate the growth, GDD, and fresh-mass conversion before treating
+    report scenarios as production predictions.

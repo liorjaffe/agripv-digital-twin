@@ -66,6 +66,12 @@ def test_sensitivity_sweep_reports_operating_point_and_pareto_metrics():
 
 def test_benchmark_excludes_future_timestamp_rows(tmp_path, monkeypatch):
     source = tmp_path / "period-results.csv"
+    tmy_source = tmp_path / "tmy-temperature.csv"
+    tmy_times = pd.date_range("1990-01-01T00:00:00Z", periods=365 * 24, freq="h")
+    pd.DataFrame({"time_utc": tmy_times, "temp_air_c": 20.0}).to_csv(
+        tmy_source,
+        index=False,
+    )
     pd.DataFrame(
         {
             "datetime": [
@@ -82,10 +88,10 @@ def test_benchmark_excludes_future_timestamp_rows(tmp_path, monkeypatch):
             "Tracker_Angle": [0.0, 1.0, 2.0],
         }
     ).to_csv(source, index=False)
-    compared_row_counts = []
+    compared_weather = []
 
     def fake_compare(weather, location, **options):
-        compared_row_counts.append(len(weather))
+        compared_weather.append(weather)
         return {}
 
     monkeypatch.setattr("project.scenarios.run_benchmark.compare_strategies", fake_compare)
@@ -94,9 +100,16 @@ def test_benchmark_excludes_future_timestamp_rows(tmp_path, monkeypatch):
         source,
         make_site_location(),
         as_of="2026-10-13T09:00:00-03:00",
+        air_temperature_source=tmy_source,
     )
 
-    assert compared_row_counts == [2]
+    assert len(compared_weather) == 1
+    assert compared_weather[0].index.max() == pd.Timestamp(
+        "2026-10-13T09:00:00-03:00"
+    )
+    assert compared_weather[0]["ghi"].notna().sum() == 2
+    assert compared_weather[0]["air_temp_c"].notna().all()
+    assert len(compared_weather[0]) > 2
     assert result["observed_rows"] == 2
     assert result["future_timestamp_unverified_rows_excluded"] == 1
     assert result["data_as_of"] == "2026-10-13T09:00:00-03:00"
@@ -136,3 +149,52 @@ def test_benchmark_movement_metric_uses_absolute_tracker_angles():
     metrics = summarize_strategy(results, daily)
 
     assert metrics["mean_tracker_angle_movement_deg_per_timestep"] == 2.5
+
+
+def test_benchmark_does_not_count_unknown_reachability_as_unreachable():
+    from project.scenarios.run_benchmark import summarize_strategy
+
+    index = pd.date_range(
+        "2026-06-15 12:00",
+        periods=3,
+        freq="15min",
+        tz="America/Sao_Paulo",
+    )
+    results = pd.DataFrame(
+        {
+            "tilt_offset_deg": [0.0, 0.0, 0.0],
+            "tracker_theta_deg": [0.0, 0.0, 0.0],
+            "total_dry_biomass": [1.0, 1.0, 1.0],
+        },
+        index=index,
+    )
+    daily = pd.DataFrame(
+        {
+            "daylight_coverage_sufficient": [True, True, True],
+            "dli_mol_m2_day": [10.0, 12.0, 14.0],
+            "pv_energy_kwh": [1.0, 1.0, 1.0],
+            "candidate_dli_target_band_reachable": pd.array(
+                [True, False, pd.NA], dtype="boolean"
+            ),
+            "candidate_dli_minimum_reachable": pd.array(
+                [True, False, pd.NA], dtype="boolean"
+            ),
+            "candidate_dli_ceiling_reachable": pd.array(
+                [True, True, pd.NA], dtype="boolean"
+            ),
+            "candidate_min_dli_mol_m2_day": [10.0, 20.0, float("nan")],
+            "candidate_max_dli_mol_m2_day": [15.0, 25.0, float("nan")],
+        },
+        index=pd.date_range(
+            index[0].normalize(), periods=3, freq="1D", tz=index.tz
+        ),
+    )
+
+    metrics = summarize_strategy(results, daily)
+
+    assert metrics["candidate_target_band_reachable_days"] == 1
+    assert metrics["candidate_target_band_reachability_unknown_days"] == 1
+    assert metrics["candidate_target_unreachable_days"] == 1
+    assert metrics["candidate_target_reachability_unknown_days"] == 1
+    assert metrics["candidate_ceiling_unreachable_days"] == 0
+    assert metrics["candidate_ceiling_reachability_unknown_days"] == 1

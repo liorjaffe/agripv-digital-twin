@@ -9,6 +9,24 @@ import pytest
 from project.models.lettuce import simulate_growth_timeseries
 
 
+def test_zero_light_nighttime_respires_stored_dry_biomass():
+    times = pd.date_range(
+        "2026-06-01 18:00",
+        periods=25,
+        freq="1h",
+        tz="America/Sao_Paulo",
+    )
+
+    result = simulate_growth_timeseries(
+        times,
+        pd.Series(0.0, index=times),
+        pd.Series(20.0, index=times),
+    )
+
+    assert result["biomass_state_valid"].all()
+    assert result["total_dry_biomass"].iloc[-1] < result["total_dry_biomass"].iloc[0]
+
+
 def test_constant_input_biomass_converges_across_observation_intervals():
     final_biomass = {}
     for frequency in ("15min", "1h", "1D"):

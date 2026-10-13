@@ -45,6 +45,7 @@ def test_period_results_service_does_not_label_future_timestamps_observed(
         source,
         location=None,
         as_of="2026-10-13T09:00:00-03:00",
+        air_temperature_source=None,
     )
 
     assert results["data_source"].tolist() == [

@@ -90,8 +90,16 @@ def optimize_tilt_schedule(
         candidate_max_dli = dli_from_timeseries(candidate_max_ppfd).where(
             complete_daylight_inputs
         )
-        daily_ceiling_reachable = candidate_min_dli.le(dli_max_mol_m2_day)
-        daily_minimum_reachable = candidate_max_dli.ge(dli_target_mol_m2_day)
+        daily_ceiling_reachable = (
+            candidate_min_dli.le(dli_max_mol_m2_day)
+            .where(candidate_min_dli.notna())
+            .astype("boolean")
+        )
+        daily_minimum_reachable = (
+            candidate_max_dli.ge(dli_target_mol_m2_day)
+            .where(candidate_max_dli.notna())
+            .astype("boolean")
+        )
         daily_band_reachable = daily_ceiling_reachable & daily_minimum_reachable
         daily_candidate_dli = pd.DataFrame(
             {

@@ -16,6 +16,7 @@ from project.io.field_data import (
 from project.io.grafana import telemetry_frame
 from project.io.ingestion import load_field_export, load_timeseries, validate_weather_contract
 from project.io.period_results import (
+    DEFAULT_TMY_AIR_TEMPERATURE_SOURCE,
     PeriodResultsInventory,
     period_results_data_source,
     period_results_weather,
@@ -119,17 +120,23 @@ def process_period_results_export(
     location: pvlib.location.Location,
     *,
     as_of: str | pd.Timestamp | None = None,
+    air_temperature_source=DEFAULT_TMY_AIR_TEMPERATURE_SOURCE,
     **pipeline_options,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, PeriodResultsInventory]:
-    """Run model recommendations on real Period_Results irradiance only.
+    """Run model recommendations with field irradiance and supplemental TMY temperature.
 
     Outputs retain tracker angles in a separate column. Rows at or before
     ``as_of`` are marked ``observed_field_data``; later timestamps are retained
     but marked ``future_timestamp_unverified`` because the export does not say
     whether those records are forecasts or simulations. Unidentified
-    ``0A``--``5F`` channels are not used as pipeline inputs.
+    ``0A``--``5F``     channels are not used as pipeline inputs. By default, only the air
+    temperature column from the bundled typical-year file is joined to the
+    field irradiance; pass ``air_temperature_source=None`` to disable it.
     """
-    weather, observed_tracker, inventory = period_results_weather(source)
+    weather, observed_tracker, inventory = period_results_weather(
+        source,
+        air_temperature_source=air_temperature_source,
+    )
     results, daily = run_timeseries_pipeline(weather, location, **pipeline_options)
     row_sources = period_results_data_source(results.index, as_of=as_of)
     results = results.join(observed_tracker).assign(data_source=row_sources)

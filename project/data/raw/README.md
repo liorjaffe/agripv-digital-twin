@@ -29,12 +29,40 @@ do not use the exploratory channel-comparison metrics to calibrate crop-light
 conversion or revise the DLI target/ceiling; the comparison's assumed units
 could change the apparent error substantially.
 
-`Period_Components.csv` also has no documented air-temperature series. The
-pipeline's biomass model therefore uses the configured 26°C fallback on this
-dataset. Separately generated crop-cycle and harvest markers use an
-illustrative synthetic seasonal-temperature curve. Neither output should be
-read as a temperature-driven site prediction until measured site temperatures
-are available and the crop model has been validated.
+## `tmy_air_temperature.csv`
+
+This temperature-only extract was made from the user-supplied Apple Numbers
+workbook `tmy_-27.6000_-48.5000 .numbers`. It contains 8,760 hourly
+`temp_air` values and UTC timestamps from a non-leap typical meteorological year.
+Only its timestamp and air-temperature columns are retained: its GHI, DNI, DHI,
+and other weather columns are not used. The original `Period_Components.csv`
+irradiance values remain unchanged.
+
+For the 2026 field-export timestamps, typical-year temperatures are mapped by
+UTC month, day, and hour onto the matching local-standard-time hours, then
+included across the full local calendar year so nighttime crop respiration is
+temperature-dependent too. The TMY coordinates in its filename
+(-27.6000, -48.5000) differ slightly from the configured site coordinates
+(-27.5949, -48.5480). This is therefore a nearby climatological scenario, not
+measured air temperature during the irradiance year or at the exact site.
+
+The simulation keeps all supplied GHI/DNI/DHI measurements as they are. Missing
+nighttime model inputs are set to zero based on solar zenith. For this
+daytime-only export, any other unrecorded irradiance timestamps are also
+assumed to have zero light, per the user's modeling instruction; this is an
+explicit assumption, not an inferred measurement. Explicit source readings
+remain unchanged. The TMY source is recorded in each model output. The
+configured 26°C value remains only a logged fallback for runs with no
+temperature series. Biomass and crop-cycle results remain provisional because
+some daytime gaps may be treated as zero and the crop model has not been
+validated against site biomass data.
+
+The irradiance export has 3,992 timestamped data rows, not a complete set of
+8,760 hourly observations; some gaps extend to 49 hours. Joining the hourly TMY
+temperature series expands the model's time index but does not add observed
+irradiance records. Benchmark observation counts are based on the original
+field-export timestamps, while TMY-only hours remain in the model input so
+temperature can still drive nighttime respiration.
 
 ## Public dashboard data
 

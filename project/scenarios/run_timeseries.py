@@ -85,6 +85,11 @@ def run_timeseries_pipeline(
     """
     if weather.index.tz is None:
         raise ValueError("weather must use timezone-aware timestamps")
+    weather_temperature_source = weather.attrs.get("air_temp_source")
+    weather_irradiance_source = weather.attrs.get(
+        "irradiance_source", "weather input"
+    )
+    missing_irradiance_policy = weather.attrs.get("missing_irradiance_policy")
     if (
         not math.isfinite(wind_stow_tracker_theta_deg)
         or abs(wind_stow_tracker_theta_deg) > MAX_TRACKER_TILT_DEG
@@ -131,7 +136,7 @@ def run_timeseries_pipeline(
     if temperature_c is None:
         if "air_temp_c" in weather.columns and weather["air_temp_c"].notna().any():
             temperature_c = weather["air_temp_c"]
-            temperature_source = "weather.air_temp_c"
+            temperature_source = weather_temperature_source or "weather.air_temp_c"
         else:
             temperature_c = fallback_air_temp_c
             temperature_source = "configured scenario fallback"
@@ -172,6 +177,19 @@ def run_timeseries_pipeline(
     solar, _ = solar_position_and_clearsky(
         location, weather.index, pressure_hpa=pressure_hpa, temp_air_c=refraction_temp_c
     )
+    nighttime = solar["apparent_zenith"].ge(90.0)
+    radiation_columns = ["ghi", "dni", "dhi"]
+    if raw_ghi_presence is not None:
+        has_source_irradiance = raw_ghi_presence.reindex(
+            weather.index, fill_value=0.0
+        ).gt(0.0)
+    else:
+        has_source_irradiance = weather[radiation_columns].notna().any(axis=1)
+    nighttime_irradiance_zero_filled = nighttime & ~has_source_irradiance
+    missing_irradiance_zero_filled = ~has_source_irradiance & (
+        nighttime | (missing_irradiance_policy == "zero")
+    )
+    weather.loc[missing_irradiance_zero_filled, radiation_columns] = 0.0
     baseline = tracker_orientation(solar, axis_azimuth_deg, gcr, max_tilt_deg=max_tilt_deg)
     first_baseline_theta = baseline["tracker_theta"].iloc[0]
     initial_tracker_theta = (
@@ -385,6 +403,26 @@ def run_timeseries_pipeline(
     selected["target_ppfd_umol_m2_s"] = target_ppfd
     selected["model_air_temp_c"] = model_air_temperature
     selected["model_air_temp_source"] = temperature_source
+    selected["nighttime_irradiance_zero_filled"] = (
+        nighttime_irradiance_zero_filled.reindex(selected.index, fill_value=False)
+    )
+    selected["missing_irradiance_zero_filled"] = (
+        missing_irradiance_zero_filled.reindex(selected.index, fill_value=False)
+    )
+    if raw_ghi_presence is not None:
+        has_irradiance_input = raw_ghi_presence.reindex(
+            selected.index, fill_value=0.0
+        ).gt(0.0)
+    else:
+        has_irradiance_input = pd.Series(False, index=selected.index)
+    selected["irradiance_input_source"] = "missing irradiance input"
+    selected.loc[has_irradiance_input, "irradiance_input_source"] = (
+        weather_irradiance_source
+    )
+    selected.loc[
+        selected["missing_irradiance_zero_filled"],
+        "irradiance_input_source",
+    ] = "missing irradiance assumed zero"
     selected["dli_mol_m2_day"] = dli_from_timeseries(selected["crop_ppfd_umol_m2_s"]).reindex(selected.index.normalize()).to_numpy()
     growth = simulate_growth_timeseries(
         selected.index,

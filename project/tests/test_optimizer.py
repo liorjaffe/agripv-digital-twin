@@ -137,6 +137,67 @@ def test_missing_air_temperature_uses_and_reports_configured_scenario_fallback(c
     assert "using configured fallback_air_temp_c=23.0 C" in caplog.text
 
 
+def test_weather_temperature_source_and_nighttime_zeroes_reach_growth_model():
+    location = make_site_location()
+    times = pd.date_range(
+        "2026-06-15",
+        periods=24 * 4,
+        freq="15min",
+        tz="America/Sao_Paulo",
+    )
+    weather = location.get_clearsky(times, model="ineichen")
+    weather["air_temp_c"] = 14.0
+    night = location.get_solarposition(times)["apparent_zenith"].ge(90.0)
+    weather.loc[night, ["ghi", "dni", "dhi"]] = float("nan")
+    weather.attrs["air_temp_source"] = "TMY climatological air temperature"
+    weather.attrs["irradiance_source"] = "Period_Components.csv GHI/DNI/DHI"
+    original_weather = weather.copy(deep=True)
+
+    results, _ = run_timeseries_pipeline(weather, location)
+
+    assert weather.equals(original_weather)
+    assert results["model_air_temp_source"].eq(
+        "TMY climatological air temperature"
+    ).all()
+    assert results.loc[
+        results["nighttime_irradiance_zero_filled"], "crop_ppfd_umol_m2_s"
+    ].eq(0.0).all()
+    assert results.loc[
+        results["nighttime_irradiance_zero_filled"], "irradiance_input_source"
+    ].eq("missing irradiance assumed zero").all()
+    assert results.loc[
+        ~results["nighttime_irradiance_zero_filled"], "irradiance_input_source"
+    ].eq("Period_Components.csv GHI/DNI/DHI").all()
+    assert results["total_dry_biomass"].notna().all()
+
+
+def test_period_components_policy_zero_fills_unobserved_daylight_only():
+    location = make_site_location()
+    times = pd.date_range(
+        "2026-01-01 05:00",
+        periods=17,
+        freq="h",
+        tz="America/Sao_Paulo",
+    )
+    weather = location.get_clearsky(times, model="ineichen")
+    weather["air_temp_c"] = 20.0
+    observed = weather.index.hour.isin([7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18])
+    weather.loc[~observed, ["ghi", "dni", "dhi"]] = float("nan")
+    weather.attrs["missing_irradiance_policy"] = "zero"
+
+    results, _ = run_timeseries_pipeline(weather, location)
+
+    missing_daylight = (
+        location.get_solarposition(results.index)["apparent_zenith"].lt(90.0)
+        & results["missing_irradiance_zero_filled"]
+    )
+    assert missing_daylight.any()
+    assert results.loc[
+        results["missing_irradiance_zero_filled"], "crop_ppfd_umol_m2_s"
+    ].eq(0.0).all()
+    assert results["total_dry_biomass"].notna().all()
+
+
 def test_high_wind_commands_absolute_tracker_stow_angle():
     location, weather = _clear_sky_weather()
     weather["wind_speed_ms"] = 20.0
@@ -194,4 +255,18 @@ def test_daily_energy_metrics_are_suppressed_when_daylight_coverage_is_low():
     assert not daily["daylight_coverage_sufficient"].iloc[0]
     assert pd.isna(daily["dli_mol_m2_day"].iloc[0])
     assert pd.isna(daily["pv_energy_kwh"].iloc[0])
+    assert pd.isna(daily["candidate_dli_target_band_reachable"].iloc[0])
+
+
+def test_reachability_is_unknown_when_covered_day_has_unfilled_light_gap():
+    location, weather = _clear_sky_weather()
+    weather.loc[weather.index[20:26], ["ghi", "dni", "dhi"]] = float("nan")
+
+    _, daily = run_timeseries_pipeline(weather, location, max_gap_periods=4)
+
+    assert daily["daylight_coverage_sufficient"].iloc[0]
+    assert pd.isna(daily["candidate_min_dli_mol_m2_day"].iloc[0])
+    assert pd.isna(daily["candidate_max_dli_mol_m2_day"].iloc[0])
+    assert pd.isna(daily["candidate_dli_minimum_reachable"].iloc[0])
+    assert pd.isna(daily["candidate_dli_ceiling_reachable"].iloc[0])
     assert pd.isna(daily["candidate_dli_target_band_reachable"].iloc[0])

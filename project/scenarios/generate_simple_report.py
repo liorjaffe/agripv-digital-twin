@@ -72,7 +72,8 @@ def chart_cards(results: pd.DataFrame, daily: pd.DataFrame) -> str:
     charts = (
         ("light", "Crop light", hourly["crop_ppfd_umol_m2_s"], "PPFD (umol/m2/s)", "#167d8d", "line"),
         ("pv", "PV energy by day", daily["pv_energy_kwh"], "kWh", "#e07a32", "bar"),
-        ("biomass", "Lettuce dry biomass", results["total_dry_biomass"], "g/m2", "#3f7d4b", "line"),
+        ("temperature", "Typical-year air temperature", hourly["model_air_temp_c"], "°C", "#7357a6", "line"),
+        ("biomass", "Modeled total dry biomass (uncalibrated)", daily["final_dry_biomass"], "g/m²", "#a33c70", "line"),
     )
     return "".join(
         f"""<article class="panel" draggable="true" data-panel="{key}">
@@ -90,6 +91,8 @@ def daily_table(daily: pd.DataFrame) -> str:
         coverage_text = f"{coverage * 100:.0f}%" if pd.notna(coverage) else "n/a"
         dli_text = f"{row['dli_mol_m2_day']:.2f}" if pd.notna(row["dli_mol_m2_day"]) else "n/a"
         pv_text = f"{row['pv_energy_kwh']:.2f}" if pd.notna(row["pv_energy_kwh"]) else "n/a"
+        biomass = row.get("final_dry_biomass")
+        biomass_text = f"{biomass:.2f}" if pd.notna(biomass) else "n/a"
         if pd.isna(row.get("candidate_dli_target_band_reachable")):
             reachability_text = "unknown"
         elif (
@@ -115,7 +118,7 @@ def daily_table(daily: pd.DataFrame) -> str:
             f"<td>{html.escape(timestamp.strftime('%Y-%m-%d'))}</td>"
             f"<td>{dli_text}</td>"
             f"<td>{pv_text}</td>"
-            f"<td>{row['final_dry_biomass']:.2f}</td>"
+            f"<td>{biomass_text}</td>"
             f"<td>{coverage_text}</td>"
             f"<td>{candidate_range_text}</td>"
             f"<td>{reachability_text}</td>"
@@ -185,7 +188,6 @@ def hourly_table(results: pd.DataFrame) -> str:
             f"<td>{html.escape(timestamp.strftime('%Y-%m-%d %H:%M'))}</td>"
             f"<td>{row['crop_ppfd_umol_m2_s']:.1f}</td>"
             f"<td>{row['pv_power_w'] / 1000:.2f}</td>"
-            f"<td>{row['total_dry_biomass']:.2f}</td>"
             f"{tracker_cell}"
             "</tr>"
         )
@@ -194,11 +196,14 @@ def hourly_table(results: pd.DataFrame) -> str:
 
 def subzone_section(subzone_id: str, results: pd.DataFrame, daily: pd.DataFrame) -> str:
     total_energy = daily["pv_energy_kwh"].sum(min_count=1)
-    final_biomass = daily["final_dry_biomass"].dropna().iloc[-1]
     mean_dli = daily["dli_mol_m2_day"].mean()
     covered_days = int(daily["daylight_coverage_sufficient"].sum())
     mean_dli_text = f"{mean_dli:.2f}" if pd.notna(mean_dli) else "n/a"
     total_energy_text = f"{total_energy:.2f}" if pd.notna(total_energy) else "n/a"
+    valid_biomass = daily["final_dry_biomass"].dropna()
+    final_biomass_text = (
+        f"{valid_biomass.iloc[-1]:.2f}" if not valid_biomass.empty else "n/a"
+    )
     tracker_header = (
         "<th>Observed tracker<br>(degrees)</th>"
         if "observed_tracker_angle_deg" in results.columns else ""
@@ -209,19 +214,19 @@ def subzone_section(subzone_id: str, results: pd.DataFrame, daily: pd.DataFrame)
       <div class="metrics">
         <div><strong>{mean_dli_text}</strong><span>Average DLI (mol/m2/day; {covered_days} covered days)</span></div>
         <div><strong>{total_energy_text}</strong><span>PV energy (kWh; covered days only)</span></div>
-        <div><strong>{final_biomass:.2f}</strong><span>Final dry biomass (g/m2; temperature-source scenario)</span></div>
+        <div><strong>{final_biomass_text}</strong><span>Final modeled total dry biomass (g/m²; uncalibrated continuous model state, not harvest yield)</span></div>
       </div>
     <div class="dashboard-grid">{chart_cards(results, daily)}</div>
       {channel_comparison_summary(results)}
       <h3>Daily results</h3>
       <table>
-        <thead><tr><th>Date</th><th>DLI<br>(mol/m2/day)</th><th>PV energy<br>(kWh)</th><th>Dry biomass<br>(g/m2)</th><th>Daylight coverage</th><th>Candidate DLI envelope<br>(mol/m2/day)</th><th>Candidate-band reachability<br>(movement/stow unconstrained)</th></tr></thead>
+        <thead><tr><th>Date</th><th>DLI<br>(mol/m2/day)</th><th>PV energy<br>(kWh)</th><th>Modeled dry biomass<br>(g/m²; uncalibrated)</th><th>Daylight coverage</th><th>Candidate DLI envelope<br>(mol/m2/day)</th><th>Candidate-band reachability<br>(movement/stow unconstrained)</th></tr></thead>
         <tbody>{daily_table(daily)}</tbody>
       </table>
       <details>
         <summary>Hourly model output</summary>
         <table>
-          <thead><tr><th>Time</th><th>Crop PPFD<br>(umol/m2/s)</th><th>PV power<br>(kW)</th><th>Dry biomass<br>(g/m2)</th>{tracker_header}</tr></thead>
+          <thead><tr><th>Time</th><th>Crop PPFD<br>(umol/m2/s)</th><th>PV power<br>(kW)</th>{tracker_header}</tr></thead>
           <tbody>{hourly_table(results)}</tbody>
         </table>
       </details>
@@ -240,12 +245,29 @@ def build_report(input_path: Path, output_path: Path) -> None:
     temperature_value = float(results["model_air_temp_c"].iloc[0])
     artifact_metadata = build_artifact_metadata()
     temperature_note = (
-        f" Temperature-dependent calculations use {temperature_value:.1f}°C "
-        "as a configured scenario fallback because no air-temperature channel "
-        "is present in this export; the resulting biomass trajectory is a "
-        "fallback-temperature scenario, not a field prediction."
-        if temperature_source == "configured scenario fallback"
-        else f" Temperature input source for this run: {temperature_source}."
+        f" Temperature-dependent calculations use the supplemental typical-year "
+        f"air-temperature series ({temperature_source}; first value "
+        f"{temperature_value:.1f}°C). It is not measured temperature from the "
+        "irradiance year, so biomass outputs are uncalibrated scenario results, "
+        "not field predictions. The continuous biomass state is not a per-harvest "
+        "yield."
+        if temperature_source.startswith("TMY climatological")
+        else (
+            f" Temperature-dependent calculations use {temperature_value:.1f}°C "
+            "as a configured scenario fallback because no air-temperature input "
+            "is present; biomass outputs are not field predictions."
+            if temperature_source == "configured scenario fallback"
+            else f" Temperature input source for this run: {temperature_source}."
+        )
+    )
+    temperature_note += (
+        " The Period Components export records daytime samples; unrecorded "
+        "irradiance timestamps are assumed to have zero light in the model. "
+        "This assumption does not alter measured source values or the reported "
+        "daylight-coverage checks. Crop-cycle fresh-mass equivalents are separate "
+        "from the continuous dry-biomass state and can be higher in cool seasons "
+        "because the GDD clock makes those cycles longer; they are not calibrated "
+        "or observed harvests."
     )
     sections = subzone_section("Period Components", results, daily)
     report = f"""<!doctype html>

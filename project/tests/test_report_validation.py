@@ -74,3 +74,25 @@ def test_daily_table_exposes_target_band_reachability():
 
     assert "ceiling unreachable" in rendered
     assert "20.00–40.00" in rendered
+
+
+def test_daily_table_withholds_uncalibrated_biomass():
+    daily = pd.DataFrame(
+        {
+            "dli_mol_m2_day": [12.0],
+            "pv_energy_kwh": [5.0],
+            "final_dry_biomass": [20.0],
+            "daylight_coverage_fraction": [0.9],
+            "candidate_min_dli_mol_m2_day": [10.0],
+            "candidate_max_dli_mol_m2_day": [18.0],
+            "candidate_dli_target_band_reachable": [True],
+            "candidate_dli_ceiling_reachable": [True],
+            "candidate_dli_minimum_reachable": [True],
+        },
+        index=pd.DatetimeIndex(["2026-01-01"], tz="America/Sao_Paulo"),
+    )
+
+    rendered = daily_table(daily)
+
+    assert "<td>20.00</td>" in rendered
+    assert "withheld (uncalibrated)" not in rendered

@@ -181,15 +181,36 @@ The project has two different lettuce models; they answer different questions:
   biomass and does not account for light or humidity.
 
 The two models are not interchangeable, and a predicted biomass or GDD-based
-harvest date is not a measured crop yield. On the bundled field dataset, the
-biomass model uses its configured 26°C air-temperature fallback; report
-crop-cycle/harvest markers use a separate illustrative seasonal-temperature
-curve. Both are scenario outputs, not temperature-informed site predictions.
+harvest date is not a measured crop yield. The report-only crop-growth
+parameters, source-channel units, and fresh-mass conversion have not been
+calibrated against this site. Standalone reports show the resulting biomass
+values as **uncalibrated model scenarios**, not production predictions. The
+GDD clock makes cool-season crop cycles longer while the separate biomass
+equation accumulates mass throughout each cycle; this can produce larger
+modeled per-cycle values in winter. That seasonal inversion is a consequence
+of the current model structure, not evidence of higher winter yield. The
+standalone cycle table also converts its g/m² estimates to g/plant using the
+configured full-bed density (96 plants / 11.25 m²) and flags results outside
+the user-reported 100–300 g/plant range. That range is only a plausibility
+reference until dated harvest records are available; it is not used as a yield
+cap or calibration target. The
+bundled field irradiance export
+is combined with the temperature-only
+[`tmy_air_temperature.csv`](./project/data/raw/tmy_air_temperature.csv)
+supplement: the TMY's 8,760 hourly UTC air temperatures are mapped by
+month/day/hour to the field-export year. This is a nearby typical-year
+temperature scenario, not a measurement from the same year or exact site.
+Report crop-cycle calculations use that same supplemental temperature series.
+Both model outputs remain scenarios, not field predictions.
 The biomass solver uses fixed 15-minute RK4 substeps by default, regardless of
-weather sampling interval. Light, temperature, and CO₂ gaps are interpolated only when
-they are internal and no longer than `max_gap_periods`; an unresolved input gap
-marks biomass state unknown at that point and thereafter rather than treating
-missing light as darkness or silently resuming from an invented state.
+weather sampling interval. Light, temperature, and CO₂ gaps are interpolated
+only when they are internal and no longer than `max_gap_periods`. Missing irradiance at night is treated as zero in the model input based on solar
+zenith, without changing the source CSV or replacing explicit measured values.
+For the `Period_Components.csv` daytime-only export, unrecorded irradiance
+timestamps are also assumed to have zero light, per the scenario's input
+convention; this is not an inferred measurement. Original timestamp coverage
+remains separately tracked, and daily radiation metrics are withheld when
+measured daylight coverage is insufficient.
 Calibration and field validation
 need appropriate biomass and sensor observations; when those are missing, the
 validation code reports that explicitly instead of fabricating a fit.
@@ -244,9 +265,12 @@ the controller disables that unreachable ceiling and prioritizes the
 remaining minimum-light target; among equally acceptable candidates, its
 normalized secondary preferences trade PV output against movement. Daily
 reports show the modeled candidate DLI range and whether the configured target
-band intersects that range. This per-timestep candidate envelope is an ideal
-model bound: it does not enforce movement or wind-stow constraints, so it is
-not proof that a complete physical schedule can attain the band. The DLI values
+band intersects that range. Days without complete daylight candidate inputs
+are reported as unknown, not as unreachable; benchmark reachability counts
+include only days with a computed candidate range and report unknown days
+separately. This per-timestep candidate envelope is an ideal model bound: it
+does not enforce movement or wind-stow constraints, so it is not proof that a
+complete physical schedule can attain the band. The DLI values
 and band remain provisional until the site channel map and sensor units support
 light-model calibration. The available export cannot yet distinguish a
 site-specific DLI target/ceiling that is inappropriate for this system from a
@@ -376,8 +400,10 @@ labels, nominal row width, crop temperature thresholds, and tracker control
 mode are not inputs to current model calculations. The DLI minimum acts as a
 floor for the controller target; the DLI
 target and ceiling define its light band. Missing air temperature uses the
-explicit, logged `site.fallback_air_temp_c` scenario value, recorded in each
-time-series result with its source.
+explicit, logged `site.fallback_air_temp_c` scenario value only when no
+temperature series is supplied; the bundled Period Components simulation uses
+the supplemental TMY temperature series and records its provenance in each
+time-series result.
 
 ## Data quality and limits to keep in mind
 

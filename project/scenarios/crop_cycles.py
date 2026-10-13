@@ -48,12 +48,16 @@ def simulate_repeated_crops(
     max_cycle_days: int = 120,
     *,
     mark_cycle_window_end_as_harvest: bool = False,
+    temperature_c: pd.Series | None = None,
 ) -> pd.DataFrame:
     """Simulate report crop cycles from hourly light and thermal-time development.
 
     The report's fresh-mass equivalent is a model estimate derived from dry-biomass
     gain using a fixed 5% dry-matter assumption. It is not a measured crop yield and
     should be labelled as such in any reporting or monetization layer.
+    When ``temperature_c`` is supplied it is used for both crop growth and
+    thermal-time development; otherwise the explicitly illustrative seasonal curve
+    remains the fallback for standalone callers.
     ``mark_cycle_window_end_as_harvest`` preserves the timeline export's historical
     convention of marking the end of its final, incomplete data window as a harvest.
     """
@@ -61,6 +65,11 @@ def simulate_repeated_crops(
         raise ValueError("max_cycle_days must be at least 1")
     if light_column not in results.columns:
         raise ValueError(f"results are missing light column {light_column!r}")
+    if temperature_c is not None:
+        if not temperature_c.index.equals(results.index):
+            raise ValueError("temperature_c must align with results")
+        if not all(math.isfinite(float(value)) for value in temperature_c):
+            raise ValueError("temperature_c must contain only finite values")
 
     columns = [
         "cycle_id",
@@ -80,11 +89,17 @@ def simulate_repeated_crops(
         if candidate.empty:
             break
 
-        temperatures = seasonal_canopy_temperature(candidate.index)
+        candidate_temperature = (
+            seasonal_canopy_temperature(candidate.index)
+            if temperature_c is None
+            else temperature_c.loc[candidate.index]
+        )
         thermal = LettuceThermalDevelopment()
         harvest_position = len(candidate) - 1
         matured = False
-        for date, day_temperature in temperatures.groupby(temperatures.index.normalize()).mean().items():
+        for date, day_temperature in candidate_temperature.groupby(
+            candidate_temperature.index.normalize()
+        ).mean().items():
             if thermal.update(float(day_temperature))["harvest_ready"]:
                 day_positions = [
                     position
@@ -100,7 +115,11 @@ def simulate_repeated_crops(
         growth = simulate_growth_timeseries(
             crop.index,
             crop[light_column] * PAR_FRACTION,
-            seasonal_canopy_temperature(crop.index),
+            (
+                seasonal_canopy_temperature(crop.index)
+                if temperature_c is None
+                else temperature_c.loc[crop.index]
+            ),
             x_sdw0=DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
             x_nsdw0=DEFAULT_INITIAL_NONSTRUCTURAL_DRY_BIOMASS_G_M2,
         )

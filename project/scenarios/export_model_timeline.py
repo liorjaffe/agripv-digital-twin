@@ -10,7 +10,7 @@ import re
 
 import pandas as pd
 
-from project.config import make_site_location
+from project.config import load_runtime_config, make_site_location
 from project.io.ingestion import load_period_results_export
 from project.io.service import process_period_results_export
 from project.scenarios.artifact_metadata import build_artifact_metadata
@@ -26,22 +26,44 @@ HTML_TEMPLATE_PATH = OUT_DIR / "timeline_viewer.html"
 SYNTHETIC_INPUTS_NOTICE = (
     "SYNTHETIC INPUTS USED HERE — The raw channel units and physical locations "
     "are undocumented. Light groups and their open/between/under labels are "
-    "unverified scenario assumptions; PAR uses an assumed 0.45 fraction. Canopy "
-    "temperature is a seasonal sinusoid, not a measured field-temperature "
-    "series. Crop-cycle and harvest markers are generated from those "
-    "assumptions; wind and humidity are not measured or modeled in this viewer. "
-    "Biomass is model output, not observed yield. Do not interpret this "
+    "unverified scenario assumptions; PAR uses an assumed 0.45 fraction. The "
+    "plotted canopy-temperature curve is a seasonal sinusoid; crop-cycle growth "
+    "uses supplemental TMY air temperatures, not measured temperatures from the "
+    "irradiance year. Wind and humidity are not measured or modeled in this viewer. "
+    "Unrecorded irradiance timestamps are assumed to have zero light. "
+    "Crop biomass values are uncalibrated model-derived scenario estimates, not "
+    "validated yields: the growth equation, channel units, and dry-matter "
+    "conversion are not calibrated for this site. GDD-based timing lets cooler, "
+    "longer cycles accumulate more modeled mass. "
+    "The per-plant conversion assumes the configured 96 plants on 11.25 m²; "
+    "the user-reported 100–300 g/plant range is a plausibility reference only, "
+    "not a calibration dataset. "
+    "Do not interpret this "
     "visualization as independent validation or field evidence."
 )
 
 TIMELINE_VARIABLES = {
     "par_wm2": {"rot": "scenario PAR (assumed)", "un": "W/m²", "dec": 1},
     "t_folha": {
-        "rot": "synthetic seasonal canopy temperature",
+        "rot": "synthetic illustrative seasonal canopy temperature",
         "un": "°C",
         "dec": 2,
     },
-    "fm": {"rot": "modeled fresh biomass (not measured)", "un": "g/m²", "dec": 1},
+    "t_air": {
+        "rot": "typical-year air temperature (not observed)",
+        "un": "°C",
+        "dec": 1,
+    },
+    "fm": {
+        "rot": "modeled fresh-mass equivalent (uncalibrated)",
+        "un": "g/m²",
+        "dec": 1,
+    },
+    "fp": {
+        "rot": "modeled fresh-mass equivalent per plant (uncalibrated)",
+        "un": "g/plant",
+        "dec": 1,
+    },
 }
 
 
@@ -53,10 +75,14 @@ def build_scenario_series(
     hourly: pd.DataFrame, light_column: str, fresh_column: str
 ) -> dict[str, list[float | None]]:
     par_wm2 = (hourly[light_column].astype(float) * 0.45).clip(lower=0.0)
+    plant_density = load_runtime_config().plant_density_per_m2
+    fresh_mass = hourly[fresh_column].astype(float)
     return {
         "par_wm2": finite_values(par_wm2),
         "t_folha": finite_values(hourly["t_folha_c"].astype(float)),
-        "fm": finite_values(hourly[fresh_column].astype(float)),
+        "t_air": finite_values(hourly["model_air_temp_c"].astype(float)),
+        "fm": finite_values(fresh_mass),
+        "fp": finite_values(fresh_mass / plant_density),
     }
 
 
@@ -74,9 +100,11 @@ def build_timeline_metadata(hourly: pd.DataFrame) -> dict:
             f"{SYNTHETIC_INPUTS_NOTICE} Generated from commit "
             f"{artifact_metadata['source_commit']}; working tree dirty: "
             f"{str(artifact_metadata['working_tree_dirty']).lower()}. "
-            "Crop-cycle and harvest markers use a synthetic seasonal "
-            "temperature curve, not measured site air temperature; they are "
-            "illustrative and not harvest predictions."
+            "Crop-cycle and harvest markers are generated as model scenarios using the "
+            "supplemental typical-year temperature series, not measured site "
+            "air temperature from the irradiance year or observed harvests; "
+            "they are not calibrated or observed harvest predictions. A cycle "
+            "still in progress at the end of the data is not a completed harvest."
         ),
         **artifact_metadata,
         "n": len(hourly),
@@ -87,7 +115,7 @@ def build_timeline_metadata(hourly: pd.DataFrame) -> dict:
             "between": "2B (unverified group)",
             "under": "2A/2C (unverified group)",
         },
-        "padrao": ["par_wm2", "t_folha", "fm"],
+        "padrao": ["par_wm2", "t_air", "fm", "fp"],
         "vars": TIMELINE_VARIABLES,
     }
 
@@ -105,13 +133,19 @@ def build_cycle_markers(cycle_frames: dict[str, pd.DataFrame], hourly: pd.DataFr
                 continue
             start_index = hourly.index.get_loc(subset.index[0])
             end_index = hourly.index.get_loc(subset.index[-1])
+            matured = bool(subset["harvest"].any())
             markers.append({
                 "ciclo": int(cid),
                 "i0": int(start_index),
                 "i1": int(end_index),
                 "plantio": subset.index[0].strftime("%Y-%m-%d %H:%M"),
-                "colheita": subset.index[-1].strftime("%Y-%m-%d %H:%M"),
+                "colheita": (
+                    subset.index[-1].strftime("%Y-%m-%d %H:%M")
+                    if matured
+                    else "in progress"
+                ),
                 "dias": int((subset.index[-1] - subset.index[0]).days + 1),
+                "maturidade_gdd": matured,
             })
     if not markers:
         return []
@@ -133,17 +167,25 @@ def build_timeline_payload() -> dict:
     period["light_open_w_m2"] = period[open_cols].mean(axis=1)
     period["light_between_w_m2"] = period["2B_AVG"]
     period["light_under_w_m2"] = period[["2A_AVG", "2C_AVG"]].mean(axis=1)
-    hourly = hourly.join(period[["light_open_w_m2", "light_between_w_m2", "light_under_w_m2"]])
+    light_columns = ["light_open_w_m2", "light_between_w_m2", "light_under_w_m2"]
+    hourly = hourly.join(period[light_columns])
+    hourly[light_columns] = hourly[light_columns].fillna(0.0)
 
     cycle_frames = {
         "open": simulate_repeated_crops(
-            hourly, "light_open_w_m2", mark_cycle_window_end_as_harvest=True
+            hourly,
+            "light_open_w_m2",
+            temperature_c=hourly["model_air_temp_c"],
         ),
         "between": simulate_repeated_crops(
-            hourly, "light_between_w_m2", mark_cycle_window_end_as_harvest=True
+            hourly,
+            "light_between_w_m2",
+            temperature_c=hourly["model_air_temp_c"],
         ),
         "under": simulate_repeated_crops(
-            hourly, "light_under_w_m2", mark_cycle_window_end_as_harvest=True
+            hourly,
+            "light_under_w_m2",
+            temperature_c=hourly["model_air_temp_c"],
         ),
     }
     for setup, cycle in cycle_frames.items():
