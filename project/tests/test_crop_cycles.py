@@ -3,6 +3,7 @@ import pytest
 
 from project.scenarios.crop_cycles import (
     TRANSPLANT_DRY_MASS_G_PER_PLANT,
+    estimate_sowing_date,
     seasonal_canopy_temperature,
     seasonal_mean_temp_c,
     simulate_repeated_crops,
@@ -39,8 +40,7 @@ def test_repeated_crop_window_preserves_timeline_harvest_marker_behavior():
 
 
 def test_repeated_crop_uses_supplied_air_temperature_for_biomass():
-    # 30 days at 24 C completes the ST (nursery) stage after about 20 days,
-    # so the remaining days carry field biomass that depends on temperature.
+    # A complete TC cycle at 24 C contains 27 days of field biomass.
     times = pd.date_range("2026-01-01", periods=30 * 24, freq="h", tz="America/Sao_Paulo")
     frame = pd.DataFrame({"crop_light": 100.0}, index=times)
 
@@ -65,7 +65,7 @@ def test_repeated_crop_uses_supplied_air_temperature_for_biomass():
     ].iloc[-1]
 
 
-def test_nursery_stage_has_no_field_biomass_and_field_starts_at_transplant_mass():
+def test_cycles_start_at_transplant_and_are_contiguous_with_no_nursery_rows():
     times = pd.date_range("2026-01-01", periods=60 * 24, freq="h", tz="America/Sao_Paulo")
     frame = pd.DataFrame({"crop_light": 100.0}, index=times)
     density = 8.0
@@ -77,20 +77,32 @@ def test_nursery_stage_has_no_field_biomass_and_field_starts_at_transplant_mass(
         temperature_c=pd.Series(24.0, index=times),
         plant_density_per_m2=density,
     )
-    first = cycles[cycles["cycle_id"] == 1]
-    nursery = first[first["cycle_stage"] == "nursery"]
-    field = first[first["cycle_stage"] == "field"]
+    assert set(cycles["cycle_stage"]) == {"field"}
+    for _, cycle in cycles.groupby("cycle_id"):
+        assert cycle["cycle_dry_biomass_g_m2"].iloc[0] == pytest.approx(
+            TRANSPLANT_DRY_MASS_G_PER_PLANT * density
+        )
+        assert cycle["cycle_model_fresh_biomass_g_m2"].iloc[0] == pytest.approx(
+            0.90 * density
+        )
+        assert cycle["sowing_date_estimate"].dropna().nunique() <= 1
+    groups = list(cycles.groupby("cycle_id"))
+    for (_, previous), (_, following) in zip(groups, groups[1:]):
+        assert following.index[0] == previous.index[-1] + pd.Timedelta(hours=1)
 
-    # 398.67 GDD at (24 - 4.1) C/day -> transplant after 21 days.
-    assert len(nursery) == 21 * 24
-    assert (nursery["cycle_dry_biomass_g_m2"] == 0.0).all()
-    assert (nursery["cycle_model_fresh_biomass_g_m2"] == 0.0).all()
-    assert field["cycle_dry_biomass_g_m2"].iloc[0] == pytest.approx(
-        TRANSPLANT_DRY_MASS_G_PER_PLANT * density
-    )
-    # 472.79 GDD at (24 - 6.1) C/day -> harvest on day 27 after transplant.
+    first = cycles[cycles["cycle_id"] == 1]
+    # 472.79 GDD / (24 - 6.1) C/day requires 27 calendar days.
     assert first["harvest"].iloc[-1]
-    assert len(field) == 27 * 24
+    assert len(first) == 27 * 24
+
+
+def test_sowing_date_estimate_counts_st_gdd_backwards():
+    times = pd.date_range("2026-01-01", periods=30 * 24, freq="h", tz="America/Sao_Paulo")
+    daily_temperatures = pd.Series(24.0, index=times).groupby(times.normalize()).mean()
+
+    estimate = estimate_sowing_date(pd.Timestamp("2026-01-25", tz="America/Sao_Paulo"), daily_temperatures)
+
+    assert estimate == pd.Timestamp("2026-01-04", tz="America/Sao_Paulo")
 
 
 def test_transplant_initial_state_rejects_invalid_density():

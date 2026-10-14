@@ -38,7 +38,7 @@ measurement or validation result.
 | Solar and tracker geometry | [`project/models/radiation.py`](../project/models/radiation.py) | pvlib methods are cross-referenced in PV-002–PV-008; site geometry remains provisional under SITE-002. |
 | Light-unit conversions | [`project/models/conversions.py`](../project/models/conversions.py) | 4.57 PAR-band conversion is LIGHT-001; the fixed 0.45 PAR fraction is LIGHT-002. |
 | Lettuce dry-biomass equations | [`project/models/lettuce.py`](../project/models/lettuce.py) | Coefficients link to VAN-001 and source-specific LETTUCE-001–005 entries; optional exploratory temperature factor TEMP-001 (off by default). |
-| Report crop cycles | [`project/scenarios/crop_cycles.py`](../project/scenarios/crop_cycles.py) | Nursery (ST) timer then field biomass from transplant (CROP-003). |
+| Report crop cycles | [`project/scenarios/crop_cycles.py`](../project/scenarios/crop_cycles.py) | Each bed cycle starts at transplant and runs to TC harvest; ST nursery is off-bed and its estimated sowing date is informational (CROP-003, CROP-004). |
 | Thermal development clock | [`project/models/lettuce_development.py`](../project/models/lettuce_development.py) | GDD-001 records the thesis evidence status; it does not calculate biomass. |
 | Field-data ingestion and quality control | [`project/io/`](../project/io/) and [`project/qc/`](../project/qc/) | Preserve source measurements, report rejected/missing values, and distinguish estimated weather inputs. |
 | Parameter calibration and report-only curve fitting | [`project/validation/calibrate_lettuce.py`](../project/validation/calibrate_lettuce.py); [`project/validation/fit_thermal_logistic.py`](../project/validation/fit_thermal_logistic.py) | Requires measured observations; the thermal logistic fit is report-only (CROP-004), and a fit is not independent validation. |
@@ -80,7 +80,7 @@ References document evidence status as well as positive support; an
 | [CROP-001](./CROP-001.md) | Project crop-ground irradiance method | Formula, omitted terms, pending field validation |
 | [CROP-002](./CROP-002.md) | Project biomass and temperature assumptions | Dry matter, initial state, synthetic seasonal curve |
 | [CROP-003](./CROP-003.md) | Crop-cycle biomass correction, Oct 2026 | Problem/diagnosis/fix record: transplant start, temperature factor, before/after results |
-| [CROP-004](./CROP-004.md) | Crop-cycle curve shape: missing development slowdown | Nursery display gap, observed/modelled early-growth discrepancy, and report-only thermal-time fit decision |
+| [CROP-004](./CROP-004.md) | Crop-cycle curve shape: missing development slowdown | Transplant-start bed cycles; maturity slowdown remains unresolved; report-only thermal-time fitting decision |
 | [TEMP-001](./TEMP-001.md) | Exploratory air-temperature factor on assimilation | `get_f_temp`, OFF by default; endpoints not measured zero points; sensitivity use only |
 | [LETTUCE-006](./LETTUCE-006.md) | Scaife (1973) | RGR 0.11 vs 0.35 g/g/day at 10 vs 22 °C; direction of temperature response |
 | [LETTUCE-007](./LETTUCE-007.md) | Brunini et al. (1976), Bragantia | Growth-rate max 22 °C; 10 °C TC base (sensitivity) |

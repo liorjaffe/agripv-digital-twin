@@ -313,11 +313,10 @@ exportar_vh(df, "meu_timeline.json", titulo="Alface em ...")</pre>
   <div class="ph"><span class="tit">sob o cursor</span><span id="quando">passe o mouse sobre as faixas</span></div>
   <div class="faixas" id="faixas"></div>
   <div class="eixo"><div class="fl"></div><div class="fc"><canvas id="eixoc"></canvas></div></div>
-  <p class="dica"><span style="display:inline-block;width:14px;height:10px;background:rgba(135,139,130,.20);vertical-align:middle"></span>
-  Nursery (seedling not in bed, not modeled) &middot; linha vertical = transplant</p>
-  <p class="dica"><b>Field biomass starts at final transplant from the measured 0.90 g
-  seedling (SITE-003). Known limitation: the growth model has no maturity slowdown,
-  so curves stay steep until the GDD harvest date (CROP-004).</b></p>
+  <p class="dica"><b>Each bed cycle runs from transplant (measured 0.90 g seedling,
+  SITE-003) to the GDD-001 harvest date; the bed is replanted immediately.
+  Known limitation: the growth model has no maturity slowdown, so each curve is
+  steepest at harvest (CROP-004).</b></p>
   <p class="dica" style="padding-bottom:12px">Faixa cinza = noite. Linha vertical fina = troca de
   ciclo. Os n&uacute;meros &agrave; direita de cada faixa s&atilde;o o topo e o piso da escala, que se
   reajusta &agrave; janela. <kbd>Roda do mouse</kbd> sobre as faixas d&aacute; zoom.</p>
@@ -395,36 +394,6 @@ exportar_vh(df, "meu_timeline.json", titulo="Alface em ...")</pre>
   function cor(b) { return tinta(PALETA[BEDS.indexOf(b) % PALETA.length]); }
   function varCor(b) { return "var(" + PALETA[BEDS.indexOf(b) % PALETA.length] + ")"; }
   function dataDe(i) { return new Date(T0.getTime() + i * 3600000); }
-  function bedStage() {
-    var bed = BEDS.find(function (b) {
-      return estado.beds[b] && Array.isArray(D.series[b].stage);
-    }) || BEDS.find(function (b) { return Array.isArray(D.series[b].stage); });
-    return bed ? D.series[bed].stage : null;
-  }
-  function pintaFases(g, xAt, y, h, i0, i1) {
-    var stage = bedStage();
-    if (!stage) { return; }
-    g.save();
-    g.fillStyle = "rgba(135,139,130,.20)";
-    for (var i = i0; i <= i1 && i < N; i++) {
-      if (stage[i] === "nursery") {
-        var next = Math.min(i + 1, i1);
-        g.fillRect(xAt(i), y, Math.max(xAt(next) - xAt(i), 1), h);
-      }
-    }
-    g.strokeStyle = "#73796f";
-    g.lineWidth = 1.5;
-    g.setLineDash([4, 3]);
-    for (var j = Math.max(i0 + 1, 1); j <= i1 && j < N; j++) {
-      if (stage[j] === "field" && stage[j - 1] === "nursery") {
-        g.beginPath();
-        g.moveTo(xAt(j) + .5, y);
-        g.lineTo(xAt(j) + .5, y + h);
-        g.stroke();
-      }
-    }
-    g.restore();
-  }
   function num(v, dec) {
     if (v === null || v === undefined || !isFinite(v)) { return "—"; }
     return v.toFixed(dec).replace(".", ",");
@@ -553,8 +522,9 @@ exportar_vh(df, "meu_timeline.json", titulo="Alface em ...")</pre>
     var bc = document.getElementById("ciclos");
     if (D.ciclos.length) {
       bc.innerHTML = '<span class="rot">ir ao ciclo</span>' + D.ciclos.map(function (c, i) {
-        return '<button data-ciclo="' + i + '" title="' + (c.plantio || "") + " a " +
-               (c.colheita || "") + '">c' + (c.ciclo || i + 1) + "</button>"; }).join("");
+        return '<button data-ciclo="' + i + '" title="' + (c.transplante || c.plantio || "") + " a " +
+                 (c.colheita || "") + (c.semeadura_estimada ? " · sowing estimate " + c.semeadura_estimada : "") +
+                 '">c' + (c.ciclo || i + 1) + "</button>"; }).join("");
     } else { bc.classList.add("oculto"); }
   }
 
@@ -594,7 +564,6 @@ exportar_vh(df, "meu_timeline.json", titulo="Alface em ...")</pre>
       g.strokeStyle = tinta("--rule"); g.lineWidth = 1;
       g.beginPath(); g.moveTo(px(c.i0) + .5, 0); g.lineTo(px(c.i0) + .5, H); g.stroke();
     });
-    pintaFases(g, px, 0, H, 0, N - 1);
     var k = estado.resumo, hi = 0, lo = Infinity;
     BEDS.forEach(function (b) {
       D.series[b][k].forEach(function (v) {
@@ -666,7 +635,6 @@ exportar_vh(df, "meu_timeline.json", titulo="Alface em ...")</pre>
           if (h < 6 || h >= 19) { g.fillRect(px(i), 0, Math.max(W / n, 1), H); }
         }
       }
-      pintaFases(g, px, 0, H, estado.i0, estado.i1);
       g.strokeStyle = tinta("--rule"); g.lineWidth = 1;
       D.ciclos.forEach(function (c) {
         if (c.i0 < estado.i0 || c.i0 > estado.i1) { return; }

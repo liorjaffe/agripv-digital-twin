@@ -14,7 +14,11 @@ from project.models.lettuce import (
     DEFAULT_INITIAL_STRUCTURAL_DRY_BIOMASS_G_M2,
     simulate_growth_timeseries,
 )
-from project.models.lettuce_development import LettuceThermalDevelopment
+from project.models.lettuce_development import (
+    LettuceThermalDevelopment,
+    LettuceThermalDevelopmentParams,
+    daily_gdd,
+)
 
 # Kept for backward compatibility with callers that import it; crop cycles now
 # start from the transplant seedling state below instead of this value.
@@ -71,6 +75,51 @@ def seasonal_canopy_temperature(
     )
 
 
+def estimate_sowing_date(
+    transplant_date: pd.Timestamp,
+    daily_temperatures_c: pd.Series,
+) -> pd.Timestamp | pd.NaT:
+    """Estimate an off-bed sowing date by accumulating ST GDD backwards."""
+    params = LettuceThermalDevelopmentParams()
+    daily_by_date = {
+        pd.Timestamp(day).date(): float(temperature)
+        for day, temperature in daily_temperatures_c.items()
+    }
+    dates = sorted(daily_by_date)
+    if not dates:
+        return pd.NaT
+    first_date, last_date = dates[0], dates[-1]
+    source_year_days = (pd.Timestamp(last_date) - pd.Timestamp(first_date)).days + 1
+    full_year = (
+        first_date == pd.Timestamp(first_date.year, 1, 1).date()
+        and last_date == pd.Timestamp(first_date.year, 12, 31).date()
+        and source_year_days in (365, 366)
+        and len(daily_by_date) == source_year_days
+    )
+
+    accumulated_gdd = 0.0
+    day = transplant_date.date() - pd.Timedelta(days=1)
+    days_back = 0
+    while days_back < 366:
+        temperature = daily_by_date.get(day)
+        if temperature is None and full_year:
+            try:
+                source_date = day.replace(year=first_date.year)
+            except ValueError:
+                source_date = day.replace(year=first_date.year, day=28)
+            temperature = daily_by_date.get(source_date)
+        if temperature is None:
+            return pd.NaT
+        accumulated_gdd += daily_gdd(
+            temperature, params.lettuce_base_temperature_st
+        )
+        days_back += 1
+        if accumulated_gdd >= params.lettuce_thermal_requirement_st:
+            return transplant_date - pd.Timedelta(days=days_back)
+        day -= pd.Timedelta(days=1)
+    return pd.NaT
+
+
 def simulate_repeated_crops(
     results: pd.DataFrame,
     light_column: str,
@@ -80,15 +129,12 @@ def simulate_repeated_crops(
     temperature_c: pd.Series | None = None,
     plant_density_per_m2: float | None = None,
 ) -> pd.DataFrame:
-    """Simulate report crop cycles from hourly light and thermal-time development.
+    """Simulate consecutive bed crop cycles from transplant through harvest.
 
-    Each cycle starts at sowing (CROP-003). The GDD-001 clock first runs the
-    sowing-to-transplant (ST, nursery) stage; no field biomass exists during
-    that stage, so field dry/fresh biomass is reported as 0 and
-    ``cycle_stage`` is ``"nursery"``. At the end of the day the ST requirement
-    is met, the seedling is transplanted at field density with
-    ``TRANSPLANT_DRY_MASS_G_PER_PLANT`` and the biomass model runs until the
-    transplant-to-harvest (TC) requirement is met (``cycle_stage == "field"``).
+    Seedlings are raised off-bed, so every cycle begins at transplant with the
+    measured seedling state and the GDD-001 TC clock. The ST sowing-to-transplant
+    interval is estimated backwards for nursery planning only and does not
+    occupy rows in the bed output.
 
     The fresh-mass equivalent is total modeled field dry biomass (including the
     transplanted seedling) divided by a fixed 5% dry-matter assumption. It is
@@ -115,6 +161,7 @@ def simulate_repeated_crops(
     columns = [
         "cycle_id",
         "cycle_stage",
+        "sowing_date_estimate",
         "cycle_dry_biomass_g_m2",
         "cycle_fresh_biomass_g_m2",
         "cycle_model_fresh_biomass_g_m2",
@@ -122,6 +169,15 @@ def simulate_repeated_crops(
     ]
     if results.empty:
         return pd.DataFrame(columns=columns, index=results.index)
+
+    if temperature_c is None:
+        daily_temperature = (
+            seasonal_canopy_temperature(results.index)
+            .groupby(results.index.normalize())
+            .mean()
+        )
+    else:
+        daily_temperature = temperature_c.groupby(results.index.normalize()).mean()
 
     records = []
     start = 0
@@ -137,8 +193,7 @@ def simulate_repeated_crops(
             else temperature_c.loc[candidate.index]
         )
         candidate_days = candidate.index.normalize()
-        thermal = LettuceThermalDevelopment()
-        transplant_position: int | None = None
+        thermal = LettuceThermalDevelopment(stage="TC")
         harvest_position = len(candidate) - 1
         matured = False
         for date, day_temperature in candidate_temperature.groupby(
@@ -148,9 +203,6 @@ def simulate_repeated_crops(
             day_positions = np.flatnonzero(candidate_days == date)
             if len(day_positions) == 0:
                 continue
-            if transplant_position is None and state["stage"] != "ST":
-                # ST requirement met during this day: transplant at its end.
-                transplant_position = int(day_positions[-1]) + 1
             if state["harvest_ready"]:
                 harvest_position = int(day_positions[-1])
                 matured = True
@@ -159,31 +211,26 @@ def simulate_repeated_crops(
         crop = candidate.iloc[: harvest_position + 1]
         cycle = pd.DataFrame(index=crop.index)
         cycle["cycle_id"] = cycle_number
-        cycle["cycle_stage"] = "nursery"
-        cycle["cycle_dry_biomass_g_m2"] = 0.0
-        cycle["cycle_model_fresh_biomass_g_m2"] = 0.0
-
-        if transplant_position is not None and transplant_position < len(crop):
-            field = crop.iloc[transplant_position:]
-            growth = simulate_growth_timeseries(
-                field.index,
-                field[light_column] * PAR_FRACTION,
-                (
-                    seasonal_canopy_temperature(crop.index).loc[field.index]
-                    if temperature_c is None
-                    else temperature_c.loc[field.index]
-                ),
-                x_sdw0=x_sdw0,
-                x_nsdw0=x_nsdw0,
-            )
-            cycle.loc[field.index, "cycle_stage"] = "field"
-            cycle.loc[field.index, "cycle_dry_biomass_g_m2"] = growth[
-                "total_dry_biomass"
-            ].to_numpy()
-            cycle.loc[field.index, "cycle_model_fresh_biomass_g_m2"] = (
-                growth["total_dry_biomass"].clip(lower=0.0)
-                / DRY_MATTER_FRACTION_OF_FRESH_MASS
-            ).to_numpy()
+        cycle["cycle_stage"] = "field"
+        cycle["sowing_date_estimate"] = estimate_sowing_date(
+            crop.index[0], daily_temperature
+        )
+        growth = simulate_growth_timeseries(
+            crop.index,
+            crop[light_column] * PAR_FRACTION,
+            (
+                seasonal_canopy_temperature(crop.index)
+                if temperature_c is None
+                else temperature_c.loc[crop.index]
+            ),
+            x_sdw0=x_sdw0,
+            x_nsdw0=x_nsdw0,
+        )
+        cycle["cycle_dry_biomass_g_m2"] = growth["total_dry_biomass"].to_numpy()
+        cycle["cycle_model_fresh_biomass_g_m2"] = (
+            growth["total_dry_biomass"].clip(lower=0.0)
+            / DRY_MATTER_FRACTION_OF_FRESH_MASS
+        ).to_numpy()
 
         cycle["cycle_fresh_biomass_g_m2"] = cycle["cycle_model_fresh_biomass_g_m2"]
         cycle["harvest"] = False

@@ -50,10 +50,10 @@ After TMY air temperature replaced the synthetic/constant temperature, the open-
 ## Connection to this project
 
 - Reference ID and evidence role: CROP-003; decision record linking CROP-002, GDD-001, TEMP-001, LETTUCE-006 to LETTUCE-012
-- Code file and symbol: `crop_cycles.simulate_repeated_crops` (new `cycle_stage` column; nursery rows have 0 field biomass; new `plant_density_per_m2` keyword), `transplant_initial_state_g_m2`, `TRANSPLANT_FRESH_MASS_G_PER_PLANT`; `lettuce.get_f_temp` (exploratory, off by default); `generate_model_explorer.cycle_summary_html` (incomplete cycles not compared); `lettuce_development` ST requirement corrected 398.67 → 398.64 GDD
+- Code file and symbol: `crop_cycles.simulate_repeated_crops` (each bed cycle begins at transplant and continues to GDD harvest; all in-bed rows have `cycle_stage="field"`; off-bed nursery sowing date is estimated backwards for planning), `transplant_initial_state_g_m2`, `TRANSPLANT_FRESH_MASS_G_PER_PLANT`; `lettuce.get_f_temp` (exploratory, off by default); `generate_model_explorer.cycle_summary_html` (incomplete cycles not compared); `lettuce_development` ST requirement corrected 398.67 → 398.64 GDD
 - Configuration key(s): `cultivation` (plant density)
 - Related test(s): `project/tests/test_crop_cycles.py`, `project/tests/test_lettuce.py`, `project/tests/test_model_explorer.py`
-- Adaptation made for this project: Fresh-mass equivalent is now total field dry mass at harvest (including the transplanted seedling) / 0.05, no longer gain above 11 g/m²
+- Adaptation made for this project: Fix 1 starts field biomass from the transplanted seedling state, and beds are replanted immediately after each harvest; the ST nursery stage is off-bed. Fresh-mass equivalent is total field dry mass at harvest (including the transplanted seedling) / 0.05, no longer gain above 11 g/m²
 - Known differences or limitations: See TEMP-001; dry-matter fraction (CROP-002, LETTUCE-009, LETTUCE-012) and seedling mass remain unmeasured
 
 ## Validation record (if applicable)
@@ -68,7 +68,7 @@ After TMY air temperature replaced the synthetic/constant temperature, the open-
 ## Decision log
 
 - Decision (revised 2026-10-13): Adopt fix 1 (transplant start, measured seedling) as a correction. Cause 2 (inverted cold response) is recorded as a KNOWN LIMITATION; TEMP-001 is kept only as an exploratory option, disabled by default
-- Rationale: Fix 1 follows the GDD-001 stage definition and a site measurement. TEMP-001 endpoints are not evidence of zero assimilation (6.1 °C is a phenology base, 32 °C the highest tested temperature), and seedling RGR does not define a canopy curve
+- Rationale: Starting each bed cycle at transplant follows the GDD-001 field-stage definition and the SITE-003 seedling measurement; nursery production occurs off-bed. TEMP-001 endpoints are not evidence of zero assimilation (6.1 °C is a phenology base, 32 °C the highest tested temperature), and seedling RGR does not define a canopy curve
 - Date: 2026-10-13
 - Follow-up needed:
   1. DONE for fresh mass (SITE-003, 0.90 g). Still open: seedling dry matter with a pooled sample on a finer scale
