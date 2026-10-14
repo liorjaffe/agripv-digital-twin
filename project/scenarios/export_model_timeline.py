@@ -15,6 +15,7 @@ from project.io.ingestion import load_period_results_export
 from project.io.service import process_period_results_export
 from project.scenarios.artifact_metadata import build_artifact_metadata
 from project.scenarios.crop_cycles import seasonal_canopy_temperature, simulate_repeated_crops
+from project.scenarios.report_notices import SEASONAL_COMPARISON_NOTICE
 
 ROOT = Path(__file__).resolve().parents[2]
 INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
@@ -39,7 +40,8 @@ SYNTHETIC_INPUTS_NOTICE = (
     "the user-reported 100–300 g/plant range is a plausibility reference only, "
     "not a calibration dataset. "
     "Do not interpret this "
-    "visualization as independent validation or field evidence."
+    "visualization as independent validation or field evidence. "
+    f"{SEASONAL_COMPARISON_NOTICE}"
 )
 
 TIMELINE_VARIABLES = {
@@ -72,7 +74,9 @@ def finite_values(values: pd.Series) -> list[float | None]:
 
 
 def build_scenario_series(
-    hourly: pd.DataFrame, light_column: str, fresh_column: str
+    hourly: pd.DataFrame,
+    light_column: str,
+    fresh_column: str,
 ) -> dict[str, list[float | None]]:
     par_wm2 = (hourly[light_column].astype(float) * 0.45).clip(lower=0.0)
     plant_density = load_runtime_config().plant_density_per_m2
@@ -139,6 +143,13 @@ def build_cycle_markers(cycle_frames: dict[str, pd.DataFrame], hourly: pd.DataFr
                 "i0": int(start_index),
                 "i1": int(end_index),
                 "plantio": subset.index[0].strftime("%Y-%m-%d %H:%M"),
+                "transplante": subset.index[0].strftime("%Y-%m-%d %H:%M"),
+                "semeadura_estimada": (
+                    subset["sowing_date_estimate"].iloc[0].strftime("%Y-%m-%d")
+                    if "sowing_date_estimate" in subset
+                    and pd.notna(subset["sowing_date_estimate"].iloc[0])
+                    else None
+                ),
                 "colheita": (
                     subset.index[-1].strftime("%Y-%m-%d %H:%M")
                     if matured
@@ -196,9 +207,15 @@ def build_timeline_payload() -> dict:
     hourly["t_folha_c"] = leaf_temp
 
     series = {
-        "open": build_scenario_series(hourly, "light_open_w_m2", "fresh_open_g_m2"),
-        "between": build_scenario_series(hourly, "light_between_w_m2", "fresh_between_g_m2"),
-        "under": build_scenario_series(hourly, "light_under_w_m2", "fresh_under_g_m2"),
+        "open": build_scenario_series(
+            hourly, "light_open_w_m2", "fresh_open_g_m2"
+        ),
+        "between": build_scenario_series(
+            hourly, "light_between_w_m2", "fresh_between_g_m2"
+        ),
+        "under": build_scenario_series(
+            hourly, "light_under_w_m2", "fresh_under_g_m2"
+        ),
     }
 
     payload = {

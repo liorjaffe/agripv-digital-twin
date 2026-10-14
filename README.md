@@ -37,9 +37,14 @@ number of recommendations collected by a **dry-run** command sink. It does not
 connect to a tracker, network service, or logger.
 
 To build and explore the browser dashboard, run `sh scripts/build-pages.sh`
-and open `public-site/index.html` in a browser. To understand how the Python
-components fit together, start with the [project map](#project-map), then
-follow one of the [data paths](#how-data-moves-through-the-model).
+and open `public-site/index.html` in a browser. The contents of `public-site/`
+are published to GitHub Pages by `.github/workflows/pages.yml` when changes
+reach `main`; the repository Pages source must be set to **GitHub Actions**.
+GitHub Pages does not apply the Cloudflare-specific `public-site/_headers`
+file, so its response security headers are not configured by this deployment.
+To understand how the Python components fit together, start with the
+[project map](#project-map), then follow one of the
+[data paths](#how-data-moves-through-the-model).
 
 ## What the model does
 

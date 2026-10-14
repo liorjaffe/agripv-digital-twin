@@ -5,7 +5,9 @@ from project.scenarios.export_model_timeline import (
     build_cycle_markers,
     build_scenario_series,
     build_timeline_metadata,
+    write_embedded_html,
 )
+from project.scenarios.report_notices import SEASONAL_COMPARISON_NOTICE
 
 
 def test_timeline_only_exports_variables_with_explicit_scenario_labels():
@@ -37,13 +39,49 @@ def test_timeline_only_exports_variables_with_explicit_scenario_labels():
     assert "harvest markers are generated" in metadata["synthetic_inputs_notice"]
     assert "not measured site air temperature" in metadata["synthetic_inputs_notice"]
     assert "not calibrated or observed harvest predictions" in metadata["synthetic_inputs_notice"]
+    assert SEASONAL_COMPARISON_NOTICE in metadata["synthetic_inputs_notice"]
     assert "Unrecorded irradiance timestamps are assumed to have zero light" in SYNTHETIC_INPUTS_NOTICE
+
+
+def test_embedded_timeline_html_includes_seasonal_comparison_notice(tmp_path, monkeypatch):
+    output_path = tmp_path / "timeline.html"
+    monkeypatch.setattr("project.scenarios.export_model_timeline.HTML_PATH", output_path)
+
+    write_embedded_html({"meta": {}, "ciclos": [], "series": {}})
+
+    assert "Seasonal comparison not reliable:" in output_path.read_text(encoding="utf-8")
+
+
+def test_timeline_exports_values_for_every_bed_cycle_row():
+    index = pd.date_range("2026-01-01", periods=2, freq="h", tz="America/Sao_Paulo")
+    hourly = pd.DataFrame(
+        {
+            "light_open_w_m2": [100.0, 100.0],
+            "t_folha_c": [24.0, 24.0],
+            "model_air_temp_c": [14.0, 14.0],
+            "fresh_open_g_m2": [0.0, 125.0],
+        },
+        index=index,
+    )
+
+    series = build_scenario_series(hourly, "light_open_w_m2", "fresh_open_g_m2")
+
+    assert series["fm"] == [0.0, 125.0]
+    assert series["fp"][0] == 0.0
+    assert series["fp"][1] is not None
 
 
 def test_timeline_marks_open_final_cycle_as_in_progress_not_a_harvest():
     index = pd.date_range("2026-12-30", periods=2, freq="D", tz="America/Sao_Paulo")
     cycle = pd.DataFrame(
-        {"cycle_id": [7, 7], "harvest": [False, False]},
+        {
+            "cycle_id": [7, 7],
+            "cycle_stage": ["field", "field"],
+            "sowing_date_estimate": pd.to_datetime(
+                ["2026-12-09", "2026-12-09"], utc=True
+            ),
+            "harvest": [False, False],
+        },
         index=index,
     )
     cycles = {setup: cycle for setup in ("open", "between", "under")}
@@ -53,3 +91,6 @@ def test_timeline_marks_open_final_cycle_as_in_progress_not_a_harvest():
     assert len(markers) == 1
     assert markers[0]["colheita"] == "in progress"
     assert markers[0]["maturidade_gdd"] is False
+    assert markers[0]["i0"] == 0
+    assert markers[0]["transplante"] == "2026-12-30 00:00"
+    assert markers[0]["semeadura_estimada"] == "2026-12-09"

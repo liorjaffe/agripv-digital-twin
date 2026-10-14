@@ -313,6 +313,15 @@ exportar_vh(df, "meu_timeline.json", titulo="Alface em ...")</pre>
   <div class="ph"><span class="tit">sob o cursor</span><span id="quando">passe o mouse sobre as faixas</span></div>
   <div class="faixas" id="faixas"></div>
   <div class="eixo"><div class="fl"></div><div class="fc"><canvas id="eixoc"></canvas></div></div>
+  <p class="dica"><b>Each bed cycle runs from transplant (measured 0.90 g seedling,
+  SITE-003) to the GDD-001 harvest date; the bed is replanted immediately.
+  Known limitation: the growth model has no maturity slowdown, so each curve is
+  steepest at harvest (CROP-004).</b></p>
+  <p class="dica"><b>Seasonal comparison not reliable: winter cycles last longer
+  (GDD clock) and the growth model loses less to respiration in cool air and has
+  no maturity slowdown, so cool-season harvests are overstated relative to
+  summer (about 2x here vs about 25-40% in Brazilian field trials). Compare
+  cycles within a season only. See CROP-004.</b></p>
   <p class="dica" style="padding-bottom:12px">Faixa cinza = noite. Linha vertical fina = troca de
   ciclo. Os n&uacute;meros &agrave; direita de cada faixa s&atilde;o o topo e o piso da escala, que se
   reajusta &agrave; janela. <kbd>Roda do mouse</kbd> sobre as faixas d&aacute; zoom.</p>
@@ -518,8 +527,9 @@ exportar_vh(df, "meu_timeline.json", titulo="Alface em ...")</pre>
     var bc = document.getElementById("ciclos");
     if (D.ciclos.length) {
       bc.innerHTML = '<span class="rot">ir ao ciclo</span>' + D.ciclos.map(function (c, i) {
-        return '<button data-ciclo="' + i + '" title="' + (c.plantio || "") + " a " +
-               (c.colheita || "") + '">c' + (c.ciclo || i + 1) + "</button>"; }).join("");
+        return '<button data-ciclo="' + i + '" title="' + (c.transplante || c.plantio || "") + " a " +
+                 (c.colheita || "") + (c.semeadura_estimada ? " · sowing estimate " + c.semeadura_estimada : "") +
+                 '">c' + (c.ciclo || i + 1) + "</button>"; }).join("");
     } else { bc.classList.add("oculto"); }
   }
 

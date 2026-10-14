@@ -16,6 +16,7 @@ from project.io.service import process_period_results_export
 from project.io.ingestion import load_period_results_export
 from project.scenarios.artifact_metadata import build_artifact_metadata
 from project.scenarios.crop_cycles import simulate_repeated_crops
+from project.scenarios.report_notices import SEASONAL_COMPARISON_NOTICE
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
@@ -31,15 +32,24 @@ SYNTHETIC_INPUTS_NOTICE = (
     "Unrecorded irradiance timestamps are assumed to have zero light. Crop "
     "biomass values are uncalibrated model-derived scenario estimates, not "
     "validated yields: the growth equation, channel units, and dry-matter "
-    "conversion are not calibrated for this site. The GDD clock makes cool-season "
-    "cycles longer while the separate biomass equation accumulates throughout "
-    "each cycle. The final cycle may be incomplete. These are "
+    "conversion are not calibrated for this site. Each bed cycle runs from "
+    "transplant to GDD-001 harvest and the bed is replanted immediately. "
+    "Estimated sowing dates are informational nursery-planning estimates only. "
+    "Known limitation: the "
+    "biomass equation gains more dry mass in cool air, opposite to measured "
+    "lettuce growth, so cool-season values may be overstated. The final cycle may "
+    "be incomplete. These are "
     "scenario outputs, not observed harvests or independent field validation."
 )
 
 
 def finite_values(values: pd.Series) -> list[float | None]:
     return [float(value) if math.isfinite(float(value)) else None for value in values]
+
+
+def cycle_boundary_indices(cycle: pd.DataFrame) -> list[int]:
+    starts = cycle["cycle_id"].ne(cycle["cycle_id"].shift())
+    return [int(index) for index, is_start in enumerate(starts) if is_start]
 
 
 def cycle_summary_html(cycle_frames: dict[str, pd.DataFrame]) -> str:
@@ -56,9 +66,17 @@ def cycle_summary_html(cycle_frames: dict[str, pd.DataFrame]) -> str:
             completed = bool(cycle["harvest"].any())
             mass = float(cycle["cycle_model_fresh_biomass_g_m2"].iloc[-1])
             mass_per_plant = mass / plant_density
+            sowing_estimate = cycle["sowing_date_estimate"].iloc[0]
+            sowing_date = (
+                sowing_estimate.strftime("%Y-%m-%d")
+                if pd.notna(sowing_estimate)
+                else "not available"
+            )
             lower, upper = USER_REPORTED_FRESH_MASS_RANGE_G_PER_PLANT
             comparison = (
-                "above user-reported range"
+                "not compared (cycle incomplete)"
+                if not completed
+                else "above user-reported range"
                 if mass_per_plant > upper
                 else "below user-reported range"
                 if mass_per_plant < lower
@@ -69,6 +87,7 @@ def cycle_summary_html(cycle_frames: dict[str, pd.DataFrame]) -> str:
                 f"<td>{labels[setup]}</td>"
                 f"<td>{int(cycle_id)}</td>"
                 f"<td>{cycle.index[0].strftime('%Y-%m-%d')}</td>"
+                f"<td>{sowing_date}</td>"
                 f"<td>{duration_days}</td>"
                 f"<td>{'GDD threshold reached' if completed else 'in progress at data end'}</td>"
                 f"<td>{mass:.1f}</td>"
@@ -78,15 +97,21 @@ def cycle_summary_html(cycle_frames: dict[str, pd.DataFrame]) -> str:
             )
     return (
         "<details><summary>Modeled crop-cycle estimates (uncalibrated)</summary>"
-        "<p>Fresh-mass equivalent = modeled dry-mass gain divided by the "
-        "assumed 5% dry-matter fraction. The GDD clock sets cycle duration and "
-        "the separate biomass model accumulates throughout the cycle. The "
-        "per-plant conversion uses the configured 96 plants over 11.25 m². "
+        "<p>Fresh-mass equivalent = modeled field dry mass at harvest "
+        "(including the transplanted seedling) divided by the "
+        "assumed 5% dry-matter fraction. Each bed cycle runs from transplant "
+        "to GDD harvest; estimated sowing dates are counted backwards with the "
+        "same temperature series for nursery planning only. "
+        "The per-plant conversion uses the configured 96 plants over 11.25 m². "
         "For context only, values are compared with the user-reported 100–300 "
         "g/plant range; those records are not currently available for "
         "calibration. These are not measured or validated harvests.</p>"
-        "<div style=\"overflow-x:auto\"><table><thead><tr>"
-        "<th>Scenario group</th><th>Cycle</th><th>Start</th><th>Days</th>"
+        "<div style=\"overflow-x:auto\"><table>"
+        f"<caption style=\"caption-side:top;text-align:left\">"
+        f"{html.escape(SEASONAL_COMPARISON_NOTICE)}</caption>"
+        "<thead><tr>"
+        "<th>Scenario group</th><th>Cycle</th><th>Transplant</th>"
+        "<th>Estimated sowing (off-bed)</th><th>Field days</th>"
         "<th>Status</th><th>Modeled equivalent (g/m²)</th>"
         "<th>Modeled equivalent (g/plant)</th><th>Comparison</th>"
         f"</tr></thead><tbody>{''.join(rows)}</tbody></table></div></details>"
@@ -147,6 +172,9 @@ def build_report(input_path: Path, output_path: Path) -> None:
             "fresh_under": {"label": "modeled fresh-mass equivalent (uncalibrated; under scenario)", "unit": "g/m2", "color": "#a33c70", "values": finite_values(hourly["fresh_under_g_m2"])},
             "tracker": {"label": "export tracker angle (convention undocumented)", "unit": "degrees", "color": "#4d8b61", "values": finite_values(hourly["observed_tracker_angle_deg"])},
         },
+        "cycle_boundary_indices": {
+            setup: cycle_boundary_indices(cycle) for setup, cycle in cycle_frames.items()
+        },
         "cycle_count": int(cycle_frames["open"]["cycle_id"].max()),
         "harvest_mode": "thermal GDD",
         "crop_cycle_temperature_source": temperature_source,
@@ -178,16 +206,16 @@ TEMPLATE = r'''<!doctype html>
 <p class="intro">Explore illustrative model output from the 2026 irradiance export. Crop groups, temperature inputs, and harvest timing are scenario assumptions, not field observations.</p>
 <aside class="synthetic-notice" role="note" style="border:2px solid #a33c70;border-left-width:8px;border-radius:8px;background:#fff;padding:14px 18px;margin:18px 0;color:#252720;font:14px/1.5 Arial,sans-serif"><strong>Scenario assumptions — not field validation</strong><br>__NOTICE__</aside>
 <div class="stats"><span><b id="hours">0</b> hours</span><span><b id="cycles">0</b> GDD timing scenarios</span><span><b>8</b> comparison series</span><span>timing by <b>thermal GDD</b></span><span>source <b>Period Components</b></span></div>
-<section class="card"><div class="card-head"><span class="label">The whole period</span><div class="chips"><button class="chip gold">0A-0E assumed open</button><button class="chip blue">2B assumed between</button><button class="chip pink">2A/2C assumed under</button></div></div><div class="overview-wrap"><canvas id="overview"></canvas></div><div class="hint">Colors show scenario groupings only: 0A-0E is assumed open, 2B between tracker rows, and 2A/2C under trackers; channel placements are unverified. Vertical markers show unvalidated thermal-time timing scenarios, not measured or recommended harvests. Crop biomass curves are withheld.</div></section>
+<section class="card"><div class="card-head"><span class="label">The whole period</span><div class="chips"><button class="chip gold">0A-0E assumed open</button><button class="chip blue">2B assumed between</button><button class="chip pink">2A/2C assumed under</button></div></div><div class="overview-wrap"><canvas id="overview"></canvas></div><div class="hint">Colors show scenario groupings only: 0A-0E is assumed open, 2B between tracker rows, and 2A/2C under trackers; channel placements are unverified. Vertical markers show bed-cycle harvest/transplant boundaries.</div></section>
 <section class="card"><div class="controls"><div class="control-row"><span class="label">Window</span><button class="choice" data-span="24">1 day</button><button class="choice" data-span="72">3 days</button><button class="choice active" data-span="336">2 weeks</button><button class="choice" data-span="1460">2 months</button><button class="choice" data-span="all">year</button><span class="label" style="margin-left:12px">go to</span><button class="choice" data-month="0">Jan</button><button class="choice" data-month="3">Apr</button><button class="choice" data-month="6">Jul</button><button class="choice" data-month="9">Oct</button></div><div class="check-grid" id="series-controls"></div></div></section>
-<section class="card timeline"><div class="card-head"><span class="label">Detailed model state</span><span id="range-label" style="color:var(--muted)"></span></div><div class="timeline-wrap"><canvas id="timeline"></canvas><div id="cursor-line"></div><div id="cursor-readout"></div></div><div class="footnote">Move the mouse over any graph to see all values at that exact time. Grey bands are night. Scroll over the graph to zoom; drag horizontally to move through time.</div></section>
+<section class="card timeline"><div class="card-head"><span class="label">Detailed model state</span><span id="range-label" style="color:var(--muted)"></span></div><div class="timeline-wrap"><canvas id="timeline"></canvas><div id="cursor-line"></div><div id="cursor-readout"></div></div><div class="footnote">Move the mouse over any graph to see all values at that exact time. Grey bands are night. Scroll over the graph to zoom; drag horizontally to move through time.</div><div class="hint">__CYCLE_NOTICE__</div></section>
 __CYCLE_SUMMARY__
 </main>
 <script>
 const model=__DATA__;const dates=model.timestamps.map(value=>new Date(value));const order=['light_open','light_between','light_under','pv','fresh_open','fresh_between','fresh_under','tracker'];const selected=new Set(order.filter(key=>key!=='tracker'));let span=dates.length;let center=Math.floor(dates.length/2);let dragStart=null;const controls=document.getElementById('series-controls');document.getElementById('hours').textContent=dates.length.toLocaleString('en-US');document.getElementById('cycles').textContent=model.cycle_count;
 order.forEach(key=>{const item=model.series[key];const label=document.createElement('label');label.className='check';label.innerHTML=`<input type="checkbox" ${selected.has(key)?'checked':''}><span><i class="swatch" style="background:${item.color}"></i>${item.label} <small>(${item.unit})</small></span>`;label.querySelector('input').addEventListener('change',event=>{event.target.checked?selected.add(key):selected.delete(key);draw()});controls.appendChild(label)});
 function bounds(){if(span==='all')return[0,dates.length-1];const half=Math.floor(span/2);return[Math.max(0,center-half),Math.min(dates.length-1,center+half)]}function dateText(date){return date.toLocaleDateString('en-US',{month:'short',day:'numeric'})}function canvasSetup(canvas){const ratio=devicePixelRatio||1;const box=canvas.getBoundingClientRect();canvas.width=box.width*ratio;canvas.height=box.height*ratio;const ctx=canvas.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);return[ctx,box.width,box.height]}
-function drawOverview(){const[ctx,w,h]=canvasSetup(document.getElementById('overview'));const keys=['fresh_open','fresh_between','fresh_under'];const max=Math.max(...keys.flatMap(key=>model.series[key].values.filter(Boolean)),1);ctx.clearRect(0,0,w,h);keys.forEach(key=>{const values=model.series[key].values;ctx.strokeStyle=model.series[key].color;ctx.beginPath();values.forEach((value,i)=>{if(value===null)return;const x=i/(values.length-1)*w,y=h-24-value/max*(h-34);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()});model.harvest_indices.forEach(index=>{const x=index/(dates.length-1)*w;ctx.strokeStyle='#d7d8d0';ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h-22);ctx.stroke()});const[a,b]=bounds();ctx.fillStyle='rgba(201,120,0,.13)';ctx.fillRect(a/(dates.length-1)*w,0,(b-a)/(dates.length-1)*w,h-22);ctx.strokeStyle='#c97800';ctx.strokeRect(a/(dates.length-1)*w,1,(b-a)/(dates.length-1)*w,h-24);ctx.fillStyle='#7d8175';ctx.font='12px ui-monospace';ctx.fillText(dateText(dates[0]),4,h-5);ctx.fillText(dateText(dates[dates.length-1]),w-74,h-5)}
+function drawOverview(){const[ctx,w,h]=canvasSetup(document.getElementById('overview'));const keys=['fresh_open','fresh_between','fresh_under'];const max=Math.max(...keys.flatMap(key=>model.series[key].values.filter(Boolean)),1);ctx.clearRect(0,0,w,h);keys.forEach(key=>{const values=model.series[key].values;ctx.strokeStyle=model.series[key].color;ctx.beginPath();values.forEach((value,i)=>{if(value===null)return;const x=i/(values.length-1)*w,y=h-24-value/max*(h-34);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()});(model.cycle_boundary_indices.open||[]).forEach(index=>{const x=index/(dates.length-1)*w;ctx.strokeStyle='#73796f';ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h-22);ctx.stroke()});const[a,b]=bounds();ctx.fillStyle='rgba(201,120,0,.13)';ctx.fillRect(a/(dates.length-1)*w,0,(b-a)/(dates.length-1)*w,h-22);ctx.strokeStyle='#c97800';ctx.strokeRect(a/(dates.length-1)*w,1,(b-a)/(dates.length-1)*w,h-24);ctx.fillStyle='#7d8175';ctx.font='12px ui-monospace';ctx.fillText(dateText(dates[0]),4,h-5);ctx.fillText(dateText(dates[dates.length-1]),w-74,h-5)}
     // Removed the drawComparison call
 function drawComparison(){const[ctx,w,h]=canvasSetup(document.getElementById('comparison'));const[left,right]=bounds();const keys=['fresh_open','fresh_between','fresh_under'];const values=keys.flatMap(key=>model.series[key].values.slice(left,right+1).filter(v=>v!==null));const max=Math.max(...values,1);ctx.clearRect(0,0,w,h);keys.forEach(key=>{const series=model.series[key].values.slice(left,right+1);ctx.strokeStyle=model.series[key].color;ctx.lineWidth=2;ctx.beginPath();series.forEach((value,i)=>{if(value===null)return;const x=48+i/Math.max(1,right-left)*(w-68),y=h-36-value/max*(h-62);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()});ctx.strokeStyle='#d7d8d0';ctx.lineWidth=1;for(let i=left;i<=right;i++){if(dates[i].getDate()===1){const x=48+(i-left)/Math.max(1,right-left)*(w-68);ctx.beginPath();ctx.moveTo(x,10);ctx.lineTo(x,h-32);ctx.stroke()}}ctx.fillStyle='#7d8175';ctx.font='11px ui-monospace';ctx.fillText('0 g/m2',8,h-30);ctx.fillText(Math.round(max)+' g/m2',8,20);ctx.textAlign='center';const spanHours=Math.max(1,right-left);const step=spanHours<=48?6:spanHours<=120?12:spanHours<=480?24:spanHours<=1500?168:720;for(let i=left;i<=right;i+=step){const x=48+(i-left)/Math.max(1,right-left)*(w-68);ctx.fillText(axisText(dates[i],spanHours),x,h-10)}ctx.textAlign='start'}
 function axisText(date, spanHours){if(!date)return '';const day=date.toLocaleDateString('en-US',{month:'short',day:'numeric'});return spanHours<=72?`${day} ${date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false})}`:day}
@@ -199,7 +227,7 @@ function cursorValue(key,index){const value=model.series[key].values[index];retu
 function showCursor(event){const canvas=document.getElementById('timeline');const wrapper=document.querySelector('.timeline-wrap');const line=document.getElementById('cursor-line');const readout=document.getElementById('cursor-readout');const rect=canvas.getBoundingClientRect();const[left,right]=bounds();const plotLeft=180;const plotWidth=Math.max(120,rect.width-360);const localX=Math.max(plotLeft,Math.min(rect.width-180,event.clientX-rect.left));const index=Math.max(left,Math.min(right,left+Math.round((localX-plotLeft)/plotWidth*(right-left))));const x=plotLeft+(index-left)/Math.max(1,right-left)*plotWidth;line.style.display='block';line.style.left=x+'px';readout.style.display='block';readout.style.left=(x>rect.width-300?Math.max(6,x-285):x+10)+'px';readout.innerHTML='<strong>'+dates[index].toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+dates[index].toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false})+'</strong><br><span style="color:#d48300">Open light: '+cursorValue('light_open',index)+' · biomass: '+cursorValue('fresh_open',index)+'</span><br><span style="color:#2f82b9">Between light: '+cursorValue('light_between',index)+' · biomass: '+cursorValue('fresh_between',index)+'</span><br><span style="color:#a33c70">Under light: '+cursorValue('light_under',index)+' · biomass: '+cursorValue('fresh_under',index)+'</span><br><span style="color:#2f82b9">PV power: '+cursorValue('pv',index)+'</span>'}
 function hideCursor(){document.getElementById('cursor-line').style.display='none';document.getElementById('cursor-readout').style.display='none'}
 document.getElementById('timeline').addEventListener('pointermove',showCursor);document.getElementById('timeline').addEventListener('pointerleave',hideCursor);
-function draw(){return drawGrouped()}
+function draw(){drawGrouped();const canvas=document.getElementById('timeline');const ctx=canvas.getContext('2d');const ratio=devicePixelRatio||1;const w=canvas.getBoundingClientRect().width;const h=canvas.getBoundingClientRect().height;const[left,right]=bounds();const plotWidth=Math.max(120,w-360);ctx.save();ctx.setTransform(ratio,0,0,ratio,0,0);ctx.strokeStyle='#73796f';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);(model.cycle_boundary_indices.open||[]).forEach(index=>{if(index<left||index>right)return;const x=180+(index-left)/Math.max(1,right-left)*plotWidth;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h-30);ctx.stroke()});ctx.restore()}
 </script></body></html>'''
 
 
@@ -208,10 +236,18 @@ def render_report_template(
     synthetic_notice: str,
     cycle_frames: dict[str, pd.DataFrame],
 ) -> str:
-    return (
+    report = (
         TEMPLATE.replace("__DATA__", json.dumps(model_data, separators=(",", ":")))
         .replace("__NOTICE__", html.escape(synthetic_notice))
         .replace("__CYCLE_SUMMARY__", cycle_summary_html(cycle_frames))
+        .replace(
+            "__CYCLE_NOTICE__",
+            "Each bed cycle runs from transplant (measured 0.90 g seedling, "
+            "SITE-003) to the GDD-001 harvest date; the bed is replanted "
+            "immediately. Known limitation: the growth model has no maturity "
+            "slowdown, so each curve is steepest at harvest (CROP-004). "
+            f"{SEASONAL_COMPARISON_NOTICE}",
+        )
         .replace(
             "crop biomass withheld (uncalibrated)",
             "modeled fresh-mass equivalent (uncalibrated)",
@@ -221,6 +257,7 @@ def render_report_template(
             "Curves are uncalibrated modeled fresh-mass equivalents; see the cycle table below.",
         )
     )
+    return report
 
 
 def main() -> None:

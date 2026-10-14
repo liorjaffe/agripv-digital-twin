@@ -37,10 +37,11 @@ measurement or validation result.
 | Site, PV and bed configuration | [`project/config/site.yaml`](../project/config/site.yaml) | Runtime geometry and settings; descriptions are not measurements unless supported by a cited field source. |
 | Solar and tracker geometry | [`project/models/radiation.py`](../project/models/radiation.py) | pvlib methods are cross-referenced in PV-002–PV-008; site geometry remains provisional under SITE-002. |
 | Light-unit conversions | [`project/models/conversions.py`](../project/models/conversions.py) | 4.57 PAR-band conversion is LIGHT-001; the fixed 0.45 PAR fraction is LIGHT-002. |
-| Lettuce dry-biomass equations | [`project/models/lettuce.py`](../project/models/lettuce.py) | Coefficients link to VAN-001 and source-specific LETTUCE-001–005 entries; unresolved primary-source locations are marked. |
+| Lettuce dry-biomass equations | [`project/models/lettuce.py`](../project/models/lettuce.py) | Coefficients link to VAN-001 and source-specific LETTUCE-001–005 entries; optional exploratory temperature factor TEMP-001 (off by default). |
+| Report crop cycles | [`project/scenarios/crop_cycles.py`](../project/scenarios/crop_cycles.py) | Each bed cycle starts at transplant and runs to TC harvest; ST nursery is off-bed and its estimated sowing date is informational (CROP-003, CROP-004). |
 | Thermal development clock | [`project/models/lettuce_development.py`](../project/models/lettuce_development.py) | GDD-001 records the thesis evidence status; it does not calculate biomass. |
 | Field-data ingestion and quality control | [`project/io/`](../project/io/) and [`project/qc/`](../project/qc/) | Preserve source measurements, report rejected/missing values, and distinguish estimated weather inputs. |
-| Parameter calibration | [`project/validation/calibrate_lettuce.py`](../project/validation/calibrate_lettuce.py) | Requires timestamped observations; a fit is not independent validation. |
+| Parameter calibration and report-only curve fitting | [`project/validation/calibrate_lettuce.py`](../project/validation/calibrate_lettuce.py); [`project/validation/fit_thermal_logistic.py`](../project/validation/fit_thermal_logistic.py) | Requires measured observations; the thermal logistic fit is report-only (CROP-004), and a fit is not independent validation. |
 | Regression evidence | [`project/tests/`](../project/tests/) | Tests verify software behavior and equations, not empirical validity. |
 
 ## Stable reference register
@@ -52,6 +53,7 @@ References document evidence status as well as positive support; an
 | ID | Source or method | Code connection / role |
 | --- | --- | --- |
 | [SITE-001](./SITE-001.md) | Bed layout and planting-grid source | Bed footprint/grid; drawing version 05 |
+| [SITE-003](./SITE-003.md) | Seedling weighing at final transplant, 2026-09-02 | `TRANSPLANT_FRESH_MASS_G_PER_PLANT = 0.90` g; dry mass not measurable; later weighings preliminary |
 | [SITE-002](./SITE-002.md) | PV geometry and optical assumptions | Tracker row geometry, axis, albedo, bifaciality; retained drawing is not to scale |
 | [VAN-001](./VAN-001.md) | Van Henten (1994) lettuce model | Coefficient-by-coefficient primary-source reconciliation remains open |
 | [LETTUCE-001](./LETTUCE-001.md) | Sweeney et al. (1981) attribution | `c_yf` |
@@ -77,6 +79,20 @@ References document evidence status as well as positive support; an
 | [PV-008](./PV-008.md) | Anderson and Mikofski (2020) | Single-axis tracker/backtracking |
 | [CROP-001](./CROP-001.md) | Project crop-ground irradiance method | Formula, omitted terms, pending field validation |
 | [CROP-002](./CROP-002.md) | Project biomass and temperature assumptions | Dry matter, initial state, synthetic seasonal curve |
+| [CROP-003](./CROP-003.md) | Crop-cycle biomass correction, Oct 2026 | Problem/diagnosis/fix record: transplant start, temperature factor, before/after results |
+| [CROP-004](./CROP-004.md) | Crop-cycle curve shape and seasonal bias | Transplant-start bed cycles; maturity slowdown and cross-season comparison remain unresolved; report-only thermal-time fitting decision |
+| [TEMP-001](./TEMP-001.md) | Exploratory air-temperature factor on assimilation | `get_f_temp`, OFF by default; endpoints not measured zero points; sensitivity use only |
+| [LETTUCE-006](./LETTUCE-006.md) | Scaife (1973) | RGR 0.11 vs 0.35 g/g/day at 10 vs 22 °C; direction of temperature response |
+| [LETTUCE-007](./LETTUCE-007.md) | Brunini et al. (1976), Bragantia | Growth-rate max 22 °C; 10 °C TC base (sensitivity) |
+| [LETTUCE-008](./LETTUCE-008.md) | Thompson et al. (1998), JASHS | Hydroponic dry-mass optimum 24 °C air |
+| [LETTUCE-009](./LETTUCE-009.md) | Carotti et al. (2021), Front. Plant Sci. | ~24 °C leaf-expansion optimum; 32 °C max tested; DM 2.6–4.2 % |
+| [LETTUCE-010](./LETTUCE-010.md) | Pearson et al. (1997), J. Hort. Sci. | Target thermal-time-coupled model structure (not yet implemented) |
+| [LETTUCE-011](./LETTUCE-011.md) | Wheeler et al. (1993), Eur. J. Agron. | Cooler crops can reach higher final dry weight; RGR declines with thermal time |
+| [LETTUCE-013](./LETTUCE-013.md) | Carini et al. (2019), J. Agric. Sci. | Abstract-level evidence that logistic curves best fit spring lettuce mass vs accumulated thermal sum |
+| [LETTUCE-014](./LETTUCE-014.md) | Feltrim et al. (2009), *Científica* | Abstract-level winter/summer curly-lettuce context; summer fresh mass about 40% lower |
+| [LETTUCE-015](./LETTUCE-015.md) | Feltrim et al. (2005), *Rev. Bras. Eng. Agríc. Ambient.* | Abstract-level winter/summer crisphead context; summer fresh mass 28% lower |
+| [LETTUCE-016](./LETTUCE-016.md) | Resende et al. (2017), *Scientia Plena* | Abstract-level curly-lettuce genotype and bolting context; supplied seasonal mean not verified |
+| [LETTUCE-012](./LETTUCE-012.md) | Lima et al. (2018), Hortic. Bras. | Hydroponic NFT dry-matter content 4.0–4.9 % |
 | [CTRL-001](./CTRL-001.md) | Controller tuning and sensitivity design | Current defaults and reproducibility status of the reported trade-off |
 
 ## Unit conversions and open evidence
@@ -88,7 +104,8 @@ The light conversions used by the simulation are arithmetic assumptions:
 | Global shortwave to PAR | `PAR_FRACTION = 0.45` | [LIGHT-002](./LIGHT-002.md): constant model assumption; primary evidence and expected site error remain unverified |
 | PAR-band energy to PPFD | `4.57 µmol photons/m²/s` per `W/m² PAR` | [LIGHT-001](./LIGHT-001.md): conversion applies to PAR-band radiant energy, not total shortwave; handbook edition/page pending |
 | Lettuce DLI target / bounds | target `14`, min `10`, max `18 mol/m²/day` | [DLI-001](./DLI-001.md) and [DLI-002](./DLI-002.md): general guidance attributed; no cultivar-specific justification for Crespa |
-| GDD stage bases/requirements | ST: `4.1°C`, `398.67 GDD`; TC: `6.1°C`, `472.79 GDD` | [GDD-001](./GDD-001.md): thesis values attributed; PDF, page/table, and four-cycle mean claim need verification |
+| GDD stage bases/requirements | ST: `4.1°C`, `398.64 GDD`; TC: `6.1°C`, `472.79 GDD` | [GDD-001](./GDD-001.md): verified against the thesis PDF (2026-10-13); undergraduate thesis, not peer-reviewed |
+| Temperature factor on assimilation | OFF by default (`apply_temperature_factor=False`) | [TEMP-001](./TEMP-001.md): exploratory only; known inverted cold response of VAN-001 documented in CROP-003 |
 
 The following values are active inputs but are not substantiated by a source
 in the repository:
@@ -101,7 +118,8 @@ in the repository:
 | Ground coverage ratio | `0.3973` | `pv.gcr` | SITE-002 derived value, approximately `4.768 / 12`; inherits unresolved geometry |
 | Optimizer weights | current defaults PV `1.0`; movement `0.0`; sweep includes PV `0.5/1.0`, movement `0/0.05` | `project/scenarios/run_timeseries.py`, `run_benchmark.py` | [CTRL-001](./CTRL-001.md): provisional objective settings. Previously reported `0.001/0.05` do not match current code; claimed PV −12% / DLI +10% trade not reproduced from a retained output |
 | Initial lettuce state | Structural `8`, non-structural `3 g/m²` | `project/models/lettuce.py`, `simulate_growth_timeseries` | [CROP-002](./CROP-002.md): unmeasured scenario initialization; it is not a 30/70 structural/non-structural split |
-| Fresh-mass conversion | dry-matter fraction `0.05` | `project/scenarios/crop_cycles.py` | [CROP-002](./CROP-002.md): unverified for curly/hydroponic lettuce |
+| Transplant seedling mass | `0.90 g` fresh/plant measured; dry = fresh × 0.05 = `0.045 g` | `crop_cycles.TRANSPLANT_FRESH_MASS_G_PER_PLANT`, `SEEDLING_DRY_MATTER_FRACTION` | [SITE-003](./SITE-003.md): fresh mass measured (n = 6, one date); seedling dry-matter fraction unmeasured |
+| Fresh-mass conversion | dry-matter fraction `0.05` | `project/scenarios/crop_cycles.py` | [CROP-002](./CROP-002.md): published hydroponic range 2.6–4.9 % (LETTUCE-009, LETTUCE-012); site value unmeasured |
 | Crop-ground irradiance | `unshaded × DNI × cos(zenith) + view_factor × DHI` | `project/models/radiation.py` | [CROP-001](./CROP-001.md): project approximation; circumsolar and ground-reflected crop irradiance omitted; field validation pending |
 
 Do not treat an incomplete citation as a verified source. Unverified values
@@ -169,6 +187,35 @@ is harvestable crop with no losses. Do not report these fresh-mass equivalents
 as predicted or validated yield without an appropriate harvest measurement
 and calibration/validation protocol. The biomass model does not estimate a
 marketable-head fraction or individual-plant variation.
+
+### Report crop cycles since CROP-003 (2026-10)
+
+The Python report crop cycles (`project/scenarios/crop_cycles.py`) no longer
+use the gain-above-11 g/m² convention above; that convention still describes
+`agripv_dashboard.html`, which was not changed. With plant density
+`ρ = 96 / A_net` (8.533 plants/m² at the default fraction):
+
+Report crop cycles start field biomass at final
+transplant with `B0 = 0.90 g fresh × 0.05 × ρ ≈ 0.38 g/m²` (SITE-003). For the
+modeled field dry biomass at harvest `B` in g/m²:
+
+| Quantity | Conversion |
+| --- | --- |
+| Total modeled dry biomass per bed | `B × A_net` g/bed |
+| Area-average dry biomass per plant | `B / ρ` g/plant |
+| Fresh-mass equivalent per m² | `B / f` g/m² |
+| Fresh-mass equivalent per plant | `B / (ρ × f)` g/plant |
+
+Here `f = 0.05` is an assumed dry-matter fraction, not a field measurement
+(published hydroponic values 2.6–4.9 %; a lower `f` raises fresh mass). The
+conversion assumes all modeled dry biomass is harvestable shoot.
+
+Example: `B = 100 g/m²` gives `11.7 g` dry per plant and
+`100 / (8.533 × 0.05) ≈ 234 g` fresh-mass equivalent per plant. This is a
+unit conversion, not a validated yield.
+
+Historical note: before CROP-003 the conversion used gain above an 11 g/m²
+initial state, `max(B − 11, 0) / f`, and the biomass model ran from sowing.
 
 ## Add a literature or validation reference
 

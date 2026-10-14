@@ -55,6 +55,18 @@ class LettuceParams:
     c_car1: float = -1.32e-5  # VAN-001; primary-paper location is not yet verified.
     c_car2: float = 5.94e-4  # VAN-001; primary-paper location is not yet verified.
     c_car3: float = -2.64e-3  # VAN-001; primary-paper location is not yet verified.
+    # TEMP-001 (EXPLORATORY, OFF by default): optional trapezoidal air-temperature
+    # limitation of canopy assimilation. Known limitation (CROP-003): the VAN-001
+    # structure gains MORE dry mass in cool air, opposite to measured lettuce
+    # growth (LETTUCE-006). The cardinal values below are NOT evidence of zero
+    # assimilation: 6.1 C is a phenology (GDD) base temperature and 32 C is only
+    # the highest tested air temperature in LETTUCE-009. Use for sensitivity runs
+    # only; a validated fix is pending (LETTUCE-010).
+    apply_temperature_factor: bool = False
+    t_min_growth_c: float = 6.1  # GDD-001 phenology base temperature, NOT a measured assimilation limit.
+    t_opt_low_c: float = 22.0  # LETTUCE-006 / LETTUCE-007: growth-rate maximum near 22 C.
+    t_opt_high_c: float = 24.0  # LETTUCE-008 / LETTUCE-009: dry-mass / leaf-expansion optimum near 24 C air.
+    t_max_growth_c: float = 32.0  # LETTUCE-009 highest TESTED air temperature, NOT a measured zero point.
 
 
 def get_r_gr(x_sdw: float, x_nsdw: float, u_t: float, p: LettuceParams | None = None) -> float:
@@ -111,6 +123,32 @@ def get_f_phot_max(u_par: float, u_co2: float, epsilon: float, g_co2: float, gam
     return numerator / denominator
 
 
+def get_f_temp(u_t: float, p: LettuceParams | None = None) -> float:
+    """Return the TEMP-001 trapezoidal temperature factor (0..1) for assimilation.
+
+    See references/TEMP-001.md for evidence and limitations.
+
+    0 at or below ``t_min_growth_c``, rising linearly to 1 at ``t_opt_low_c``,
+    1 up to ``t_opt_high_c``, falling linearly to 0 at ``t_max_growth_c``.
+    Returns 1.0 when ``apply_temperature_factor`` is False (the default).
+    Exploratory sensitivity setting only; endpoints are not measured zero points.
+    """
+    p = p or LettuceParams()
+    if not p.apply_temperature_factor:
+        return 1.0
+    if not (p.t_min_growth_c < p.t_opt_low_c <= p.t_opt_high_c < p.t_max_growth_c):
+        raise ValueError(
+            "temperature factor requires t_min < t_opt_low <= t_opt_high < t_max"
+        )
+    if u_t <= p.t_min_growth_c or u_t >= p.t_max_growth_c:
+        return 0.0
+    if u_t < p.t_opt_low_c:
+        return (u_t - p.t_min_growth_c) / (p.t_opt_low_c - p.t_min_growth_c)
+    if u_t <= p.t_opt_high_c:
+        return 1.0
+    return (p.t_max_growth_c - u_t) / (p.t_max_growth_c - p.t_opt_high_c)
+
+
 def get_f_phot(x_sdw: float, f_phot_max: float, p: LettuceParams | None = None) -> float:
     """Apply the canopy light-interception equation attributed to LETTUCE-004."""
     p = p or LettuceParams()
@@ -137,7 +175,7 @@ def lettuce_rhs(t: float, state: Sequence[float], u: Sequence[float], p: Lettuce
     g_car = get_g_car(u_t, p)
     g_co2 = get_g_co2(g_car, p)
     f_phot_max = get_f_phot_max(u_par, u_co2, epsilon, g_co2, gamma, p)
-    f_phot = get_f_phot(x_sdw, f_phot_max, p)
+    f_phot = get_f_phot(x_sdw, f_phot_max, p) * get_f_temp(u_t, p)
     f_resp = get_f_resp(x_sdw, u_t, p)
 
     dx_sdw = r_gr * x_sdw
