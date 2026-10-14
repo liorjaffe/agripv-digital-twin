@@ -5,7 +5,9 @@ from project.scenarios.export_model_timeline import (
     build_cycle_markers,
     build_scenario_series,
     build_timeline_metadata,
+    write_embedded_html,
 )
+from project.scenarios.report_notices import SEASONAL_COMPARISON_NOTICE
 
 
 def test_timeline_only_exports_variables_with_explicit_scenario_labels():
@@ -37,7 +39,17 @@ def test_timeline_only_exports_variables_with_explicit_scenario_labels():
     assert "harvest markers are generated" in metadata["synthetic_inputs_notice"]
     assert "not measured site air temperature" in metadata["synthetic_inputs_notice"]
     assert "not calibrated or observed harvest predictions" in metadata["synthetic_inputs_notice"]
+    assert SEASONAL_COMPARISON_NOTICE in metadata["synthetic_inputs_notice"]
     assert "Unrecorded irradiance timestamps are assumed to have zero light" in SYNTHETIC_INPUTS_NOTICE
+
+
+def test_embedded_timeline_html_includes_seasonal_comparison_notice(tmp_path, monkeypatch):
+    output_path = tmp_path / "timeline.html"
+    monkeypatch.setattr("project.scenarios.export_model_timeline.HTML_PATH", output_path)
+
+    write_embedded_html({"meta": {}, "ciclos": [], "series": {}})
+
+    assert "Seasonal comparison not reliable:" in output_path.read_text(encoding="utf-8")
 
 
 def test_timeline_exports_values_for_every_bed_cycle_row():

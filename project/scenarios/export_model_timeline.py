@@ -15,6 +15,7 @@ from project.io.ingestion import load_period_results_export
 from project.io.service import process_period_results_export
 from project.scenarios.artifact_metadata import build_artifact_metadata
 from project.scenarios.crop_cycles import seasonal_canopy_temperature, simulate_repeated_crops
+from project.scenarios.report_notices import SEASONAL_COMPARISON_NOTICE
 
 ROOT = Path(__file__).resolve().parents[2]
 INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
@@ -39,7 +40,8 @@ SYNTHETIC_INPUTS_NOTICE = (
     "the user-reported 100–300 g/plant range is a plausibility reference only, "
     "not a calibration dataset. "
     "Do not interpret this "
-    "visualization as independent validation or field evidence."
+    "visualization as independent validation or field evidence. "
+    f"{SEASONAL_COMPARISON_NOTICE}"
 )
 
 TIMELINE_VARIABLES = {

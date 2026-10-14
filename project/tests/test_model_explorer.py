@@ -10,6 +10,7 @@ from project.scenarios.generate_model_explorer import (
     finite_values,
     render_report_template,
 )
+from project.scenarios.report_notices import SEASONAL_COMPARISON_NOTICE
 
 
 def test_model_explorer_qualifies_unverified_channel_group_mapping():
@@ -40,6 +41,8 @@ def test_model_explorer_qualifies_unverified_channel_group_mapping():
         "Known limitation: the growth model has no maturity slowdown, so each "
         "curve is steepest at harvest (CROP-004)."
     ) in rendered
+    assert SEASONAL_COMPARISON_NOTICE in rendered
+    assert SEASONAL_COMPARISON_NOTICE in cycle_summary_html({"open": empty_cycles})
     assert "cycle_boundary_indices.open" in rendered
 
 

@@ -16,6 +16,7 @@ from project.io.service import process_period_results_export
 from project.io.ingestion import load_period_results_export
 from project.scenarios.artifact_metadata import build_artifact_metadata
 from project.scenarios.crop_cycles import simulate_repeated_crops
+from project.scenarios.report_notices import SEASONAL_COMPARISON_NOTICE
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INPUT = ROOT / "project" / "data" / "raw" / "Period_Components.csv"
@@ -105,7 +106,10 @@ def cycle_summary_html(cycle_frames: dict[str, pd.DataFrame]) -> str:
         "For context only, values are compared with the user-reported 100–300 "
         "g/plant range; those records are not currently available for "
         "calibration. These are not measured or validated harvests.</p>"
-        "<div style=\"overflow-x:auto\"><table><thead><tr>"
+        "<div style=\"overflow-x:auto\"><table>"
+        f"<caption style=\"caption-side:top;text-align:left\">"
+        f"{html.escape(SEASONAL_COMPARISON_NOTICE)}</caption>"
+        "<thead><tr>"
         "<th>Scenario group</th><th>Cycle</th><th>Transplant</th>"
         "<th>Estimated sowing (off-bed)</th><th>Field days</th>"
         "<th>Status</th><th>Modeled equivalent (g/m²)</th>"
@@ -241,7 +245,8 @@ def render_report_template(
             "Each bed cycle runs from transplant (measured 0.90 g seedling, "
             "SITE-003) to the GDD-001 harvest date; the bed is replanted "
             "immediately. Known limitation: the growth model has no maturity "
-            "slowdown, so each curve is steepest at harvest (CROP-004).",
+            "slowdown, so each curve is steepest at harvest (CROP-004). "
+            f"{SEASONAL_COMPARISON_NOTICE}",
         )
         .replace(
             "crop biomass withheld (uncalibrated)",
