@@ -16,18 +16,22 @@ def test_timeline_only_exports_variables_with_explicit_scenario_labels():
             "t_folha_c": [24.0],
             "model_air_temp_c": [14.0],
             "fresh_open_g_m2": [125.0],
+            "cycle_stage": ["field"],
         },
         index=index,
     )
 
-    series = build_scenario_series(hourly, "light_open_w_m2", "fresh_open_g_m2")
+    series = build_scenario_series(
+        hourly, "light_open_w_m2", "fresh_open_g_m2", hourly["cycle_stage"]
+    )
     metadata = build_timeline_metadata(hourly)
 
-    assert set(series) == {"par_wm2", "t_folha", "t_air", "fm", "fp"}
+    assert set(series) == {"par_wm2", "t_folha", "t_air", "fm", "fp", "stage"}
     assert series["par_wm2"] == [45.0]
     assert series["t_air"] == [14.0]
     assert series["fm"] == [125.0]
     assert abs(series["fp"][0] - (125.0 / (96 / 11.25))) < 0.01
+    assert series["stage"] == ["field"]
     assert metadata["synthetic_inputs_notice"].startswith(SYNTHETIC_INPUTS_NOTICE)
     assert "Generated from commit " in metadata["synthetic_inputs_notice"]
     assert "unverified" in metadata["canteiros"]["between"]
@@ -40,10 +44,37 @@ def test_timeline_only_exports_variables_with_explicit_scenario_labels():
     assert "Unrecorded irradiance timestamps are assumed to have zero light" in SYNTHETIC_INPUTS_NOTICE
 
 
+def test_timeline_exports_null_fresh_mass_for_nursery_and_values_for_field():
+    index = pd.date_range("2026-01-01", periods=2, freq="h", tz="America/Sao_Paulo")
+    hourly = pd.DataFrame(
+        {
+            "light_open_w_m2": [100.0, 100.0],
+            "t_folha_c": [24.0, 24.0],
+            "model_air_temp_c": [14.0, 14.0],
+            "fresh_open_g_m2": [0.0, 125.0],
+            "cycle_stage": ["nursery", "field"],
+        },
+        index=index,
+    )
+
+    series = build_scenario_series(
+        hourly, "light_open_w_m2", "fresh_open_g_m2", hourly["cycle_stage"]
+    )
+
+    assert series["fm"] == [None, 125.0]
+    assert series["fp"][0] is None
+    assert series["fp"][1] is not None
+    assert series["stage"] == ["nursery", "field"]
+
+
 def test_timeline_marks_open_final_cycle_as_in_progress_not_a_harvest():
     index = pd.date_range("2026-12-30", periods=2, freq="D", tz="America/Sao_Paulo")
     cycle = pd.DataFrame(
-        {"cycle_id": [7, 7], "harvest": [False, False]},
+        {
+            "cycle_id": [7, 7],
+            "cycle_stage": ["nursery", "field"],
+            "harvest": [False, False],
+        },
         index=index,
     )
     cycles = {setup: cycle for setup in ("open", "between", "under")}
@@ -53,3 +84,5 @@ def test_timeline_marks_open_final_cycle_as_in_progress_not_a_harvest():
     assert len(markers) == 1
     assert markers[0]["colheita"] == "in progress"
     assert markers[0]["maturidade_gdd"] is False
+    assert markers[0]["transplante_i"] == 1
+    assert markers[0]["transplante"] == "2026-12-31 00:00"

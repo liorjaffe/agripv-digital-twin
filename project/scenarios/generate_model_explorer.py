@@ -46,6 +46,23 @@ def finite_values(values: pd.Series) -> list[float | None]:
     return [float(value) if math.isfinite(float(value)) else None for value in values]
 
 
+def stage_values(cycle: pd.DataFrame) -> list[str | None]:
+    return [
+        str(value) if pd.notna(value) else None
+        for value in cycle["cycle_stage"]
+    ]
+
+
+def fresh_mass_values(values: pd.Series, cycle: pd.DataFrame) -> list[float | None]:
+    return finite_values(values.where(cycle["cycle_stage"].ne("nursery")))
+
+
+def transplant_indices(cycle: pd.DataFrame) -> list[int]:
+    stages = cycle["cycle_stage"]
+    field_start = stages.eq("field") & stages.shift(1).eq("nursery")
+    return [int(index) for index, is_transplant in enumerate(field_start) if is_transplant]
+
+
 def cycle_summary_html(cycle_frames: dict[str, pd.DataFrame]) -> str:
     rows = []
     plant_density = load_runtime_config().plant_density_per_m2
@@ -150,10 +167,16 @@ def build_report(input_path: Path, output_path: Path) -> None:
             "light_between": {"label": "scenario light (2B; unverified group)", "unit": "assumed W/m2", "color": "#2f82b9", "values": finite_values(hourly["light_between_w_m2"])},
             "light_under": {"label": "scenario light (2A/2C; unverified group)", "unit": "assumed W/m2", "color": "#a33c70", "values": finite_values(hourly["light_under_w_m2"])},
             "pv": {"label": "PV power", "unit": "kW", "color": "#2f82b9", "values": finite_values(hourly["pv_power_w"] / 1000.0)},
-            "fresh_open": {"label": "modeled fresh-mass equivalent (uncalibrated; open scenario)", "unit": "g/m2", "color": "#d48300", "values": finite_values(hourly["fresh_open_g_m2"])},
-            "fresh_between": {"label": "modeled fresh-mass equivalent (uncalibrated; between scenario)", "unit": "g/m2", "color": "#2f82b9", "values": finite_values(hourly["fresh_between_g_m2"])},
-            "fresh_under": {"label": "modeled fresh-mass equivalent (uncalibrated; under scenario)", "unit": "g/m2", "color": "#a33c70", "values": finite_values(hourly["fresh_under_g_m2"])},
+            "fresh_open": {"label": "modeled fresh-mass equivalent (uncalibrated; open scenario)", "unit": "g/m2", "color": "#d48300", "values": fresh_mass_values(hourly["fresh_open_g_m2"], cycle_frames["open"])},
+            "fresh_between": {"label": "modeled fresh-mass equivalent (uncalibrated; between scenario)", "unit": "g/m2", "color": "#2f82b9", "values": fresh_mass_values(hourly["fresh_between_g_m2"], cycle_frames["between"])},
+            "fresh_under": {"label": "modeled fresh-mass equivalent (uncalibrated; under scenario)", "unit": "g/m2", "color": "#a33c70", "values": fresh_mass_values(hourly["fresh_under_g_m2"], cycle_frames["under"])},
             "tracker": {"label": "export tracker angle (convention undocumented)", "unit": "degrees", "color": "#4d8b61", "values": finite_values(hourly["observed_tracker_angle_deg"])},
+        },
+        "cycle_stages": {
+            setup: stage_values(cycle) for setup, cycle in cycle_frames.items()
+        },
+        "transplant_indices": {
+            setup: transplant_indices(cycle) for setup, cycle in cycle_frames.items()
         },
         "cycle_count": int(cycle_frames["open"]["cycle_id"].max()),
         "harvest_mode": "thermal GDD",
@@ -216,7 +239,7 @@ def render_report_template(
     synthetic_notice: str,
     cycle_frames: dict[str, pd.DataFrame],
 ) -> str:
-    return (
+    report = (
         TEMPLATE.replace("__DATA__", json.dumps(model_data, separators=(",", ":")))
         .replace("__NOTICE__", html.escape(synthetic_notice))
         .replace("__CYCLE_SUMMARY__", cycle_summary_html(cycle_frames))
@@ -229,6 +252,47 @@ def render_report_template(
             "Curves are uncalibrated modeled fresh-mass equivalents; see the cycle table below.",
         )
     )
+    stage_overlay = """function paintStageOverlay(ctx,start,end,xAt,top,height){
+const stages=model.cycle_stages.open||[];const transplants=model.transplant_indices.open||[];
+ctx.save();ctx.fillStyle='rgba(135,139,130,.20)';
+for(let i=start;i<=end&&i<stages.length;i++){if(stages[i]==='nursery'){
+const next=Math.min(i+1,end);ctx.fillRect(xAt(i),top,Math.max(xAt(next)-xAt(i),1),height)}}
+ctx.strokeStyle='#73796f';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+transplants.forEach(i=>{if(i<start||i>end)return;const x=xAt(i);ctx.beginPath();
+ctx.moveTo(x,top);ctx.lineTo(x,top+height);ctx.stroke()});ctx.restore()}
+"""
+    replacements = (
+        ("function drawOverview(){", stage_overlay + "function drawOverview(){"),
+        (
+            "ctx.clearRect(0,0,w,h);keys.forEach",
+            "ctx.clearRect(0,0,w,h);paintStageOverlay(ctx,0,dates.length-1,i=>i/(dates.length-1)*w,0,h-22);keys.forEach",
+        ),
+        (
+            "ctx.beginPath();values.forEach((value,i)=>{if(value===null)return;",
+            "ctx.beginPath();let pathOpen=false;values.forEach((value,i)=>{if(value===null){pathOpen=false;return;}",
+        ),
+        (
+            "ctx.beginPath();series.forEach((value,i)=>{if(value===null)return;",
+            "ctx.beginPath();let pathOpen=false;series.forEach((value,i)=>{if(value===null){pathOpen=false;return;}",
+        ),
+        (
+            "i?ctx.lineTo(x,y):ctx.moveTo(x,y)",
+            "pathOpen?ctx.lineTo(x,y):ctx.moveTo(x,y);pathOpen=true",
+        ),
+        (
+            "const plotWidth=Math.max(120,w-360);const spanHours",
+            "const plotWidth=Math.max(120,w-360);paintStageOverlay(ctx,left,right,i=>180+(i-left)/Math.max(1,right-left)*plotWidth,0,plotHeight);const spanHours",
+        ),
+        (
+            "</div></section>\n<section class=\"card\"><div class=\"controls\">",
+            '</div><div class="hint"><span style="display:inline-block;width:14px;height:10px;background:rgba(135,139,130,.20);vertical-align:middle"></span> Nursery (seedling not in bed, not modeled) · vertical line marks transplant.</div><div class="hint">Field biomass starts at final transplant from the measured 0.90 g seedling (SITE-003). Known limitation: the growth model has no maturity slowdown, so curves stay steep until the GDD harvest date (CROP-004).</div></section>\n<section class="card"><div class="controls">',
+        ),
+    )
+    for original, replacement in replacements:
+        if original not in report:
+            raise ValueError(f"Explorer template is missing required chart fragment: {original}")
+        report = report.replace(original, replacement)
+    return report
 
 
 def main() -> None:

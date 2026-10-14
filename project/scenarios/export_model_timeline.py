@@ -72,17 +72,23 @@ def finite_values(values: pd.Series) -> list[float | None]:
 
 
 def build_scenario_series(
-    hourly: pd.DataFrame, light_column: str, fresh_column: str
-) -> dict[str, list[float | None]]:
+    hourly: pd.DataFrame,
+    light_column: str,
+    fresh_column: str,
+    stage: pd.Series,
+) -> dict[str, list[float | str | None]]:
     par_wm2 = (hourly[light_column].astype(float) * 0.45).clip(lower=0.0)
     plant_density = load_runtime_config().plant_density_per_m2
     fresh_mass = hourly[fresh_column].astype(float)
+    nursery = stage.eq("nursery")
+    fresh_mass = fresh_mass.mask(nursery)
     return {
         "par_wm2": finite_values(par_wm2),
         "t_folha": finite_values(hourly["t_folha_c"].astype(float)),
         "t_air": finite_values(hourly["model_air_temp_c"].astype(float)),
         "fm": finite_values(fresh_mass),
         "fp": finite_values(fresh_mass / plant_density),
+        "stage": [str(value) if pd.notna(value) else None for value in stage],
     }
 
 
@@ -134,11 +140,27 @@ def build_cycle_markers(cycle_frames: dict[str, pd.DataFrame], hourly: pd.DataFr
             start_index = hourly.index.get_loc(subset.index[0])
             end_index = hourly.index.get_loc(subset.index[-1])
             matured = bool(subset["harvest"].any())
+            transplant_rows = (
+                subset.index[subset["cycle_stage"].eq("field")]
+                if "cycle_stage" in subset
+                else pd.DatetimeIndex([])
+            )
+            transplant_index = (
+                int(hourly.index.get_loc(transplant_rows[0]))
+                if len(transplant_rows)
+                else None
+            )
             markers.append({
                 "ciclo": int(cid),
                 "i0": int(start_index),
                 "i1": int(end_index),
+                "transplante_i": transplant_index,
                 "plantio": subset.index[0].strftime("%Y-%m-%d %H:%M"),
+                "transplante": (
+                    transplant_rows[0].strftime("%Y-%m-%d %H:%M")
+                    if len(transplant_rows)
+                    else None
+                ),
                 "colheita": (
                     subset.index[-1].strftime("%Y-%m-%d %H:%M")
                     if matured
@@ -191,14 +213,21 @@ def build_timeline_payload() -> dict:
     for setup, cycle in cycle_frames.items():
         hourly[f"fresh_{setup}_g_m2"] = cycle["cycle_model_fresh_biomass_g_m2"]
         hourly[f"harvest_{setup}"] = cycle["harvest"]
+        hourly[f"stage_{setup}"] = cycle["cycle_stage"]
 
     leaf_temp = seasonal_canopy_temperature(hourly.index, planting_temp_c=24.0)
     hourly["t_folha_c"] = leaf_temp
 
     series = {
-        "open": build_scenario_series(hourly, "light_open_w_m2", "fresh_open_g_m2"),
-        "between": build_scenario_series(hourly, "light_between_w_m2", "fresh_between_g_m2"),
-        "under": build_scenario_series(hourly, "light_under_w_m2", "fresh_under_g_m2"),
+        "open": build_scenario_series(
+            hourly, "light_open_w_m2", "fresh_open_g_m2", hourly["stage_open"]
+        ),
+        "between": build_scenario_series(
+            hourly, "light_between_w_m2", "fresh_between_g_m2", hourly["stage_between"]
+        ),
+        "under": build_scenario_series(
+            hourly, "light_under_w_m2", "fresh_under_g_m2", hourly["stage_under"]
+        ),
     }
 
     payload = {

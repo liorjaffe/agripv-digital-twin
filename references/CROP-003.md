@@ -74,3 +74,4 @@ After TMY air temperature replaced the synthetic/constant temperature, the open-
   1. DONE for fresh mass (SITE-003, 0.90 g). Still open: seedling dry matter with a pooled sample on a finer scale
   2. Record dated harvests (fresh mass per plant, dry-matter content) per season
   3. Resolve the inverted cold response with the LETTUCE-010 thermal-time structure fitted to site harvests; re-run this comparison
+  4. Follow the curve-shape and maturity-slowdown diagnosis in [CROP-004](./CROP-004.md); do not add a slowdown until supported by fitted parameters from more than one season

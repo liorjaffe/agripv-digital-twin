@@ -41,7 +41,7 @@ measurement or validation result.
 | Report crop cycles | [`project/scenarios/crop_cycles.py`](../project/scenarios/crop_cycles.py) | Nursery (ST) timer then field biomass from transplant (CROP-003). |
 | Thermal development clock | [`project/models/lettuce_development.py`](../project/models/lettuce_development.py) | GDD-001 records the thesis evidence status; it does not calculate biomass. |
 | Field-data ingestion and quality control | [`project/io/`](../project/io/) and [`project/qc/`](../project/qc/) | Preserve source measurements, report rejected/missing values, and distinguish estimated weather inputs. |
-| Parameter calibration | [`project/validation/calibrate_lettuce.py`](../project/validation/calibrate_lettuce.py) | Requires timestamped observations; a fit is not independent validation. |
+| Parameter calibration and report-only curve fitting | [`project/validation/calibrate_lettuce.py`](../project/validation/calibrate_lettuce.py); [`project/validation/fit_thermal_logistic.py`](../project/validation/fit_thermal_logistic.py) | Requires measured observations; the thermal logistic fit is report-only (CROP-004), and a fit is not independent validation. |
 | Regression evidence | [`project/tests/`](../project/tests/) | Tests verify software behavior and equations, not empirical validity. |
 
 ## Stable reference register
@@ -80,6 +80,7 @@ References document evidence status as well as positive support; an
 | [CROP-001](./CROP-001.md) | Project crop-ground irradiance method | Formula, omitted terms, pending field validation |
 | [CROP-002](./CROP-002.md) | Project biomass and temperature assumptions | Dry matter, initial state, synthetic seasonal curve |
 | [CROP-003](./CROP-003.md) | Crop-cycle biomass correction, Oct 2026 | Problem/diagnosis/fix record: transplant start, temperature factor, before/after results |
+| [CROP-004](./CROP-004.md) | Crop-cycle curve shape: missing development slowdown | Nursery display gap, observed/modelled early-growth discrepancy, and report-only thermal-time fit decision |
 | [TEMP-001](./TEMP-001.md) | Exploratory air-temperature factor on assimilation | `get_f_temp`, OFF by default; endpoints not measured zero points; sensitivity use only |
 | [LETTUCE-006](./LETTUCE-006.md) | Scaife (1973) | RGR 0.11 vs 0.35 g/g/day at 10 vs 22 °C; direction of temperature response |
 | [LETTUCE-007](./LETTUCE-007.md) | Brunini et al. (1976), Bragantia | Growth-rate max 22 °C; 10 °C TC base (sensitivity) |
@@ -87,6 +88,7 @@ References document evidence status as well as positive support; an
 | [LETTUCE-009](./LETTUCE-009.md) | Carotti et al. (2021), Front. Plant Sci. | ~24 °C leaf-expansion optimum; 32 °C max tested; DM 2.6–4.2 % |
 | [LETTUCE-010](./LETTUCE-010.md) | Pearson et al. (1997), J. Hort. Sci. | Target thermal-time-coupled model structure (not yet implemented) |
 | [LETTUCE-011](./LETTUCE-011.md) | Wheeler et al. (1993), Eur. J. Agron. | Cooler crops can reach higher final dry weight; RGR declines with thermal time |
+| [LETTUCE-013](./LETTUCE-013.md) | Carini et al. (2019), J. Agric. Sci. | Abstract-level evidence that logistic curves best fit spring lettuce mass vs accumulated thermal sum |
 | [LETTUCE-012](./LETTUCE-012.md) | Lima et al. (2018), Hortic. Bras. | Hydroponic NFT dry-matter content 4.0–4.9 % |
 | [CTRL-001](./CTRL-001.md) | Controller tuning and sensitivity design | Current defaults and reproducibility status of the reported trade-off |
 

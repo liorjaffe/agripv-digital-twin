@@ -7,7 +7,10 @@ from project.scenarios.generate_model_explorer import (
     TEMPLATE,
     cycle_summary_html,
     finite_values,
+    fresh_mass_values,
     render_report_template,
+    stage_values,
+    transplant_indices,
 )
 
 
@@ -26,6 +29,15 @@ def test_model_explorer_qualifies_unverified_channel_group_mapping():
     assert "Curves are uncalibrated modeled fresh-mass equivalents" in rendered
     assert "modeled fresh-mass equivalent (uncalibrated)" in rendered
     assert "crop biomass withheld (uncalibrated)" not in rendered
+    assert "paintStageOverlay(ctx,0,dates.length-1" in rendered
+    assert "paintStageOverlay(ctx,left,right" in rendered
+    assert "pathOpen=false;return" in rendered
+    assert "Nursery (seedling not in bed, not modeled)" in rendered
+    assert (
+        "Field biomass starts at final transplant from the measured 0.90 g seedling "
+        "(SITE-003). Known limitation: the growth model has no maturity slowdown, "
+        "so curves stay steep until the GDD harvest date (CROP-004)."
+    ) in rendered
 
 
 def test_model_explorer_exports_uncalibrated_values_and_marks_incomplete_cycles():
@@ -48,3 +60,20 @@ def test_model_explorer_exports_uncalibrated_values_and_marks_incomplete_cycles(
 
     harvested = cycle.assign(harvest=[False, True])
     assert "above user-reported range" in cycle_summary_html({"open": harvested})
+
+
+def test_model_explorer_exports_nursery_gaps_and_stage_markers():
+    index = pd.date_range("2026-01-01", periods=3, freq="D", tz="America/Sao_Paulo")
+    cycle = pd.DataFrame(
+        {
+            "cycle_stage": ["nursery", "field", "field"],
+            "cycle_model_fresh_biomass_g_m2": [0.0, 10.0, 15.0],
+        },
+        index=index,
+    )
+
+    assert fresh_mass_values(
+        cycle["cycle_model_fresh_biomass_g_m2"], cycle
+    ) == [None, 10.0, 15.0]
+    assert stage_values(cycle) == ["nursery", "field", "field"]
+    assert transplant_indices(cycle) == [1]

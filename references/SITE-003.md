@@ -50,4 +50,4 @@
 - Decision: Use the measured fresh seedling mass (0.90 g) as the transplant state for all cycles; derive dry mass with the output dry-matter fraction; keep later weighings as preliminary evidence only
 - Rationale: The seedling stage is managed consistently and is representative across the year; growth weighings from one unfinished cycle are not
 - Date: 2026-10-13
-- Follow-up needed: (1) weigh a pooled seedling sample (e.g. 20 seedlings) on a 0.01 g or better scale, dried at 65–70 °C to constant mass, to measure seedling dry matter; (2) add the cycle-1 harvest weighing; (3) repeat transplant weighings each cycle (workflow: Anara skill `lettuce-seedling-weighing`)
+- Follow-up needed: (1) weigh a pooled seedling sample (e.g. 20 seedlings) on a 0.01 g or better scale, dried at 65–70 °C to constant mass, to measure seedling dry matter; (2) add the cycle-1 harvest weighing and then assess the report-only thermal-time fit in [CROP-004](./CROP-004.md); (3) repeat transplant weighings each cycle (workflow: Anara skill `lettuce-seedling-weighing`)
